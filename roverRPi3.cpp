@@ -54,7 +54,8 @@ void LEDCallback()
         break;
 
     default:
-        GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
+        GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1,
+                     ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
         break;
     }
 }
@@ -108,7 +109,7 @@ int main(void)
     GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
     GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
-comm.Send("Board initialized!\r\n");
+    comm.Send("Board initialized!\r\n");
     //rpiRov.InitHW();
 
 /************Dummy kernel module*********/
