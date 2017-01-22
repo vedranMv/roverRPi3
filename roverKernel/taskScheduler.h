@@ -18,7 +18,9 @@
  *      its service by adding entry into the callback vector. Once the task
  *      scheduler requires that service it will transfer necessary memory into
  *      kernel space and call provided callback function for particular module
- *
+ *  v2.2 - TODO
+ *  Implement UTC clock ability, if at some point program finds out what the
+ *  actual time is it can save it and maintain real UTC time reference
  ****Hardware dependencies:
  *  SysTick timer & interrupt
  */
