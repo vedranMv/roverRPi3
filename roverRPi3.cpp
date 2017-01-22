@@ -112,6 +112,7 @@ int main(void)
     comm.Send("Board initialized!\r\n");
     //rpiRov.InitHW();
 
+
 /************Dummy kernel module*********/
     volatile struct _callBackEntry LEDmodule;
     LEDmodule.args = taskArgs;
