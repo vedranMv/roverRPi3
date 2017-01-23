@@ -329,7 +329,7 @@ uint8_t HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm)
  * @param dir direction in which vehicle has to move
  * @return HAL library error code
  */
-void HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
+uint8_t HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
 {
     if (mask == 0)  /// Configure direction for left motor
         GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL, dir);
@@ -339,6 +339,8 @@ void HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
         GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL, dir);
     else
         return HAL_ENG_ILLM;
+
+    return HAL_OK;
 }
 
 /**
