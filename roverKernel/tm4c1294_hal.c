@@ -581,8 +581,12 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
     HAL_TIM_Init();
 }
-
-
+/**
+ * Write one byte of data to I2C bus and wait until transmission is over (blocking)
+ * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
+ * @param regAddress address of register in I2C device to write into
+ * @param data to write into the register of I2C device
+ */
 void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
@@ -598,6 +602,12 @@ void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 }
 
+/**
+ * Write one byte of data to I2C bus (non-blocking)
+ * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
+ * @param regAddress address of register in I2C device to write into
+ * @param data to write into the register of I2C device
+ */
 void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
@@ -608,10 +618,14 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 
     I2CMasterDataPut(MPU9250_I2C_BASE, data);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
-
 }
 
-
+/**
+ * Read one byte of data from I2C device (performs dummy write as well)
+ * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
+ * @param regAddress address of register in I2C device to write into
+ * @return data received from I2C device
+ */
 int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
     uint32_t data, dummy = 0;
@@ -637,7 +651,13 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
     return (data & 0xFF);
 }
 
-
+/**
+ * Read several bytes from I2C device (performs dummy write as well)
+ * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
+ * @param regAddress address of register in I2C device to write into
+ * @param count number of bytes to red
+ * @param dest pointer to data buffer in which data is saved after reading
+ */
 void HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
                        uint8_t count, uint8_t* dest)
 {
@@ -648,6 +668,12 @@ void HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
     }
 }
 
+/**
+ * Enable pin interrupt used by MPU to signal it has new data available. If
+ * interrupt is enabled means a data is expected therefore a timer is started as
+ * well to measure time interval between two sensor measurements.
+ * @param enable boolean value with new state (1-enable or 0-disable)
+ */
 void HAL_MPU_IntEnable(bool enable)
 {
     if (enable)
@@ -662,6 +688,12 @@ void HAL_MPU_IntEnable(bool enable)
     }
 }
 
+/**
+ * Clear all raised interrupts on port A (pin interrupt by MPU) and return true
+ * if interrupt occurred on pin 5 (used by MPU)
+ * @return true: if interrupt was raised by pin 5 on port A
+ *        false: otherwise
+ */
 bool HAL_MPU_IntClear()
 {
     uint32_t intStat = GPIOIntStatus(GPIO_PORTA_BASE, true);
@@ -671,27 +703,43 @@ bool HAL_MPU_IntClear()
     else return true;
 }
 
+/**
+ * Initialize timer used to precisely measure time interval between two sensor
+ * measurements (dt constant used for integration of MPU data)
+ */
 void HAL_TIM_Init()
 {
-    //  Set up timer that will measure period between two sensor measurements
+    /// Set up timer to measure period between two sensor measurements
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
     TimerConfigure(TIMER7_BASE, TIMER_CFG_ONE_SHOT_UP);
+    /// Set up some big load that should never be reached (dT usually < 1s)
     TimerLoadSet(TIMER7_BASE, TIMER_A, 2*g_ui32SysClock);
 }
 
+/**
+ * Start the timer to count up from a specified load value
+ * @param load desired load value from which to start counting up
+ */
 void HAL_TIM_Start(uint32_t load)
 {
-    //  Set load for Timer7, timer A
+    ///  Set load for Timer7, timer A
     HWREG(TIMER7_BASE + TIMER_O_TAV) = load;
-    //  Start timer
+    ///  Start timer
     TimerEnable(TIMER7_BASE, TIMER_A);
 }
 
+/**
+ * Stop timer
+ */
 void HAL_TIM_Stop()
 {
     TimerDisable(TIMER7_BASE, TIMER_A);
 }
 
+/**
+ * Get current value of the timer's internal counter
+ * @return value of timer's internal counter
+ */
 uint32_t HAL_TIM_GetValue()
 {
     return TimerValueGet(TIMER7_BASE, TIMER_A);
@@ -729,21 +777,24 @@ uint32_t HAL_GetPWM(uint32_t id)
  ******************************************************************************/
 
 /**
- * Setup systick interrupt and period
+ * Setup SysTick interrupt and period
  * @param periodMs time in milliseconds how often to trigger an interrupt
+ * @param custHook pointer to function that will be called on SysTick interrupt
+ * @return HAL library error code
  */
+///Keep track whether the SysTick has already been configured
 bool _systickSet = false;
 uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
 {
-    /// Forbid setting the timer period multiple times
+    /// Forbid configuring the timer period multiple times
     if (_systickSet)
         return HAL_SYSTICK_SET_ERR;
     /// Based on SysTick API 16777216 is biggest allowed number for SysTick
     if (16777216 < (periodMs*(g_ui32SysClock/1000)))
-        return HAL_SYSTICK_FATAL_ERR;
+        return HAL_SYSTICK_PEROOR;
     /// And 1 minimum allowed
     if (1 > (periodMs*(g_ui32SysClock/1000)))
-            return HAL_SYSTICK_FATAL_ERR;
+            return HAL_SYSTICK_PEROOR;
 
     SysTickPeriodSet(periodMs*(g_ui32SysClock/1000));
     SysTickIntRegister(custHook);
@@ -755,7 +806,7 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
 }
 
 /**
- * Wrapper for sys-tick start function
+ * Wrapper for SysTick start function
  */
 uint8_t HAL_TS_StartSysTick()
 {
@@ -766,6 +817,7 @@ uint8_t HAL_TS_StartSysTick()
 
     return 0;
 }
+
 /**
  * Wrapper for SysTick stop function
  */
@@ -778,6 +830,11 @@ uint8_t HAL_TS_StopSysTick()
 
     return 0;
 }
+
+/**
+ * Calculate time step between two SysTick interrupts (in milliseconds)
+ * @return time step between two SysTicks (in ms)
+ */
 uint32_t HAL_TS_GetTimeStepMS()
 {
     return (SysTickPeriodGet()*1000)/g_ui32SysClock;

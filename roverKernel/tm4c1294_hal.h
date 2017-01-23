@@ -8,6 +8,20 @@
  *  tied to hardware as it doesn't work with registers of MCU but rather uses
  *  a TivaWare library provided by TI.
  *
+ **************Hardware dependencies
+ *  ESP8266:
+ *      UART7, pins
+ *  Engines:
+ *
+ *  Radar:
+ *
+ *  MPU9250:
+ *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
+ *      GPIO PA5 - Data available interrupt
+ *      Timer 7 - Measure time between two consecutive sensor measurements
+ *
+ *  Task scheduler:
+ *
  */
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
@@ -15,9 +29,9 @@
 
 #define HAL_OK                  0
 /**     SysTick peripheral error codes      */
-#define HAL_SYSTICK_FATAL_ERR   1
-#define HAL_SYSTICK_SET_ERR     2
-#define HAL_SYSTICK_NOTSET_ERR  3
+#define HAL_SYSTICK_PEROOR      1   /// Period value for SysTick is out of range
+#define HAL_SYSTICK_SET_ERR     2   /// SysTick has already been configured
+#define HAL_SYSTICK_NOTSET_ERR  3   /// SysTick hasn't been configured yet
 /**     Engines error codes                 */
 #define HAL_ENG_PWMOOR          4   /// PWM value out of range
 #define HAL_ENG_EOOR            5   /// Engine ID out of range
