@@ -1,4 +1,4 @@
-/*
+/**
  * tm4c1294_hal.c
  *
  *  Created on: 07. 08. 2016.
@@ -24,14 +24,14 @@
 #include "driverlib/i2c.h"
 #include "driverlib/timer.h"
 #include "driverlib/systick.h"
+#include "driverlib/fpu.h"
 
 #include "tm4c1294_hal.h"
+#include "myLib.h"
 
 uint32_t g_ui32SysClock;
 
-
-#define RADAR_PWM_BASE  PWM0_BASE
-
+/**     Engines - related macros      */
 #define ED_PWM_BASE     PWM0_BASE
 #define ED_PWM_LEFT     PWM_OUT_2
 #define ED_PWM_RIGHT    PWM_OUT_3
@@ -39,36 +39,39 @@ uint32_t g_ui32SysClock;
 #define ED_HBR_PINL     (GPIO_PIN_0 | GPIO_PIN_1)   //  H-bridge left-wheel pins
 #define ED_HBR_PINR     (GPIO_PIN_2 | GPIO_PIN_3)   //  H-bridge right-wheel pins
 
-//  PWM pin of vertical & horizontal axis of radar
+/**     Radar - related macros        */
+#define RADAR_PWM_BASE  PWM0_BASE
+///  PWM pin of vertical & horizontal axis of radar
 #define RAD_HORIZONTAL  0x00000041
 #define RAD_VERTICAL    0x000000C4
-
-//  PWM extremes of radar servos
+///  PWM extremes of radar servos
 #define RAD_MAX         59500       //Right/Up
 #define RAD_MIN         54000       //Left/Down
-#define RAD_PWM_ARG     62498
+#define RAD_PWM_ARG     62498       //PWM generator clock
 
-extern const uint32_t ESP8266_HwBase = UART7_BASE;
-const uint32_t MPU9250_HwBase = I2C2_BASE;
+/**     ESP8266 - realted macros        */
+#define ESP8266_UART_BASE UART7_BASE
 
+/**     MPU9250 - related macros        */
+#define MPU9250_I2C_BASE I2C2_BASE
 
-float finterpolatef(float x1, float y1, float x2, float y2, float _x)
-{
-    return ( (y2-y1) * (_x-x1) / (x2-x1) + y1 );
-}
 
 /**
- * Initialize microcontroller board clock
+ * Initialize microcontroller board clock & enable on-board floating-point unit
  */
 void HAL_BOARD_CLOCK_Init()
 {
+    /// Set the clock to use on-board 25MHz oscillator and generate 120MHz clock
     g_ui32SysClock = SysCtlClockFreqSet((SYSCTL_XTAL_25MHZ |
                                         SYSCTL_OSC_MAIN | SYSCTL_USE_PLL |
                                         SYSCTL_CFG_VCO_480), 120000000);
+    ///  Enable Floating-point unit (FPU)
+    FPUEnable();
+    FPULazyStackingEnable();
 }
 
 /**
- * Waite for given amount of us
+ * Wait for given amount of us - blocking function
  * @param us time in us to wait
  */
 void HAL_DelayUS(uint32_t us)   //1000
@@ -86,18 +89,19 @@ void HAL_DelayUS(uint32_t us)   //1000
  ******************************************************************************/
 
 /**
- * Initialize UART port communicating with ESP8266 chip
+ * Initialize UART port communicating with ESP8266 chip - 8 data bits, no parity,
+ * 1 stop bit, no flow control
  * @param baud designated speed of communication
- * @return UART base address (specific to TM4C library)
+ * @return HAL library error code
  */
 uint32_t HAL_ESP_InitPort(uint32_t baud)
 {
     static bool pinInit = false;
 
-    //  Prevents reinitializing the pins every time a baud rate is updated
+    ///  Prevents reinitializing the pins every time a baud rate is updated
     if (!pinInit)
     {
-        //  Configure HW pins for UART and on/off signal
+        ///  Configure HW pins for UART and on/off signal
         SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
         GPIOPinConfigure(GPIO_PC4_U7RX);
         GPIOPinConfigure(GPIO_PC5_U7TX);
@@ -112,30 +116,29 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
         pinInit = true;
     }
 
-    //    Configure UART 7 peripherial used for ESP communication
+    ///    Configure UART 7 peripheral used for ESP communication
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
     SysCtlPeripheralReset(SYSCTL_PERIPH_UART7);
-    UARTClockSourceSet(ESP8266_HwBase, UART_CLOCK_SYSTEM);
-    UARTConfigSetExpClk(ESP8266_HwBase, g_ui32SysClock, baud,
+    UARTClockSourceSet(ESP8266_UART_BASE, UART_CLOCK_SYSTEM);
+    UARTConfigSetExpClk(ESP8266_UART_BASE, g_ui32SysClock, baud,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                          UART_CONFIG_PAR_NONE));
 
+    UARTEnable(ESP8266_UART_BASE);
 
-    UARTEnable(ESP8266_HwBase);
-
-    return ESP8266_HwBase;
+    return HAL_OK;
 }
 
 /**
  * Attach specific interrupt handler to ESP's UART and configure interrupt to
- * occour on every received character
+ * occur on every received character
  */
 void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
 {
-    //  Enable Interrupt on received data
-    UARTFIFOLevelSet(ESP8266_HwBase,UART_FIFO_TX1_8 ,UART_FIFO_RX1_8 );
-    UARTIntRegister(ESP8266_HwBase, intHandler);
-    UARTIntEnable(ESP8266_HwBase, UART_INT_RX | UART_INT_RT);
+    ///  Enable Interrupt on received data
+    UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8 ,UART_FIFO_RX1_8 );
+    UARTIntRegister(ESP8266_UART_BASE, intHandler);
+    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
     IntDisable(INT_UART7);
     IntMasterEnable();
 
@@ -147,7 +150,7 @@ void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
  */
 void HAL_ESP_HWEnable(bool enable)
 {
-    //    After both actions add a delay to allow chip to settle
+    ///    After both actions add a delay to allow chip to settle
     if (!enable)
     {
         GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0);
@@ -183,18 +186,18 @@ void HAL_ESP_IntEnable(bool enable)
  */
 void HAL_ESP_ClearInt()
 {
-    //  Clear interrupt flag
-    UARTIntClear(ESP8266_HwBase, UARTIntStatus(ESP8266_HwBase, true));
+    ///  Clear all raised interrupt flags
+    UARTIntClear(ESP8266_UART_BASE, UARTIntStatus(ESP8266_UART_BASE, true));
 }
 
 /**
- * Check if UART port is bussy at the moment
+ * Check if UART port is busy at the moment
  * @return true: port is currently busy
- *        false: port is free for starting comminucation
+ *        false: port is free for starting communication
  */
 bool HAL_ESP_UARTBusy()
 {
-    return UARTBusy(ESP8266_HwBase);
+    return UARTBusy(ESP8266_UART_BASE);
 }
 
 /**
@@ -203,7 +206,7 @@ bool HAL_ESP_UARTBusy()
  */
 void HAL_ESP_SendChar(char arg)
 {
-    UARTCharPut(ESP8266_HwBase, arg);
+    UARTCharPut(ESP8266_UART_BASE, arg);
 }
 
 /**
@@ -213,18 +216,17 @@ void HAL_ESP_SendChar(char arg)
  */
 bool HAL_ESP_CharAvail()
 {
-    return UARTCharsAvail(ESP8266_HwBase);
+    return UARTCharsAvail(ESP8266_UART_BASE);
 }
 
 /**
  * Get single character from UART RX buffer
- * @return one character from the RX buffer
+ * @return first character in RX buffer
  */
 char  HAL_ESP_GetChar()
 {
-    return UARTCharGetNonBlocking(ESP8266_HwBase);
+    return UARTCharGetNonBlocking(ESP8266_UART_BASE);
 }
-
 
 
 /******************************************************************************
@@ -235,18 +237,16 @@ char  HAL_ESP_GetChar()
 
 /**
  * Initialize hardware used to run engines
- * @param pwmMin pwm value used to stop the engines
- * @param pwmMax pwm value used to run values at full speed
+ * @param pwmMin pwm value used to stop the motors
+ * @param pwmMax pwm value used to run motors at full speed
  */
 void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
 {
-    /*
-     * Configuration and initialization of PWM for engines
-     */
+    /// Configuration and initialization of PWM for engines
     SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
 
-    //Set PWM clock divider to 32 - allows for low frequencies
+    /// Set PWM clock divider to 32 - allows for low frequencies
     PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
 
 
@@ -256,22 +256,21 @@ void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
     GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_3);
     PWMGenConfigure(ED_PWM_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN |
                                           PWM_GEN_MODE_NO_SYNC);
-    PWMGenPeriodSet(ED_PWM_BASE, PWM_GEN_1, pwmMax + 1);   //~60Hz PWM clock -> 20kHZ
+    /// Target frequency ~60Hz (PWM generator clock -> 20kHZ)
+    PWMGenPeriodSet(ED_PWM_BASE, PWM_GEN_1, pwmMax + 1);
     PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwmMin);
     PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwmMin);
-    PWMGenEnable(ED_PWM_BASE, PWM_GEN_1);   //Stop PWM generator block.
-    PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, false);  //Disable the PWM1 output signal (PF1).
+    PWMGenEnable(ED_PWM_BASE, PWM_GEN_1);   ///Stop PWM generator block.
+    /// Disable the PWM1 output signal (PF1).
+    PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, false);
 
-    /*
-     * Configure H-bridges for each engine
-     */
+    /// Configure H-bridges for each engine
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
     GPIOPinTypeGPIOOutput(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR);
     GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR, 0x00);
 
-    /*
-     * Initialize optical encoders that track wheel movement
-     */
+    /// Initialize optical encoders that track wheel movement - interrupt based
+    /// Dont't forget to update ISR pointers in interrupt vector in startuo_ccs.c
     IntMasterEnable();
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOP);
@@ -297,31 +296,49 @@ void HAL_ENG_Enable(bool enable)
 }
 
 /**
- * Set PWM of individual engine
- * @param engine is engine ID
- * @param pwm value to set PWM to
+ * Set PWM for engines provided in argument
+ * @param engine is engine ID (one of ED_X macros from engines.h library)
+ * @param pwm value to set PWM to (must be in range between 1 and max allowed)
+ * @return HAL library error code
  */
-void HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm)
+uint8_t HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm)
 {
+    if (pwm > PWMGenPeriodGet(ED_PWM_BASE, PWM_GEN_1))
+        return HAL_ENG_PWMOOR;
+    if (pwm < 1)
+        return HAL_ENG_PWMOOR;
+
     if (engine == 0)
         PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
-    if (engine == 1)
+    else if (engine == 1)
         PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
+    else if (engine == 2)
+    {
+        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
+        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
+    }
+    else
+        return HAL_ENG_EOOR;
+
+    return HAL_OK;
 }
 
 /**
  * Set H-bridge to specific state
  * @param mask mask of channels to configure
  * @param dir direction in which vehicle has to move
+ * @return HAL library error code
  */
 void HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
 {
-    if (mask == 0)
+    if (mask == 0)  /// Configure direction for left motor
         GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL, dir);
-    else if (mask == 1)
+    else if (mask == 1) /// Configure direction for right motor
         GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR, dir);
-    else if (mask == 2)
+    else if (mask == 2) /// Configure direction for both motors
         GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL, dir);
+    else
+        return HAL_ENG_ILLM;
 }
 
 /**
@@ -377,6 +394,9 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
  ******************************************************************************
  ******************************************************************************/
 
+/**
+ * Initialize hardware used for IR radar peripheral
+ */
 void HAL_RAD_Init()
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
@@ -385,35 +405,30 @@ void HAL_RAD_Init()
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOG);
 
-    //  Set PWM clock divider to 32 - allows for low frequencies
+    ///  Set PWM clock divider to 32 - allows for low frequencies
     PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
 
-    /*
-     * Configuration and initialization of Radar left-right PWM output
-     */
+    /// Configuration and initialization of Radar left-right PWM output
     GPIOPinConfigure(GPIO_PF1_M0PWM1);
     GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
     PWMGenConfigure(PWM0_BASE, PWM_GEN_0,
                     PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC);
     PWMGenPeriodSet(PWM0_BASE, PWM_GEN_0, RAD_PWM_ARG);   //~60Hz PWM clock
-    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_1, RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10� for servo
+    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_1, RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
     PWMGenEnable(PWM0_BASE, PWM_GEN_0); //Start PWM generator block
     PWMOutputState(PWM0_BASE, PWM_OUT_1_BIT, true);
-    /*
-     * Configuration and initialization of Radar up-down PWM output
-     */
+
+    /// Configuration and initialization of Radar up-down axis PWM output
     GPIOPinConfigure(GPIO_PG0_M0PWM4);
     GPIOPinTypePWM(GPIO_PORTG_BASE, GPIO_PIN_0);
     PWMGenConfigure(PWM0_BASE, PWM_GEN_2,
                     PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC);
     PWMGenPeriodSet(PWM0_BASE, PWM_GEN_2, RAD_PWM_ARG);   //~60Hz PWM clock
-    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_4,  RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10� for servo
+    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_4,  RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
     PWMGenEnable(PWM0_BASE, PWM_GEN_2); //Start PWM generator block
     PWMOutputState(PWM0_BASE, PWM_OUT_4_BIT, true);
 
-    /*
-     * Configure Radar ADC module to sample AIN 3
-    */
+    /// Configure Radar ADC module to sample AIN 3 (used to read IR sensor output)
     GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_0);//Configure GPIO as ADC input
     ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
     ADCSequenceStepConfigure(ADC0_BASE, 3, 0,
@@ -425,14 +440,14 @@ void HAL_RAD_Init()
 
     HAL_RAD_Enable(true);
 
-    //  Wait for the sensor to position itself, then disable IO
+    ///  Wait for gimbal servos to get to specified positions
     SysCtlDelay(g_ui32SysClock/2);
 }
 
 /**
  * Enable/disable radar servos
- * @note Disabling servos disables PWM output leaving servos susceptable to any
- * noise on input possibly causing twiching of the joints
+ * @note Disabling servos disables PWM output leaving servos susceptible to any
+ * noise on input possibly causing twitching of the joints
  * @param enable
  */
 void HAL_RAD_Enable(bool enable)
@@ -442,8 +457,8 @@ void HAL_RAD_Enable(bool enable)
 }
 
 /**
- * Set vertical angle of radar gimbal
- * @param angle to move vertical joint to; 0�(right) to 160� (left)
+ * Set vertical(up-down) angle of radar gimbal
+ * @param angle to move vertical joint to; 0°(up) to 160° (down)
  */
 void HAL_RAD_SetVerAngle(float angle)
 {
@@ -454,8 +469,8 @@ void HAL_RAD_SetVerAngle(float angle)
 }
 
 /**
- * Get current vertical angle of radar gimbal
- * @return angle in range of 0� to 160�
+ * Get current vertical(up-down) angle of radar gimbal
+ * @return angle in range of 0° to 160°
  */
 float HAL_RAD_GetVerAngle()
 {
@@ -466,8 +481,8 @@ float HAL_RAD_GetVerAngle()
 }
 
 /**
- * Set horizontal angle of radar gimbal
- * @param angle to move horizontal joint to; 0�(right) to 160� (left)
+ * Set horizontal(left-right) angle of radar gimbal
+ * @param angle to move horizontal joint to; 0°(right) to 160° (left)
  */
 void HAL_RAD_SetHorAngle(float angle)
 {
@@ -479,7 +494,7 @@ void HAL_RAD_SetHorAngle(float angle)
 
 /**
  * Get current horizontal angle of radar gimbal
- * @return angle in range of 0�to 160�
+ * @return angle in range of 0° to 160°
  */
 float HAL_RAD_GetHorAngle()
 {
@@ -489,6 +504,10 @@ float HAL_RAD_GetHorAngle()
     return retVal;
 }
 
+/**
+ * Read value from analog output of IR distance sensor
+ * @return 12-bit analog value of distance measured by IR sensor
+ */
 uint32_t HAL_RAD_ADCTrigger()
 {
     uint32_t retVal;
@@ -509,7 +528,7 @@ uint32_t HAL_RAD_ADCTrigger()
 /**
  * Initializes I2C 2 bus for communication with MPU (SDA - PN4, SCL - PN5)
  *      Bus frequency 1MHz, connection timeout: 100ms
- * Initializes interrupt pin(PA5) that will be toggeld by MPU9250
+ * Initializes interrupt pin(PA5) that will be toggled by MPU9250
  *      when it has data available for reading
  *      -PA5 is push-pull pin with weak pull down and 10mA strength
  */
@@ -520,16 +539,18 @@ void HAL_MPU_Init(void((*custHook)(void)))
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
 
-    //Enable I2C communication interface, SCL, SDA lines
+    /// Enable I2C communication interface, SCL, SDA lines
     GPIOPinConfigure(GPIO_PN4_I2C2SDA);
     GPIOPinConfigure(GPIO_PN5_I2C2SCL);
     GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
     GPIOPinTypeI2C(GPIO_PORTN_BASE, GPIO_PIN_4);
 
-    I2CMasterEnable(MPU9250_HwBase);
+    I2CMasterEnable(MPU9250_I2C_BASE);
 
-    //  Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_HwBase, g_ui32SysClock, true);
+    /// Run I2C bus on 1MHz custom clock
+    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
+
+    //  Taken from TivaWare library!
     //
     // Compute the clock divider that achieves the fastest speed less than or
     // equal to the desired speed.  The numerator is biased to favor a larger
@@ -537,17 +558,17 @@ void HAL_MPU_Init(void((*custHook)(void)))
     // to the desired clock, never greater.
     //
     ui32TPR = ((120000000 + (2 * 10 * 1000000) - 1) / (2 * 10 * 1000000)) - 1;
-    HWREG(MPU9250_HwBase + 0x00C) = ui32TPR;
-    while (I2CMasterBusy(MPU9250_HwBase));
-    I2CMasterTimeoutSet(MPU9250_HwBase, g_ui32SysClock/10);
+    HWREG(MPU9250_I2C_BASE + 0x00C) = ui32TPR;
+    while (I2CMasterBusy(MPU9250_I2C_BASE));
+    I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);
 
-    //  Configure interrupt pin to have weak pull down, 10mA strength
+    ///  Configure interrupt pin to have weak pull down, 10mA strength
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
     GPIOPadConfigSet(GPIO_PORTA_BASE, GPIO_PIN_5, GPIO_STRENGTH_10MA, GPIO_PIN_TYPE_STD_WPD);
     GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
-    //  Set up an interrupt, and interrupt handler
+    ///  Set up an interrupt, and interrupt handler
     if (custHook != 0)
     {
         GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
@@ -564,29 +585,29 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
 void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
-    I2CMasterSlaveAddrSet(MPU9250_HwBase, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_HwBase, regAddress);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterDataPut(MPU9250_HwBase, data);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    I2CMasterDataPut(MPU9250_I2C_BASE, data);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
 
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
 }
 
 void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
-    I2CMasterSlaveAddrSet(MPU9250_HwBase, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_HwBase, regAddress);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterDataPut(MPU9250_HwBase, data);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    I2CMasterDataPut(MPU9250_I2C_BASE, data);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
 
 }
 
@@ -596,22 +617,22 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
     uint32_t data, dummy = 0;
     dummy = dummy+0;//Put to avoid warning about dummy not being used
 
-    I2CMasterSlaveAddrSet(MPU9250_HwBase, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_HwBase, regAddress);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterSlaveAddrSet(MPU9250_HwBase, I2Caddress, true);
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_RECEIVE_START);
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
-    data = I2CMasterDataGet(MPU9250_HwBase);
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    data = I2CMasterDataGet(MPU9250_I2C_BASE);
 
-    I2CMasterControl(MPU9250_HwBase, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
-    while(!I2CMasterBusy(MPU9250_HwBase));
-    while(I2CMasterBusy(MPU9250_HwBase));
-    dummy = I2CMasterDataGet(MPU9250_HwBase);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    dummy = I2CMasterDataGet(MPU9250_I2C_BASE);
 
     return (data & 0xFF);
 }

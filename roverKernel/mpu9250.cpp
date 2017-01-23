@@ -80,10 +80,6 @@ int8_t MPU9250::InitHW()
  */
 int8_t MPU9250::InitSW()
 {
-    //  Enable Floating-point unit (FPU)
-    FPUEnable();
-    FPULazyStackingEnable();
-
     HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x80); // Reset MPU
     HAL_DelayUS(10000); // Delay 100 ms
     HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01); // Power-on, try PLL, if not use IOSC 20MHz
@@ -130,7 +126,7 @@ void MPU9250::Reset()
 /*
  * Updates range in register on MPU, and computes appropriate multiplier
  *  for converting 16bit ADC values from MPU to acceleration(m/s^2)
- *  or angular velecoty (°/s)
+ *  or angular velecoty (ï¿½/s)
  */
 void MPU9250::SetRange(uint8_t sensor, uint8_t range)
 {

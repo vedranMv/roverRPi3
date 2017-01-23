@@ -1,21 +1,27 @@
-/*
+/**
  *	tm4c1294_hal.h
  *
  *  Created on: 07. 08. 2016.
  *      Author: Vedran Mikov
  *
+ *  Hardware abstraction layer for TM4C1294 microcontroller. It's not directly
+ *  tied to hardware as it doesn't work with registers of MCU but rather uses
+ *  a TivaWare library provided by TI.
+ *
  */
-
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
 
-#include "myLib.h"
 
 #define HAL_OK                  0
+/**     SysTick peripheral error codes      */
 #define HAL_SYSTICK_FATAL_ERR   1
 #define HAL_SYSTICK_SET_ERR     2
 #define HAL_SYSTICK_NOTSET_ERR  3
-
+/**     Engines error codes                 */
+#define HAL_ENG_PWMOOR          4   /// PWM value out of range
+#define HAL_ENG_EOOR            5   /// Engine ID out of range
+#define HAL_ENG_ILLM            6   /// Illegal mask for H-bridge configuration
 
 #ifdef __cplusplus
 extern "C"
@@ -23,7 +29,7 @@ extern "C"
 #endif
 
 
-
+/// Global clock variable
 extern uint32_t g_ui32SysClock;
 
 extern void HAL_DelayUS(uint32_t us);
@@ -43,15 +49,15 @@ extern void HAL_BOARD_CLOCK_Init();
     extern void        HAL_ESP_SendChar(char arg);
     extern bool        HAL_ESP_CharAvail();
     extern char        HAL_ESP_GetChar();
-/**     Engines-related HW API      */
+/**     Engines - related HW API      */
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(bool enable);
-    extern void        HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
+    extern uint8_t     HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
     extern void        HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir);
     extern uint32_t    HAL_ENG_GetHBridge(uint32_t mask);
     extern void        HAL_ENG_IntClear(uint32_t engine);
     extern void        HAL_ENG_IntEnable(uint32_t engine, bool enable);
-/**     Radar-related HW API        */
+/**     Radar - related HW API        */
     extern void        HAL_RAD_SetVerAngle(float angle);
     extern float       HAL_RAD_GetVerAngle();
     extern void        HAL_RAD_SetHorAngle(float angle);
@@ -59,7 +65,7 @@ extern void HAL_BOARD_CLOCK_Init();
     extern void        HAL_RAD_Init();
     extern void        HAL_RAD_Enable(bool enable);
     extern uint32_t    HAL_RAD_ADCTrigger();
-/**     MPU9250(I2C) - related API       */
+/**     MPU9250(I2C) - related HW API       */
     extern void        HAL_MPU_Init(void((*custHook)(void)));
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
