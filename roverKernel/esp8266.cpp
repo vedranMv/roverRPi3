@@ -15,7 +15,6 @@
 #include "esp8266.h"
 #include "utils/uartstdio.h"
 
-#define INTERNAL_ESPBASE    UART7_BASE
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
