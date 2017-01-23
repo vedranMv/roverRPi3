@@ -10,18 +10,23 @@
  *
  **************Hardware dependencies
  *  ESP8266:
- *      UART7, pins
+ *      UART7, pins PC4(Rx), PC5(Tx)
+ *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
  *  Engines:
- *
+ *      PWM0 - Generator 1
+ *      PWM Out2(PF2 - left wheel), PWM Out3(PF3 - right wheel)
+ *      GPIO PL0&PL1(left wheel), PL2&PL3(right wheel)
+ *      GPIO PP0(left optical encoder), PP1(right optical encoder) - interrupt
  *  Radar:
- *
+ *      PWM - Generator 1 & 3
+ *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
+ *      ADC0: AIN3(PE0) - sampling sensor output
  *  MPU9250:
  *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
  *      GPIO PA5 - Data available interrupt
  *      Timer 7 - Measure time between two consecutive sensor measurements
- *
  *  Task scheduler:
- *
+ *      SysTick timer - interrupt based
  */
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
