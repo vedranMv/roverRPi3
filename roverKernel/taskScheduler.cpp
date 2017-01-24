@@ -33,18 +33,19 @@
  * called when requesting a service, and memory space for arguments to be
  * transfered to module when requesting a service
  */
-static volatile struct _callBackEntry __callbackVector[10];
+static volatile struct _callBackEntry *__callbackVector[10];
 /**
  * Register services for a kernel modules into a callback vector
  * @param arg structure with parameters for callback action
  * @param uid Unique identifier of kernel module
  */
-void TS_RegCallback(struct _callBackEntry arg, uint8_t uid)
+void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
 {
-    __callbackVector[uid].args = arg.args;
+    /*__callbackVector[uid].args = arg.args;
     __callbackVector[uid].callBackFunc = arg.callBackFunc;
     __callbackVector[uid].retVal = arg.retVal;
-    __callbackVector[uid].serviceID = arg.serviceID;
+    __callbackVector[uid].serviceID = arg.serviceID;*/
+    __callbackVector[uid] = arg;
 }
 
 
@@ -112,7 +113,7 @@ TaskScheduler::TaskScheduler() :_taskItB(0), _taskItE(0)
 		_taskLog[i]._init();
 	__taskSch = this;
 
-	HAL_TS_InitSysTick(1, TSSyncCallback);
+	HAL_TS_InitSysTick(100, TSSyncCallback);
 	HAL_TS_StartSysTick();
 }
 
@@ -176,7 +177,9 @@ uint8_t TaskScheduler::PushBackEntrySync(uint8_t libuid, uint8_t comm, uint32_t 
  */
 void TaskScheduler::AddArgForCurrent(uint8_t* arg, uint8_t argLen) volatile
 {
-	_taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
+	//_taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
+    //  Copy memory directly
+    memcpy((void*)_taskLog[_taskItE - 1]._args, (const void*)arg, argLen);
 }
 /**
  * @brief	Return first element from task queue
@@ -227,12 +230,12 @@ void TSSyncCallback(void)
                 return;
 
             /// Transfer data into kernel memory space
-            *(__callbackVector[tE._libuid].serviceID) = tE._task;
+            (__callbackVector[tE._libuid]->serviceID) = tE._task;
             uint8_t i;
             for (i = 0; i < tE._argN; i++)
-                __callbackVector[tE._libuid].args[i] = tE._args[i];
+                __callbackVector[tE._libuid]->args[i] = tE._args[i];
             /// Call to kernel module
-            __callbackVector[tE._libuid].callBackFunc();
+            __callbackVector[tE._libuid]->callBackFunc();
 
         }
 }

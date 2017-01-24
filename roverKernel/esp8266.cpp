@@ -12,9 +12,12 @@
 #include <ctype.h>
 #include <stdio.h>
 
+#include "myLib.h"
 #include "esp8266.h"
 #include "utils/uartstdio.h"
+#include "taskScheduler.h"
 
+void _ESP_KernelCallback(void);
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
@@ -95,6 +98,11 @@ uint32_t ESP8266::InitHW(int32_t baud)
     //  Send test command(AT) then turn off echoing of commands(ATE0)
     _SendRAW("AT\0");
     _SendRAW("ATE0\0");
+
+    //  Register module services with task scheduler
+    _espSer.callBackFunc = _ESP_KernelCallback;
+    TS_RegCallback(&_espSer, 0);
+
 
     return ESP_STATUS_OK;
 }
@@ -596,6 +604,14 @@ void UART7RxIntHandler(void)
             memset(rxBuffer, '\0', sizeof(rxBuffer));
             rxLen = 0;
         }
+}
+
+void _ESP_KernelCallback(void)
+{
+    uint8_t msg[20];
+
+    memcpy((void*)msg, (void*)__esp->_espSer.args, 20);
+    __esp->GetClientBySockID(__esp->_espSer.serviceID)->SendTCP((char*)msg);
 }
 
 

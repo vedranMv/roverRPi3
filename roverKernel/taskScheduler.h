@@ -103,12 +103,12 @@ extern void TSSyncCallback(void);
 struct _callBackEntry
 {
     void((*callBackFunc)(void));
-    uint8_t *serviceID;
-    float   *args;
-    int8_t  *retVal;
+    uint8_t serviceID;
+    float   args[12];
+    int8_t  retVal;
 };
 
-extern void TS_RegCallback(struct _callBackEntry arg, uint8_t uid);
+extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);
 
 
 #endif /* TASKSCHEDULER_H_ */

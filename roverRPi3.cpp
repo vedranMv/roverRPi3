@@ -31,7 +31,6 @@
 
 UartHW comm;
 ESP8266 esp;
-TaskScheduler ts;
 
 //#define __DEBUG_SESSION__
 
@@ -39,9 +38,21 @@ TaskScheduler ts;
 
 void RxHook(uint8_t *buf, uint16_t *len)
 {
+    uint8_t msg[15];
+
     comm.Send("Recvd:  %s\n", buf);
-    esp.GetClientByIndex(0)->SendTCP("12");
-    esp.GetClientByIndex(0)->SendTCP("Hello there!");
+
+    if ((buf[0] == 'H') && (buf[1] == 'e'))
+    {
+        snprintf((char*)msg, 15,"12");
+        __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
+        __taskSch->AddArgForCurrent(msg,2);
+
+        snprintf((char*)msg, 15,"Hello there!");
+        __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
+        __taskSch->AddArgForCurrent(msg,12);
+    }
+
     ///TODO: Resgister a call to task scheduler to send request to user
 }
 
@@ -67,6 +78,9 @@ int main(void)
     esp.ConnectAP("sgvfyj7a", "7vxy3b5d");
     esp.StartTCPServer(27541);
     esp.TCPListen(true);
+
+    TaskScheduler ts;
+
 
     while(1)
     {

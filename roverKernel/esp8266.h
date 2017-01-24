@@ -22,8 +22,8 @@
 #ifndef ESP8266_H_
 #define ESP8266_H_
 
-#include "myLib.h"
 #include "tm4c1294_hal.h"
+#include "taskScheduler.h"
 #include <stdio.h>
 #include <vector>
 
@@ -65,7 +65,7 @@ typedef std::vector<_espClient> espCli;
 class ESP8266
 {
         friend class _espClient;
-
+        friend void _ESP_KernelCallback(void);
 	public:
 		ESP8266();
 		~ESP8266();
@@ -113,6 +113,7 @@ class ESP8266
 
 		//  Vector of opened clients
 		espCli      _clients;
+		_callBackEntry _espSer;
 };
 
 class _espClient
