@@ -182,7 +182,9 @@ bool ESP8266::IsConnected()
  */
 uint32_t ESP8266::MyIP()
 {
-    if (_ipAddress == 0) _SendRAW("AT+CIPSTA?\0");
+    //BUG: When using debug mode (printing all characters incoming on serial) \
+        this line will hang as no OK status will be received from ESP
+    if (_ipAddress == 0) _SendRAW("AT+CIPSTA_CUR?\0", ESP_GOT_IP);
 
     return _ipAddress;
 }
@@ -394,6 +396,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
             { _ipStr[i-ipFlag] = rxBuffer[i]; i++; }
 
         _ipAddress = _IPtoInt(_ipStr);
+        retVal |= ESP_GOT_IP;
     }
     //  TCP incoming data embedded, extract it
     if (respFlag >= 0)
@@ -480,12 +483,6 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags)
                 !(flowControl & ESP_STATUS_ERROR) &&
                 !(flowControl & flags));
 
-        /*
-        //  Print out status messages received
-        for (int i = 0; i < ESP_STATUS_LENGTH; i++)
-            if(flowControl & (1<<i))
-                UARTprintf(" ->%s\n", status_table[i]);
-        */
         return flowControl;
     }
     else return ESP_NONBLOCKING_MODE;
@@ -497,10 +494,11 @@ void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
     UARTprintf("SendingRAWport: %s \n", buffer);
 #endif
 
-    while(HAL_ESP_UARTBusy());
-
     for (int i = 0; i < bufLen; i++)
+    {
+        while(HAL_ESP_UARTBusy());
         HAL_ESP_SendChar(buffer[i]);
+    }
 }
 
 /**
@@ -595,7 +593,6 @@ void UART7RxIntHandler(void)
                 __esp->custHook((uint8_t*)resp, &respLen);
             }
 
-
             if (((__esp->flowControl & ESP_STATUS_OK) ||
                  (__esp->flowControl & ESP_STATUS_ERROR))
                 && !__esp->ServerOpened())
@@ -608,9 +605,11 @@ void UART7RxIntHandler(void)
 
 void _ESP_KernelCallback(void)
 {
-    uint8_t msg[20];
+    uint8_t msg[20] = {0};
 
-    memcpy((void*)msg, (void*)__esp->_espSer.args, 20);
+    memcpy((void*)msg, (void*)(__esp->_espSer.args+1), __esp->_espSer.args[0]);
+    UARTprintf("My message is: %s   \r\n", msg);
+    msg[__esp->_espSer.args[0]] = '\0';
     __esp->GetClientBySockID(__esp->_espSer.serviceID)->SendTCP((char*)msg);
 }
 

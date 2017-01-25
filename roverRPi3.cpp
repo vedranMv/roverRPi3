@@ -38,19 +38,22 @@ ESP8266 esp;
 
 void RxHook(uint8_t *buf, uint16_t *len)
 {
-    uint8_t msg[15];
+    uint8_t msg[30]={0};
 
     comm.Send("Recvd:  %s\n", buf);
 
     if ((buf[0] == 'H') && (buf[1] == 'e'))
     {
-        snprintf((char*)msg, 15,"12");
+        //snprintf((char*)msg, 15,"12");
+        msg[0]=17;
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-        __taskSch->AddArgForCurrent(msg,2);
+       // __taskSch->AddArgForCurrent(msg,2);
+        __taskSch->AddStringArg(msg, 2);
 
-        snprintf((char*)msg, 15,"Hello there!");
+        snprintf((char*)msg, 30,"Hello there oyee!");
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-        __taskSch->AddArgForCurrent(msg,12);
+        //__taskSch->AddArgForCurrent(msg,12);
+        __taskSch->AddStringArg(msg, 12);
     }
 
     ///TODO: Resgister a call to task scheduler to send request to user
@@ -72,19 +75,20 @@ int main(void)
     GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
     GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
-    comm.Send("Board initialized!\r\n");
+
     esp.InitHW();
     esp.AddHook(RxHook);
     esp.ConnectAP("sgvfyj7a", "7vxy3b5d");
     esp.StartTCPServer(27541);
     esp.TCPListen(true);
 
+    comm.Send("Board initialized!\r\n");
     TaskScheduler ts;
 
 
     while(1)
     {
-
+        TS_GlobalCheck();
     }
 
 }

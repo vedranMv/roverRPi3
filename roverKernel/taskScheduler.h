@@ -34,11 +34,15 @@
 #define TS_MAX_TASKS	10
 
 
-/* Add flags to trigger desired functions - add functions in parser in .c file */
+/**
+ * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
+ */
 class _taskEntry
 {
+    /// Functions & classes needing direct access to all members
 	friend class TaskScheduler;
 	friend void TSSyncCallback(void);
+    friend void TS_GlobalCheck(void);
 
 	public:
 		_taskEntry();
@@ -62,17 +66,24 @@ class _taskEntry
 		}
 
 	protected:
-		void _init() volatile;
+		         void       _init() volatile;
 		volatile uint8_t    _libuid;
-		volatile uint8_t 	_task;
-		volatile uint8_t 	_argN;
+		volatile uint8_t    _task;
+		volatile uint8_t    _argN;
 		volatile uint32_t   _timestamp;
-		volatile float 		_args[10];
+		volatile uint8_t    _args[50];
 };
 
+/**
+ * Task scheduler class implementation
+ * @note Task and it arguments ar added separately. First add new task and then
+ * use some of the 'Add*Arg' function to add argument(s) for that task
+ */
 class TaskScheduler
 {
+    /// Functions & classes needing direct access to all members
     friend void TSSyncCallback(void);
+    friend void TS_GlobalCheck(void);
 	public:
 		TaskScheduler();
 		~TaskScheduler();
@@ -84,6 +95,8 @@ class TaskScheduler
 		                                       uint32_t time) volatile;
 		void 				 AddArgForCurrent(uint8_t* arg,
 											  uint8_t argLen) volatile;
+		void                 AddStringArg(uint8_t* arg, uint8_t argLen) volatile;
+		void                 AddNumArg(uint8_t* arg, uint8_t argLen) volatile;
 		volatile _taskEntry& PopFront() volatile;
 		volatile _taskEntry& PeekFront() volatile;
 		volatile _taskEntry& At(uint16_t index) volatile;
@@ -96,16 +109,25 @@ class TaskScheduler
 
 /*	Global pointer to last instance of TaskScheduler object	*/
 extern volatile TaskScheduler* __taskSch;
-
 extern void TSSyncCallback(void);
-
-
+extern void TS_GlobalCheck(void);
+/**
+ * Callback entry into the Task scheduler from individual kernel module
+ * Once initialized, each kernel module registers the services it provides into
+ * a vector by inserting CallBackEntry into a global vector (handled by
+ * TS_RegCallback function). CallBackEntry holds: a) Function to be called when
+ * someone requests a service from kernel module; b) ServiceID of service to be
+ * executed; c)Memory space used for arguments for callback function; d) Return
+ * variable of the service execution
+ * @note IMPORTANT! 1st byte of args ALWAYS contains number of following data bytes
+ *  remember to use +1 offset in memory when ding memcpy on args array
+ */
 struct _callBackEntry
 {
-    void((*callBackFunc)(void));
-    uint8_t serviceID;
-    float   args[12];
-    int8_t  retVal;
+    void((*callBackFunc)(void));    /// Pointer to callback function
+    uint8_t serviceID;              /// Requested service
+    uint8_t args[50];               /// Arguments for service execution
+    int8_t  retVal;                 /// (Optinal) Return variable of service exec
 };
 
 extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);

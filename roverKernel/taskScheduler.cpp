@@ -11,17 +11,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "inc/hw_memmap.h"
-#include "inc/hw_ints.h"
-#include "inc/hw_gpio.h"
-#include "driverlib/gpio.h"
-#include "driverlib/pin_map.h"
-#include "driverlib/sysctl.h"
-#include "driverlib/interrupt.h"
-#include "driverlib/rom_map.h"
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
-
 #include "taskScheduler.h"
 #include "tm4c1294_hal.h"
 
@@ -41,10 +30,6 @@ static volatile struct _callBackEntry *__callbackVector[10];
  */
 void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
 {
-    /*__callbackVector[uid].args = arg.args;
-    __callbackVector[uid].callBackFunc = arg.callBackFunc;
-    __callbackVector[uid].retVal = arg.retVal;
-    __callbackVector[uid].serviceID = arg.serviceID;*/
     __callbackVector[uid] = arg;
 }
 
@@ -81,8 +66,8 @@ void _taskEntry::_init() volatile
 
 void _taskEntry::AddArg(float arg) volatile
 {
-	_args[_argN] = arg;
-	_argN++;
+    memcpy((void*)(_args + 1 + _argN*4), (void*)&arg, 4);
+	_argN += 4;
 }
 
 uint16_t _taskEntry::GetTask()
@@ -107,6 +92,9 @@ uint16_t _taskEntry::GetArgNum()
  ************************************************************
  ***********************************************************/
 
+///-----------------------------------------------------------------------------
+///                      Class constructor & destructor                [PUBLIC]
+///-----------------------------------------------------------------------------
 TaskScheduler::TaskScheduler() :_taskItB(0), _taskItE(0)
 {
 	for (uint8_t i = 0; i < TS_MAX_TASKS; i++)
@@ -123,10 +111,12 @@ TaskScheduler::~TaskScheduler()
 	__taskSch = 0;
 }
 
-//******************************************************************************
-//#################################################Schedule content manipulation
+///-----------------------------------------------------------------------------
+///                      Schedule content manipulation                  [PUBLIC]
+///-----------------------------------------------------------------------------
+
 /**
- * @brief	Clear task schedule
+ * @brief	Clear task schedule, remove all enties from ii
  */
 void TaskScheduler::Reset() volatile
 {
@@ -144,8 +134,14 @@ void TaskScheduler::Reset() volatile
  */
 bool TaskScheduler::IsEmpty() volatile
 {
-	if (_taskItE > _taskItB) return false;
-	else { Reset(); return true; }
+	if (_taskItE > _taskItB)
+	    return false;
+	else if ((_taskItE != 0) && (_taskItB == _taskItE))
+	{
+	    Reset();
+	    return true;
+	}
+	else return true;
 }
 
 /**
@@ -179,7 +175,26 @@ void TaskScheduler::AddArgForCurrent(uint8_t* arg, uint8_t argLen) volatile
 {
 	//_taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
     //  Copy memory directly
-    memcpy((void*)_taskLog[_taskItE - 1]._args, (const void*)arg, argLen);
+    //memcpy((void*)_taskLog[_taskItE - 1]._args, (const void*)arg, argLen);
+
+}
+
+void TaskScheduler::AddStringArg(uint8_t* arg, uint8_t argLen) volatile
+{
+    //if ((_taskLog[_taskItE - 1]._argN +argLen) <= 50)
+    //{
+
+        memset((void*)_taskLog[_taskItE - 1]._args, 0, 50);    //Each memory block is 50B
+        memcpy((void*)(_taskLog[_taskItE - 1]._args),
+               (void*)arg, argLen);
+        _taskLog[_taskItE - 1]._argN = argLen;
+        //_taskLog[_taskItE - 1]._args[0] = _taskLog[_taskItE - 1]._argN;
+    //}
+}
+
+void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
+{
+    _taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
 }
 /**
  * @brief	Return first element from task queue
@@ -217,7 +232,10 @@ void TSSyncCallback(void)
 {
     __msSinceStartup += HAL_TS_GetTimeStepMS();
     //GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, 0xFF);
+}
 
+void TS_GlobalCheck(void)
+{
     if (!__taskSch->IsEmpty())
         while((__taskSch->PeekFront()._timestamp <= __msSinceStartup) &&
               (!__taskSch->IsEmpty()))
@@ -232,8 +250,10 @@ void TSSyncCallback(void)
             /// Transfer data into kernel memory space
             (__callbackVector[tE._libuid]->serviceID) = tE._task;
             uint8_t i;
-            for (i = 0; i < tE._argN; i++)
-                __callbackVector[tE._libuid]->args[i] = tE._args[i];
+            //Num of args +1 as argN doesn't account for args[0]
+            __callbackVector[tE._libuid]->args[0] = tE._argN;
+            for (i = 1; i <= (tE._argN); i++)
+                __callbackVector[tE._libuid]->args[i] = tE._args[i-1];
             /// Call to kernel module
             __callbackVector[tE._libuid]->callBackFunc();
 

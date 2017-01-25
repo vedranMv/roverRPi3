@@ -51,6 +51,7 @@
 #define ESP_RESPOND_SUCC		1<<12
 #define ESP_NORESPONSE          1<<13
 #define ESP_STATUS_IPD          1<<14
+#define ESP_GOT_IP              1<<15
 
 #define FLAG_DATAPUSH		1<<16
 
@@ -144,11 +145,11 @@ class _espClient
 
             while (buffer[bufLen++] != '\0');   //Find length of string
             //  Initiate transmission from
-            snprintf(tempBuf, sizeof(tempBuf), "AT+CIPSEND=0,%d\0", bufLen);
+            snprintf(tempBuf, sizeof(tempBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen-1);
             if (_parent->_SendRAW(tempBuf, ESP_STATUS_RECV))
             {
-               _parent->flowControl = ESP_NO_STATUS;
-               if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
+                _parent->flowControl = ESP_NO_STATUS;
+                if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
                 _parent->_RAWPortWrite(buffer, bufLen);
                 while (_parent->flowControl == ESP_NO_STATUS);
             }
