@@ -46,12 +46,10 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
     {
         msg[0]=28;
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-       // __taskSch->AddArgForCurrent(msg,2);
         __taskSch->AddStringArg(msg, 1);
 
         snprintf((char*)msg, 30,"Hello you on the other side!");
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-        //__taskSch->AddArgForCurrent(msg,12);
         __taskSch->AddStringArg(msg, 28);
     }
 }

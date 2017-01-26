@@ -183,10 +183,12 @@ void HAL_ESP_IntEnable(bool enable)
 /**
  * Clear all interrupt flags when an interrupt occurs
  */
-void HAL_ESP_ClearInt()
+int32_t HAL_ESP_ClearInt()
 {
+    uint32_t retVal = UARTIntStatus(ESP8266_UART_BASE, true);
     ///  Clear all raised interrupt flags
     UARTIntClear(ESP8266_UART_BASE, UARTIntStatus(ESP8266_UART_BASE, true));
+    return retVal;
 }
 
 /**

@@ -18,7 +18,7 @@
  *  +When in server mode can reply back to clients over TCP socket
  *  +On initialization library registers its services as a kernel module in task
  *  scheduler
- *  V1.3 TODO
+ *  V1.2.1 TODO
  *  Add interface for initiating a connection to TCP server (run ESP as client)
  *  Add interface to send UDP packet
  */

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdio.h>
+#include "driverlib/uart.h"
 
 #include "myLib.h"
 #include "esp8266.h"
@@ -230,7 +231,8 @@ void ESPWDISR()
 }
 
 /**
- * Initialize UART port used in communication with Raspberry Pi
+ * Initialize UART port used for ESP module. Also enable watchdog timer used to
+ * reset the port in case of any errors or hangs
  * @param baud baudrate used in serial communication between ESP and hardware
  * @return error code, depending on the outcome
  */
@@ -711,7 +713,7 @@ uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
     return 444;
 }
 
-char *intBuffer;
+
 /**
  * Interrupt service routine for handling incoming data on UART (Tx)
  */
@@ -719,9 +721,8 @@ void UART7RxIntHandler(void)
 {
     static char rxBuffer[1024] ;
     static uint16_t rxLen = 0;
+    uint32_t intMask = HAL_ESP_ClearInt();
 
-    HAL_ESP_ClearInt();
-    intBuffer = rxBuffer;
 
     while (HAL_ESP_CharAvail())
     {
@@ -739,7 +740,8 @@ void UART7RxIntHandler(void)
 
     //  All messages terminated by \r\n
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
-      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' )) )
+      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
+      || ((UART_INT_RT & intMask) > 0) )
         {
             HAL_ESP_WDControl(true);//Reset watchdog timer
             __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
@@ -762,6 +764,7 @@ void UART7RxIntHandler(void)
             memset(rxBuffer, '\0', sizeof(rxBuffer));
             rxLen = 0;
         }
+
 }
 
 

@@ -12,6 +12,7 @@
  *  ESP8266:
  *      UART7, pins PC4(Rx), PC5(Tx)
  *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
+ *      Timer 6 - 4sec watchdog timer in case UART port hangs(likes to do so)
  *  Engines:
  *      PWM0 - Generator 1
  *      PWM Out2(PF2 - left wheel), PWM Out3(PF3 - right wheel)
@@ -61,7 +62,7 @@ extern void HAL_BOARD_CLOCK_Init();
     extern void        HAL_ESP_HWEnable(bool enable);
     extern bool        HAL_ESP_IsHWEnabled();
     extern void        HAL_ESP_IntEnable(bool enable);
-    extern void        HAL_ESP_ClearInt();
+    extern int32_t     HAL_ESP_ClearInt();
     extern bool        HAL_ESP_UARTBusy();
     extern void        HAL_ESP_SendChar(char arg);
     extern bool        HAL_ESP_CharAvail();
