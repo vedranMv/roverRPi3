@@ -36,7 +36,7 @@ ESP8266 esp;
 
 //RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
 
-void RxHook(uint8_t *buf, uint16_t *len)
+void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
     uint8_t msg[30]={0};
 

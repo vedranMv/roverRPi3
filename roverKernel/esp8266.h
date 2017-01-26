@@ -18,6 +18,9 @@
  *  +When in server mode can reply back to clients over TCP socket
  *  +On initialization library registers its services as a kernel module in task
  *  scheduler
+ *  V1.3 TODO
+ *  Add interface for initiating a connection to TCP server (run ESP as client)
+ *  Add interface to send UDP packet
  */
 
 #ifndef ESP8266_H_
@@ -28,7 +31,7 @@
 
 //  Enable debug information printed on serial port
 //  When used causes program to hang on MyIP() function!!!
-//#define __DEBUG_SESSION__
+#define __DEBUG_SESSION__
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 
@@ -79,6 +82,7 @@ typedef std::vector<_espClient> espCli;
 class _espClient
 {
     friend class ESP8266;
+    friend void UART7RxIntHandler(void);
     public:
         _espClient();
         _espClient(uint8_t id, ESP8266 *par);
@@ -112,6 +116,7 @@ class ESP8266
 {
         /// Functions & classes needing direct access to all members
         friend class _espClient;
+        friend void UART7RxIntHandler(void);
         friend void _ESP_KernelCallback(void);
 	public:
 		ESP8266();
@@ -137,11 +142,11 @@ class ESP8266
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
 		uint32_t    Execute(uint32_t flags, const char* arg, ...);
 
-		void		AddHook(void((*custHook)(uint8_t*, uint16_t*)));
+		void		AddHook(void((*custHook)(uint8_t, uint8_t*, uint16_t*)));
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
 
-		//  Hook to user routine
-		void	((*custHook)(uint8_t*, uint16_t*));
+		//  Hook to user routine called when data from socket is received
+		void	((*custHook)(uint8_t, uint8_t*, uint16_t*));
 		//  Status variable for error codes returned by ESP - bi
 		volatile uint32_t	flowControl;
 
@@ -178,6 +183,6 @@ extern ESP8266* __esp;
 /*
  *  UART interrupt handle - used to receive incoming data from ESP
  */
-extern "C" void UART7RxIntHandler(void);
+extern void UART7RxIntHandler(void);
 
 #endif /* ESP8266_H_ */

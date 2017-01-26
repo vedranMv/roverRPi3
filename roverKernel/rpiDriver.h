@@ -59,6 +59,6 @@ class RPIRover
 
 extern RPIRover* __rpiRov;
 
-extern "C" void UARTHook(uint8_t* txBuf, uint16_t* txBufLen);
+extern "C" void UARTHook(uint8_t, uint8_t* txBuf, uint16_t* txBufLen);
 
 #endif /* RPIDRIVER_H_ */

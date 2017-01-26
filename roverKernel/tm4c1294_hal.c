@@ -141,7 +141,6 @@ void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
     UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
     IntDisable(INT_UART7);
     IntMasterEnable();
-
 }
 
 /**
@@ -228,6 +227,36 @@ char  HAL_ESP_GetChar()
     return UARTCharGetNonBlocking(ESP8266_UART_BASE);
 }
 
+/**
+ * Watchdog timer for ESP module - used to reset protocol if communication hangs
+ * for too long
+ */
+void HAL_ESP_InitWD(void((*intHandler)(void)))
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
+    TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
+    /// Set up some big load that should never be reached (dT usually < 1s)
+    TimerLoadSet(TIMER6_BASE, TIMER_A, 4*g_ui32SysClock);
+    TimerIntRegister(TIMER6_BASE, TIMER_A, intHandler);
+    TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
+    IntEnable(INT_TIMER6A);
+}
+
+void HAL_ESP_WDControl(bool enable)
+{
+    if (enable)
+    {
+        HWREG(TIMER6_BASE + TIMER_O_TAV) = 0;
+        TimerEnable(TIMER6_BASE, TIMER_A);
+    }
+    else
+        TimerDisable(TIMER6_BASE, TIMER_A);
+}
+
+void HAL_ESP_WDClearInt()
+{
+    TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
+}
 
 /******************************************************************************
  ******************************************************************************

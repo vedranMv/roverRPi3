@@ -223,6 +223,11 @@ uint32_t ESP8266::Execute(uint32_t flags, const char* arg, ...)
 ///         Public functions used for configuring ESP8266               [PUBLIC]
 ///-----------------------------------------------------------------------------
 
+void ESPWDISR()
+{
+    HAL_ESP_WDClearInt();
+    __esp->flowControl = ESP_STATUS_ERROR;
+}
 
 /**
  * Initialize UART port used in communication with Raspberry Pi
@@ -233,6 +238,7 @@ uint32_t ESP8266::InitHW(int32_t baud)
 {
     HAL_ESP_InitPort(baud);
     HAL_ESP_RegisterIntHandler(UART7RxIntHandler);
+    HAL_ESP_InitWD(ESPWDISR);
 
     //    Turn ESP8266 chip ON
     Enable(true);
@@ -272,9 +278,9 @@ bool ESP8266::IsEnabled()
  * Register hook to user function
  * Register hook to user-function called every time new data from TCP/UDP client
  * is received. Received data is passed as an argument to hook function.
- * @param funPoint pointer to void function with 2 arguments: uint8_t*, uint16_t*
+ * @param funPoint pointer to void function with 3 arguments
  */
-void ESP8266::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
+void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
 {
     custHook = funPoint;
 }
@@ -619,18 +625,26 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags)
     //  Start listening for reply
     HAL_ESP_IntEnable(true);
 
+
     //  If non-blockign mode is not enabled wait for status
     if (!(flags & ESP_NONBLOCKING_MODE))
     {
+        HAL_ESP_WDControl(true);
         while( !(flowControl & ESP_STATUS_OK) &&
                 !(flowControl & ESP_STATUS_ERROR) &&
                 !(flowControl & flags));
 
+        HAL_ESP_WDControl(false);
         return flowControl;
     }
     else return ESP_NONBLOCKING_MODE;
 }
 
+/**
+ * Write bytes directly to port (used when sending data of TCP/UDP socket)
+ * @param buffer data to send to serial port
+ * @param bufLen length of data in buffer
+ */
 void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
 {
 #ifdef __DEBUG_SESSION__
@@ -697,6 +711,7 @@ uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
     return 444;
 }
 
+char *intBuffer;
 /**
  * Interrupt service routine for handling incoming data on UART (Tx)
  */
@@ -706,6 +721,7 @@ void UART7RxIntHandler(void)
     static uint16_t rxLen = 0;
 
     HAL_ESP_ClearInt();
+    intBuffer = rxBuffer;
 
     while (HAL_ESP_CharAvail())
     {
@@ -723,8 +739,9 @@ void UART7RxIntHandler(void)
 
     //  All messages terminated by \r\n
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
-            || (rxBuffer[rxLen-1] == '>'))
+      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' )) )
         {
+            HAL_ESP_WDControl(true);//Reset watchdog timer
             __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
 
             if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
@@ -732,8 +749,9 @@ void UART7RxIntHandler(void)
                 char resp[128];
                 uint16_t respLen = 0;
                 memset(resp, 0, 128);
-                __esp->GetClientBySockID(0)->Receive(resp, &respLen);
-                __esp->custHook((uint8_t*)resp, &respLen);
+                for (uint8_t i = 0; i < __esp->_clients.size(); i++)
+                    if (!__esp->GetClientBySockID(i)->Receive(resp, &respLen))
+                       __esp->custHook(i, (uint8_t*)resp, &respLen);
             }
 
             if (((__esp->flowControl & ESP_STATUS_OK) ||

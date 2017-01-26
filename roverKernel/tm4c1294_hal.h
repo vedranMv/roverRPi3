@@ -66,7 +66,9 @@ extern void HAL_BOARD_CLOCK_Init();
     extern void        HAL_ESP_SendChar(char arg);
     extern bool        HAL_ESP_CharAvail();
     extern char        HAL_ESP_GetChar();
-
+    extern void        HAL_ESP_InitWD(void((*intHandler)(void)));
+    extern void        HAL_ESP_WDControl(bool enable);
+    extern void        HAL_ESP_WDClearInt();
 /**     Engines - related HW API      */
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(bool enable);

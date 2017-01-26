@@ -219,7 +219,7 @@ int8_t RPIRover::RPICallback()
 	return STATUS_OK;
 }
 
-void UARTHook(uint8_t* txBuf, uint16_t* txBufLen)
+void UARTHook(uint8_t, uint8_t* txBuf, uint16_t* txBufLen)
 {
 	//  Parse the message and reset buffers if end-condition has been met
     if ((*txBufLen) < 2) return;
