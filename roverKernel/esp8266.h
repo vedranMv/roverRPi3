@@ -14,11 +14,13 @@
  *  +Parse incoming data from a TCP socket and allow for hooking user routines
  *      to manipulate received socket data
  *  +Send data over TCP socket to a client connected to the TCP server of ESP
- *  V1.2 - 25.1.2016
+ *  V1.2 - 25.1.2017
  *  +When in server mode can reply back to clients over TCP socket
  *  +On initialization library registers its services as a kernel module in task
  *  scheduler
- *  V1.2.1 TODO
+ *  V1.2.1 26.1.2017
+ *  +Implented watchdog(WD) timer with variable timeout to handle any blockage
+ *      in communication (ESP sometimes not consistent with sending msg terminator)
  *  Add interface for initiating a connection to TCP server (run ESP as client)
  *  Add interface to send UDP packet
  */
@@ -26,23 +28,19 @@
 #ifndef ESP8266_H_
 #define ESP8266_H_
 
-
 #include <vector>
 
 //  Enable debug information printed on serial port
-//  When used causes program to hang on MyIP() function!!!
 #define __DEBUG_SESSION__
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 
 #if defined(__USE_TASK_SCHEDULER__)
     #include "taskScheduler.h"
-//  Unique identifier of this module as registered in task scheduler
-#define ESP_UID         0
-//  Definitions of ServiceID for service offered by this module
-#define ESP_T_SENDTCP   0
-
-
+    //  Unique identifier of this module as registered in task scheduler
+    #define ESP_UID         0
+    //  Definitions of ServiceID for service offered by this module
+    #define ESP_T_SENDTCP   0
 #endif
 
 
@@ -54,7 +52,7 @@
 #define ESP_NO_STATUS			0
 #define ESP_STATUS_OK			1<<0
 #define ESP_STATUS_BUSY			1<<1
-#define ESP_STATUS_ERROR		1<<2
+#define ESP_RESPOND_SUCC		1<<2
 #define ESP_NONBLOCKING_MODE	1<<3
 #define ESP_STATUS_CONNECTED	1<<4
 #define ESP_STATUS_DISCN        1<<5
@@ -64,7 +62,7 @@
 #define ESP_STATUS_RECV			1<<9
 #define ESP_STATUS_FAIL			1<<10
 #define ESP_STATUS_SENDOK		1<<11
-#define ESP_RESPOND_SUCC		1<<12
+#define ESP_STATUS_ERROR		1<<12
 #define ESP_NORESPONSE          1<<13
 #define ESP_STATUS_IPD          1<<14
 #define ESP_GOT_IP              1<<15
@@ -135,6 +133,8 @@ class ESP8266
 		bool        ServerOpened();
 		uint32_t    StopTCPServer();
 
+		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port);
+
 		void 		Enable(bool enable);
 		bool		IsEnabled();
 
@@ -152,7 +152,8 @@ class ESP8266
 
 	protected:
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
-		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0);
+		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
+		                     uint32_t timeout = 500);
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);

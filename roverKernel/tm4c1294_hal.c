@@ -55,7 +55,23 @@ uint32_t g_ui32SysClock;
 /**     MPU9250 - related macros        */
 #define MPU9250_I2C_BASE I2C2_BASE
 
+///-----------------------------------------------------------------------------
+///                                                                    [PRIVATE]
+///-----------------------------------------------------------------------------
+/**
+ * Calculate load value from timer based on desired time in milliseconds
+ * @param ms time in milliseconds
+ * @return equivalent number of clock cycles for main oscillator
+ */
+uint32_t _TM4CMsToCycles(uint32_t ms)
+{
+    return (ms*(g_ui32SysClock/1000));
+}
 
+
+///-----------------------------------------------------------------------------
+///                                                                     [PUBLIC]
+///-----------------------------------------------------------------------------
 /**
  * Initialize microcontroller board clock & enable on-board floating-point unit
  */
@@ -68,6 +84,8 @@ void HAL_BOARD_CLOCK_Init()
     ///  Enable Floating-point unit (FPU)
     FPUEnable();
     FPULazyStackingEnable();
+    //  Enable interrupt handler
+    IntMasterEnable();
 }
 
 /**
@@ -140,7 +158,6 @@ void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
     UARTIntRegister(ESP8266_UART_BASE, intHandler);
     UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
     IntDisable(INT_UART7);
-    IntMasterEnable();
 }
 
 /**
@@ -238,16 +255,25 @@ void HAL_ESP_InitWD(void((*intHandler)(void)))
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
     TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
     /// Set up some big load that should never be reached (dT usually < 1s)
-    TimerLoadSet(TIMER6_BASE, TIMER_A, 4*g_ui32SysClock);
     TimerIntRegister(TIMER6_BASE, TIMER_A, intHandler);
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
     IntEnable(INT_TIMER6A);
 }
 
-void HAL_ESP_WDControl(bool enable)
+
+void HAL_ESP_WDControl(bool enable, uint32_t ms)
 {
+    //  Record last value for timeout, use it when timeout argument is 0
+    static uint32_t LTM;
     if (enable)
     {
+        if (ms != 0)
+        {
+            TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(ms));
+            LTM = ms;
+        }
+        else
+            TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
         HWREG(TIMER6_BASE + TIMER_O_TAV) = 0;
         TimerEnable(TIMER6_BASE, TIMER_A);
     }
@@ -258,6 +284,7 @@ void HAL_ESP_WDControl(bool enable)
 void HAL_ESP_WDClearInt()
 {
     TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
+    IntPendSet(INT_UART7);
 }
 
 /******************************************************************************
@@ -302,8 +329,6 @@ void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
 
     /// Initialize optical encoders that track wheel movement - interrupt based
     /// Dont't forget to update ISR pointers in interrupt vector in startuo_ccs.c
-    IntMasterEnable();
-
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOP);
     SysCtlPeripheralReset(SYSCTL_PERIPH_GPIOP);
     GPIOPinTypeGPIOInput(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1);
@@ -608,7 +633,6 @@ void HAL_MPU_Init(void((*custHook)(void)))
         GPIOIntRegister(GPIO_PORTA_BASE, custHook);
         GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
         IntDisable(INT_GPIOA);
-        IntMasterEnable();
     }
 
 
@@ -832,7 +856,6 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
     SysTickPeriodSet(periodMs*(g_ui32SysClock/1000));
     SysTickIntRegister(custHook);
     SysTickIntEnable();
-    IntMasterEnable();
     _systickSet = true;
 
     return 0;
@@ -872,3 +895,4 @@ uint32_t HAL_TS_GetTimeStepMS()
 {
     return (SysTickPeriodGet()*1000)/g_ui32SysClock;
 }
+

@@ -223,11 +223,15 @@ uint32_t ESP8266::Execute(uint32_t flags, const char* arg, ...)
 ///-----------------------------------------------------------------------------
 ///         Public functions used for configuring ESP8266               [PUBLIC]
 ///-----------------------------------------------------------------------------
-
+/**
+ * Routine invoked by watchdog timer on timeout
+ * Sets global status for current communication to "error", clears WD interrupt
+ * flag and CALLS the ESP's interrupt handler to process any remaining data in there
+ */
 void ESPWDISR()
 {
-    HAL_ESP_WDClearInt();
     __esp->flowControl = ESP_STATUS_ERROR;
+    HAL_ESP_WDClearInt();
 }
 
 /**
@@ -309,7 +313,9 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 
     //  Assemble command & send it
     snprintf(command, 100, "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
-    retVal = _SendRAW(command);
+    //  Use standard send function but increase timeout to 4s as acquring IP
+    //  address might take time
+    retVal = _SendRAW(command, 0, 4000);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Acquire IP address and save it locally
@@ -428,6 +434,21 @@ uint32_t ESP8266::StopTCPServer()
 ///-----------------------------------------------------------------------------
 ///                      Functions related to TCP clients               [PUBLIC]
 ///-----------------------------------------------------------------------------
+
+/**
+ * Open TCP socket to a client at specific IP and port
+ * @param ipAddr string containing IP address of server
+ * @param port TCP socket port of server
+ * @return On success socket ID of TCP client in _client vector, on failiure
+ *         ESP_STATUS_ERROR error code
+ */
+uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port)
+{
+    if (_InStatus(_SendRAW("AT+CIPSTART=\"TCP\","), ESP_STATUS_OK))
+        return _clients[_clients.size()-1]._id;
+    else
+        return ESP_STATUS_ERROR;
+}
 
 
 /**
@@ -601,7 +622,7 @@ bool ESP8266::_InStatus(const uint32_t status, const uint32_t flag)
  * @param flags bitwise OR of ESP_STATUS_* values
  * @return bitwise OR of ESP_STATUS_* returned by the ESP module
  */
-uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags)
+uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeout)
 {
     uint16_t txLen = 0;
 
@@ -631,12 +652,12 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags)
     //  If non-blockign mode is not enabled wait for status
     if (!(flags & ESP_NONBLOCKING_MODE))
     {
-        HAL_ESP_WDControl(true);
+        HAL_ESP_WDControl(true, timeout);
         while( !(flowControl & ESP_STATUS_OK) &&
                 !(flowControl & ESP_STATUS_ERROR) &&
                 !(flowControl & flags));
 
-        HAL_ESP_WDControl(false);
+        HAL_ESP_WDControl(false, 0);
         return flowControl;
     }
     else return ESP_NONBLOCKING_MODE;
@@ -723,6 +744,7 @@ void UART7RxIntHandler(void)
     static uint16_t rxLen = 0;
     uint32_t intMask = HAL_ESP_ClearInt();
 
+    HAL_ESP_WDControl(true, 0);    //Reset watchdog timer
 
     while (HAL_ESP_CharAvail())
     {
@@ -735,36 +757,42 @@ void UART7RxIntHandler(void)
         if (((temp > 31) && (temp < 126))
                 || (temp == '\n')) UARTprintf("%c", temp);
 #endif
-        }
+    }
 
 
     //  All messages terminated by \r\n
+    /*
+     *  There are 3 occasions when we want to process data in input buffer:
+     *  1) We've reached terminator sequence of the message (\r\n)
+     *  2) ESP returned '> ' (without terminator) and awaits data
+     *  3) Watchdog timer has timed out changing 'flowControl' to "error"
+     *      (on timeout WD timer also recalls the interrupt)
+     */
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
-      || ((UART_INT_RT & intMask) > 0) )
+      || ( __esp->flowControl == ESP_STATUS_ERROR) )
+    {
+
+        __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
+
+        if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
-            HAL_ESP_WDControl(true);//Reset watchdog timer
-            __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
-
-            if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
-            {
-                char resp[128];
-                uint16_t respLen = 0;
-                memset(resp, 0, 128);
-                for (uint8_t i = 0; i < __esp->_clients.size(); i++)
-                    if (!__esp->GetClientBySockID(i)->Receive(resp, &respLen))
-                       __esp->custHook(i, (uint8_t*)resp, &respLen);
-            }
-
-            if (((__esp->flowControl & ESP_STATUS_OK) ||
-                 (__esp->flowControl & ESP_STATUS_ERROR))
-                && !__esp->ServerOpened())
-                HAL_ESP_IntEnable(false);
-
-            memset(rxBuffer, '\0', sizeof(rxBuffer));
-            rxLen = 0;
+            char resp[128];
+            uint16_t respLen = 0;
+            memset(resp, 0, 128);
+            for (uint8_t i = 0; i < __esp->_clients.size(); i++)
+                if (!__esp->GetClientBySockID(i)->Receive(resp, &respLen))
+                   __esp->custHook(i, (uint8_t*)resp, &respLen);
         }
 
+        if (((__esp->flowControl & ESP_STATUS_OK) ||
+             (__esp->flowControl & ESP_STATUS_ERROR))
+            && !__esp->ServerOpened())
+            HAL_ESP_IntEnable(false);
+
+        memset(rxBuffer, '\0', sizeof(rxBuffer));
+        rxLen = 0;
+    }
 }
 
 
