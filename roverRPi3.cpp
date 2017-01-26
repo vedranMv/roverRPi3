@@ -44,19 +44,16 @@ void RxHook(uint8_t *buf, uint16_t *len)
 
     if ((buf[0] == 'H') && (buf[1] == 'e'))
     {
-        //snprintf((char*)msg, 15,"12");
-        msg[0]=17;
+        msg[0]=28;
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
        // __taskSch->AddArgForCurrent(msg,2);
-        __taskSch->AddStringArg(msg, 2);
+        __taskSch->AddStringArg(msg, 1);
 
-        snprintf((char*)msg, 30,"Hello there oyee!");
+        snprintf((char*)msg, 30,"Hello you on the other side!");
         __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
         //__taskSch->AddArgForCurrent(msg,12);
-        __taskSch->AddStringArg(msg, 12);
+        __taskSch->AddStringArg(msg, 28);
     }
-
-    ///TODO: Resgister a call to task scheduler to send request to user
 }
 
 int main(void)

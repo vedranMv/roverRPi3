@@ -60,14 +60,13 @@ extern void HAL_BOARD_CLOCK_Init();
     extern void        HAL_ESP_RegisterIntHandler(void((*intHandler)(void)));
     extern void        HAL_ESP_HWEnable(bool enable);
     extern bool        HAL_ESP_IsHWEnabled();
-
     extern void        HAL_ESP_IntEnable(bool enable);
     extern void        HAL_ESP_ClearInt();
     extern bool        HAL_ESP_UARTBusy();
-
     extern void        HAL_ESP_SendChar(char arg);
     extern bool        HAL_ESP_CharAvail();
     extern char        HAL_ESP_GetChar();
+
 /**     Engines - related HW API      */
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(bool enable);

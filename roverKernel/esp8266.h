@@ -4,30 +4,43 @@
  *  Created on: 1. 8. 2016.
  *      Author: Vedran Mikov
  *
- *  @version 1.1.4
- *	@note	Current functionality:
- *      -Connect/disconnect from AP, get acquired IP as string/int
- *	    -Start TCP server and allow multiple connections, keep track of
- *	      connected clients
- *	    -Parse ESP replies and get status of commands
- *      -Parse incoming data from a TCP socket and allow for hooking user routines
- *        to manipulate received socket data
- *      -Send data over TCP socket to a client connected to the TCP server of ESP
+ *  ESP8266 WiFi module communication library
+ *  @version 1.1.5
+ *  V1.1.4
+ *  +Connect/disconnect from AP, get acquired IP as string/int
+ *	+Start TCP server and allow multiple connections, keep track of
+ *	    connected clients
+ *  +Parse ESP replies and get status of commands
+ *  +Parse incoming data from a TCP socket and allow for hooking user routines
+ *      to manipulate received socket data
+ *  +Send data over TCP socket to a client connected to the TCP server of ESP
+ *  V1.2 - 25.1.2016
+ *  +When in server mode can reply back to clients over TCP socket
+ *  +On initialization library registers its services as a kernel module in task
+ *  scheduler
  */
-
-/*************TODO block***********************************
- ****+Implement TCP write, reuse socket ID from TCP server
- **********************************************************/
 
 #ifndef ESP8266_H_
 #define ESP8266_H_
 
-#include "tm4c1294_hal.h"
-#include "taskScheduler.h"
-#include <stdio.h>
+
 #include <vector>
 
-#define __DEBUG_SESSION__
+//  Enable debug information printed on serial port
+//  When used causes program to hang on MyIP() function!!!
+//#define __DEBUG_SESSION__
+//  Enable integration of this library with task scheduler
+#define __USE_TASK_SCHEDULER__
+
+#if defined(__USE_TASK_SCHEDULER__)
+    #include "taskScheduler.h"
+//  Unique identifier of this module as registered in task scheduler
+#define ESP_UID         0
+//  Definitions of ServiceID for service offered by this module
+#define ESP_T_SENDTCP   0
+
+
+#endif
 
 
 /*		Communication settings	 	*/
@@ -53,18 +66,51 @@
 #define ESP_STATUS_IPD          1<<14
 #define ESP_GOT_IP              1<<15
 
-#define FLAG_DATAPUSH		1<<16
 
-extern uint32_t g_ui32SysClock;
-
+/// Clss prototypes definition
 class ESP8266;
 class _espClient;
-
+/// Short annotation for vector of TCP clients
 typedef std::vector<_espClient> espCli;
 
+/**
+ * _espClient class - wrapper for TCP client connected to ESP server
+ */
+class _espClient
+{
+    friend class ESP8266;
+    public:
+        _espClient();
+        _espClient(uint8_t id, ESP8266 *par);
+        _espClient(const _espClient &arg);
 
+        void        operator= (const _espClient &arg);
+
+        uint32_t    SendTCP(char *buffer);
+        uint32_t    Receive(char *buffer, uint16_t *bufferLen);
+        uint32_t    Close();
+
+    private:
+        void        _Clear();
+
+        //  Pointer to a parent device of of this client
+        ESP8266         *_parent;
+        //  Socket ID of this client, as returned by ESP
+        uint8_t         _id;
+        //  Specifies whether the socket is alive
+        volatile bool   _alive;
+        //  Specifies whether there's a response from this client ready to read
+        volatile bool   _respRdy;
+        //  Buffer for data received on this socket
+        volatile char   _respBody[128];
+};
+
+/**
+ * ESP8266 class definition
+ */
 class ESP8266
 {
+        /// Functions & classes needing direct access to all members
         friend class _espClient;
         friend void _ESP_KernelCallback(void);
 	public:
@@ -94,7 +140,9 @@ class ESP8266
 		void		AddHook(void((*custHook)(uint8_t*, uint16_t*)));
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
 
-		void	((*custHook)(uint8_t*, uint16_t*));  ///< Hook to user routine
+		//  Hook to user routine
+		void	((*custHook)(uint8_t*, uint16_t*));
+		//  Status variable for error codes returned by ESP - bi
 		volatile uint32_t	flowControl;
 
 	protected:
@@ -105,100 +153,30 @@ class ESP8266
 		uint32_t    _IPtoInt(char *ipAddr);
 		uint16_t    _IDtoIndex(uint16_t sockID);
 
+		//  IP address in decimal and string format
 		uint32_t    _ipAddress;
 		char        _ipStr[16];
 
-		//  TCP server-related variables
+		//  TCP server port
 		uint16_t    _tcpServPort;
+		//  Specifies whether the TCP server is currently running
 		bool        _servOpen;
 
-		//  Vector of opened clients
+		//  Vector clients currently connected to ESP (when in TCP-server mode)
+		//  or connections initiated by the ESP
 		espCli      _clients;
+
+		//  Interface with task scheduler - provides memory space and function
+		//  to call in order for task scheduler to request service from this module
+#if defined(__USE_TASK_SCHEDULER__)
 		_callBackEntry _espSer;
+#endif
 };
 
-class _espClient
-{
-    friend class ESP8266;
-    public:
-        _espClient()
-            : _parent(0), _id(0) ,_alive(false)  { _Clear(); }
-        _espClient(uint8_t id, ESP8266 *par)
-            : _parent(par), _id(id), _alive(true) { _Clear(); }
-        _espClient(const _espClient &arg)
-            : _parent(arg._parent), _id(arg._id), _alive(arg._alive) { _Clear(); }
-
-        void operator= (const _espClient &arg)
-        {
-            _parent = arg._parent;
-            _id = arg._id;
-            _alive = arg._alive;
-            _respRdy = arg._respRdy;
-            for (int i = 0; i < sizeof(_respBody); i++)
-                _respBody[i] = arg._respBody[i];
-        }
-
-        uint32_t  SendTCP(char *buffer)
-        {
-            uint16_t bufLen = 0;
-            char tempBuf[512];
-
-            while (buffer[bufLen++] != '\0');   //Find length of string
-            //  Initiate transmission from
-            snprintf(tempBuf, sizeof(tempBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen-1);
-            if (_parent->_SendRAW(tempBuf, ESP_STATUS_RECV))
-            {
-                _parent->flowControl = ESP_NO_STATUS;
-                if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
-                _parent->_RAWPortWrite(buffer, bufLen);
-                while (_parent->flowControl == ESP_NO_STATUS);
-            }
-
-            return _parent->flowControl;
-        }
-        uint32_t Receive(char *buffer, uint16_t *bufferLen)
-        {
-            (*bufferLen) = 0;
-            //  Check if there's new data received
-            if (_respRdy)
-            {
-                //  Fill argument buffer
-                while(_respBody[(*bufferLen)] != 0)
-                {
-                    buffer[(*bufferLen)] = _respBody[(*bufferLen)];
-                    (*bufferLen)++;
-                }
-
-                //  Empty internal buffer - memset doesn't work on volatile
-                _Clear();
-
-                return ESP_NO_STATUS;
-            }
-            else return ESP_NORESPONSE;
-        }
-        uint32_t    Close()
-        {
-            return _parent->Execute(ESP_STATUS_OK, "AT+CIPCLOSE=%d\0", _id);
-        }
-
-    private:
-        void _Clear()
-        {
-            for (int i = 0; i < sizeof(_respBody); i++)
-                _respBody[i] = 0;
-            _respRdy = false;
-        }
-
-        ESP8266         *_parent;
-        uint8_t         _id;
-        volatile bool   _alive;
-        volatile bool   _respRdy;
-        volatile char   _respBody[128];
-};
-
+//  Global pointer to FIRST created instance of ESP module
 extern ESP8266* __esp;
 /*
- * Function for receiving and processing incomming data - no need to call them
+ *  UART interrupt handle - used to receive incoming data from ESP
  */
 extern "C" void UART7RxIntHandler(void);
 

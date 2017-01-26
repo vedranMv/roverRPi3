@@ -15,9 +15,37 @@
 #include "myLib.h"
 #include "esp8266.h"
 #include "utils/uartstdio.h"
-#include "taskScheduler.h"
+#include "tm4c1294_hal.h"
 
-void _ESP_KernelCallback(void);
+#if defined(__USE_TASK_SCHEDULER__)
+
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function called task scheduler has already
+ * copied required variables into the memory space provided for it.
+ */
+void _ESP_KernelCallback(void)
+{
+    switch (__esp->_espSer.serviceID)
+    {
+    case ESP_T_SENDTCP:
+        {
+            //  Ensure that message is null-terminated
+            if (__esp->_espSer.args[0] < 50)
+                __esp->_espSer.args[__esp->_espSer.args[0]+1] = '\0';
+            else
+                __esp->_espSer.args[49] = '\0';
+            //  Initiate TCP send to required client
+            __esp->GetClientBySockID(__esp->_espSer.serviceID)
+                    ->SendTCP((char*)(__esp->_espSer.args+1));
+        }
+        break;
+    default:
+        break;
+    }
+
+}
+#endif
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
@@ -34,15 +62,129 @@ ESP8266* __esp;
 //  Dummy function te be called to suppress "Unused variable" warnings
 void UNUSED(int32_t arg) { }
 
+/*******************************************************************************
+ *******************************************************************************
+ *********            _espClient class member functions                *********
+ *******************************************************************************
+ ******************************************************************************/
+
+///-----------------------------------------------------------------------------
+///                      Class constructor & destructor                [PUBLIC]
+///-----------------------------------------------------------------------------
+_espClient::_espClient() : _parent(0), _id(0) ,_alive(false)
+{
+    _Clear();
+}
+
+_espClient::_espClient(uint8_t id, ESP8266 *par)
+    : _parent(par), _id(id), _alive(true)
+{
+    _Clear();
+}
+_espClient::_espClient(const _espClient &arg)
+    : _parent(arg._parent), _id(arg._id), _alive(arg._alive)
+{
+    _Clear();
+}
+
+void _espClient::operator= (const _espClient &arg)
+{
+    _parent = arg._parent;
+    _id = arg._id;
+    _alive = arg._alive;
+    _respRdy = arg._respRdy;
+    for (int i = 0; i < sizeof(_respBody); i++)
+        _respBody[i] = arg._respBody[i];
+}
+
+///-----------------------------------------------------------------------------
+///                      Client socket-manipulation                     [PUBLIC]
+///-----------------------------------------------------------------------------
+
+/**
+ * Send data to a client over open TCP socket
+ * @param buffer NULL-TERMINATED(!) data to send
+ * @return status of send process (binary or of ESP_* flags received while sending)
+ */
+uint32_t _espClient::SendTCP(char *buffer)
+{
+    uint16_t bufLen = 0;
+    char tempBuf[512];
+
+    while (buffer[bufLen++] != '\0');   //Find length of string
+    //  Initiate transmission from
+    snprintf(tempBuf, sizeof(tempBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen-1);
+    if (_parent->_SendRAW(tempBuf, ESP_STATUS_RECV))
+    {
+        _parent->flowControl = ESP_NO_STATUS;
+        if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
+        _parent->_RAWPortWrite(buffer, bufLen);
+        while (_parent->flowControl == ESP_NO_STATUS);
+    }
+
+    return _parent->flowControl;
+}
+/**
+ * Read reasponse from client saved in internal buffer
+ * Internal buffer with response is filled as soon as response is received in
+ * an interrupt. This function only copies response from internal buffer to a
+ * user provided one and then clears internal (and data-ready flag).
+ * @param buffer pointer to user-provided buffer for incoming data
+ * @param bufferLen used to return the buffer size to user
+ * @return ESP_NO_STATUS: on success,
+ *         ESP_NORESPONSE: if no response is available
+ */
+uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
+{
+    (*bufferLen) = 0;
+    //  Check if there's new data received
+    if (_respRdy)
+    {
+        //  Fill argument buffer
+        while(_respBody[(*bufferLen)] != 0)
+        {
+            buffer[(*bufferLen)] = _respBody[(*bufferLen)];
+            (*bufferLen)++;
+        }
+
+        //  Empty internal buffer - memset doesn't work on volatile
+        _Clear();
+
+        return ESP_NO_STATUS;
+    }
+    else return ESP_NORESPONSE;
+}
+
+/**
+ * Force closing TCP socket with the client
+ * @return status of close process (binary or of ESP_* flags received while closing)
+ */
+uint32_t _espClient::Close()
+{
+    return _parent->Execute(ESP_STATUS_OK, "AT+CIPCLOSE=%d\0", _id);
+}
+
+/**
+ * Clear response body and flag for response ready
+ */
+void _espClient::_Clear()
+{
+    memset((void*)_respBody, 0, sizeof(_respBody));
+    _respRdy = false;
+}
+/*******************************************************************************
+ *******************************************************************************
+ *********              ESP8266 class member functions                 *********
+ *******************************************************************************
+ ******************************************************************************/
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor                [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-ESP8266::ESP8266()    :    custHook(0), flowControl(ESP_NO_STATUS)
+ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS)
 {
-    __esp = this;
-   // _clients.resize(5); //  ESP allows for max of 5 clients at the time
+    if (__esp == 0) __esp = this;
 }
 
 ESP8266::~ESP8266()
@@ -99,10 +241,11 @@ uint32_t ESP8266::InitHW(int32_t baud)
     _SendRAW("AT\0");
     _SendRAW("ATE0\0");
 
+#if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
     _espSer.callBackFunc = _ESP_KernelCallback;
-    TS_RegCallback(&_espSer, 0);
-
+    TS_RegCallback(&_espSer, ESP_UID);
+#endif
 
     return ESP_STATUS_OK;
 }
@@ -602,16 +745,5 @@ void UART7RxIntHandler(void)
             rxLen = 0;
         }
 }
-
-void _ESP_KernelCallback(void)
-{
-    uint8_t msg[20] = {0};
-
-    memcpy((void*)msg, (void*)(__esp->_espSer.args+1), __esp->_espSer.args[0]);
-    UARTprintf("My message is: %s   \r\n", msg);
-    msg[__esp->_espSer.args[0]] = '\0';
-    __esp->GetClientBySockID(__esp->_espSer.serviceID)->SendTCP((char*)msg);
-}
-
 
 

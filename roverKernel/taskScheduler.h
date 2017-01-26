@@ -21,6 +21,7 @@
  *  v2.2 - TODO
  *  Implement UTC clock ability, if at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
+ *
  ****Hardware dependencies:
  *  SysTick timer & interrupt
  */
@@ -32,6 +33,7 @@
 
 /// Max number of task in TaskSchedule queue
 #define TS_MAX_TASKS	10
+#define TS_TASK_MEMORY  50
 
 
 /**
@@ -39,7 +41,7 @@
  */
 class _taskEntry
 {
-    /// Functions & classes needing direct access to all members
+    // Functions & classes needing direct access to all members
 	friend class TaskScheduler;
 	friend void TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
@@ -61,17 +63,22 @@ class _taskEntry
 			_argN = arg._argN;
 			_timestamp = arg._timestamp;
 
-			for (uint8_t i = 0; i< 10; i++)
+			for (uint8_t i = 0; i < sizeof(_args); i++)
 				_args[i] = arg._args[i];
 		}
 
 	protected:
 		         void       _init() volatile;
+		//  Unique ientifier for library to request service from
 		volatile uint8_t    _libuid;
+		//  Service ID to execute
 		volatile uint8_t    _task;
+		//  Number of arguments provided when doing service call
 		volatile uint8_t    _argN;
+		//  Time at which to exec. service (in ms from start-up of task scheduler)
 		volatile uint32_t   _timestamp;
-		volatile uint8_t    _args[50];
+		//  Arguments used when calling service
+		volatile uint8_t    _args[TS_TASK_MEMORY];
 };
 
 /**
@@ -81,7 +88,7 @@ class _taskEntry
  */
 class TaskScheduler
 {
-    /// Functions & classes needing direct access to all members
+    // Functions & classes needing direct access to all members
     friend void TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
 	public:
@@ -102,7 +109,9 @@ class TaskScheduler
 		volatile _taskEntry& At(uint16_t index) volatile;
 
 	private:
+		//  Queue of tasks to be executed
 		volatile _taskEntry	_taskLog[TS_MAX_TASKS];
+		//  Iterators for task queue (B-begin, E-end)
 		volatile int8_t		_taskItB,
 							_taskItE;
 };
@@ -111,6 +120,7 @@ class TaskScheduler
 extern volatile TaskScheduler* __taskSch;
 extern void TSSyncCallback(void);
 extern void TS_GlobalCheck(void);
+
 /**
  * Callback entry into the Task scheduler from individual kernel module
  * Once initialized, each kernel module registers the services it provides into
@@ -124,10 +134,10 @@ extern void TS_GlobalCheck(void);
  */
 struct _callBackEntry
 {
-    void((*callBackFunc)(void));    /// Pointer to callback function
-    uint8_t serviceID;              /// Requested service
-    uint8_t args[50];               /// Arguments for service execution
-    int8_t  retVal;                 /// (Optinal) Return variable of service exec
+    void((*callBackFunc)(void));    // Pointer to callback function
+    uint8_t serviceID;              // Requested service
+    uint8_t args[TS_TASK_MEMORY];   // Arguments for service execution
+    int8_t  retVal;                 // (Optinal) Return variable of service exec
 };
 
 extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);

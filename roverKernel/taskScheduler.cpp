@@ -37,12 +37,11 @@ void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
 /*  Global pointer to last instance of TaskScheduler object */
 volatile TaskScheduler* __taskSch;
 
-
-/************************************************************
- ************************************************************
- ******		_taskEntry class member functions		*********
- ************************************************************
- ***********************************************************/
+/*******************************************************************************
+ *******************************************************************************
+ *********            _taskEntry class member functions                *********
+ *******************************************************************************
+ ******************************************************************************/
 
 _taskEntry::_taskEntry() : _task(0), _argN(0)
 {
@@ -86,11 +85,11 @@ uint16_t _taskEntry::GetArgNum()
 	return _argN;
 }
 
-/************************************************************
- ************************************************************
- *****  	TaskScheduler class member functions		*****
- ************************************************************
- ***********************************************************/
+/*******************************************************************************
+ *******************************************************************************
+ *********  	       TaskScheduler class member functions	    	   *********
+ *******************************************************************************
+ ******************************************************************************/
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor                [PUBLIC]
@@ -224,16 +223,33 @@ volatile _taskEntry& TaskScheduler::PeekFront() volatile
 {
     return _taskLog[_taskItB];
 }
-//#################################################Schedule content manipulation
-//******************************************************************************
+
+/*******************************************************************************
+ *******************************************************************************
+ *********             SysTick callback and time tracking              *********
+ *******************************************************************************
+ ******************************************************************************/
+
+/// Internal time since TaskScheduler startup (in ms)
 static volatile uint64_t __msSinceStartup = 0;
 
+/**
+ * SysTick interrupt
+ * Used to keep internal track of time either as number of milliseconds passed
+ * from start-up of task scheduler or acquired UTC time
+ */
 void TSSyncCallback(void)
 {
     __msSinceStartup += HAL_TS_GetTimeStepMS();
-    //GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, 0xFF);
 }
 
+/**
+ * Task scheduler callback routine
+ * This routine has to be called in order to execute tasks pushed in task queue
+ * and is recently removed from TSSynceCallback because some task might rely on
+ * interrupt routines that couldn't be executed while MCU is within TSSyncCallback
+ * function which is a SysTick ISR. (no interrupts while in ISR!)
+ */
 void TS_GlobalCheck(void)
 {
     if (!__taskSch->IsEmpty())
@@ -254,8 +270,8 @@ void TS_GlobalCheck(void)
             __callbackVector[tE._libuid]->args[0] = tE._argN;
             for (i = 1; i <= (tE._argN); i++)
                 __callbackVector[tE._libuid]->args[i] = tE._args[i-1];
+            //memcpy(__callbackVector[tE._libuid]->args+1, tE._args[i-1])
             /// Call to kernel module
             __callbackVector[tE._libuid]->callBackFunc();
-
         }
 }
