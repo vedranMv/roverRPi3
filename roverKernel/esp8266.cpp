@@ -57,8 +57,11 @@ void _ESP_KernelCallback(void)
 //  Dummy instance used for return value when no available client
 _espClient dummy;
 
-//  Pointer to last created instance of ESP8266
+//  Pointer to first created instance of ESP8266
 ESP8266* __esp;
+
+//  Buffer used to assemble commands
+char _commBuf[512];
 
 //  Dummy function te be called to suppress "Unused variable" warnings
 void UNUSED(int32_t arg) { }
@@ -110,16 +113,18 @@ void _espClient::operator= (const _espClient &arg)
 uint32_t _espClient::SendTCP(char *buffer)
 {
     uint16_t bufLen = 0;
-    char tempBuf[512];
 
     while (buffer[bufLen++] != '\0');   //Find length of string
+    bufLen--;
     //  Initiate transmission from
-    snprintf(tempBuf, sizeof(tempBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen-1);
-    if (_parent->_SendRAW(tempBuf, ESP_STATUS_RECV))
+    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen);
+    if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV))
     {
         _parent->flowControl = ESP_NO_STATUS;
         if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
         _parent->_RAWPortWrite(buffer, bufLen);
+        //  Listen for potential response
+
         while (_parent->flowControl == ESP_NO_STATUS);
     }
 
@@ -162,7 +167,8 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
  */
 uint32_t _espClient::Close()
 {
-    return _parent->Execute(ESP_STATUS_OK, "AT+CIPCLOSE=%d\0", _id);
+    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPCLOSE=%d\0", _id);
+    return _parent->_SendRAW(_commBuf);
 }
 
 /**
@@ -192,32 +198,6 @@ ESP8266::~ESP8266()
 {
     Enable(false);
     __esp = 0;
-}
-
-
-/**
- * Send a command passed as argument to ESP and wait for status given in flags mask
- * @param flags mask of ESP return statuses to wait for in response
- * @param arg vararg combination of arguments used to construct command
- * @return error code, depending on the outcome
- */
-uint32_t ESP8266::Execute(uint32_t flags, const char* arg, ...)
-{
-    va_list vaArgP;
-    char buffer[512];
-    uint32_t retVal = ESP_NO_STATUS;
-
-    //    Start the varargs processing.
-    va_start(vaArgP, arg);
-
-    snprintf(buffer, sizeof(buffer), arg, vaArgP);
-    snprintf(buffer, sizeof(buffer), "%s\0", buffer);
-    retVal = _SendRAW(buffer);
-
-    //    We're finished with the varargs now.
-    va_end(vaArgP);
-
-    return retVal;
 }
 
 ///-----------------------------------------------------------------------------
@@ -305,21 +285,25 @@ void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
 uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 {
     int8_t retVal = ESP_NO_STATUS;
-    char command[100];
+    //char command[100];
 
     //  Set ESP in client mode
     retVal = _SendRAW("AT+CWMODE_CUR=1\0");
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Assemble command & send it
-    snprintf(command, 100, "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
+    snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
     //  Use standard send function but increase timeout to 4s as acquring IP
     //  address might take time
-    retVal = _SendRAW(command, 0, 4000);
+    retVal = _SendRAW(_commBuf, 0, 4000);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Acquire IP address and save it locally
     MyIP();
+
+    //  Allow for multiple connections, in case of error return
+    retVal = _SendRAW("AT+CIPMUX=1\0");
+    if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     return retVal;
 }
@@ -339,8 +323,6 @@ bool ESP8266::IsConnected()
  */
 uint32_t ESP8266::MyIP()
 {
-    //BUG: When using debug mode (printing all characters incoming on serial) \
-        this line will hang as no OK status will be received from ESP
     if (_ipAddress == 0) _SendRAW("AT+CIPSTA_CUR?\0", ESP_GOT_IP);
 
     return _ipAddress;
@@ -373,15 +355,11 @@ uint32_t ESP8266::DisconnectAP()
 uint32_t ESP8266::StartTCPServer(uint16_t port)
 {
     int8_t retVal = ESP_STATUS_OK;
-    char command[50];
-
-    //  Allow for multiple connections, in case of error return
-    retVal = _SendRAW("AT+CIPMUX=1\0");
-    if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
+    //char command[50];
 
     //  Start TCP server, in case of error return
-    snprintf(command, sizeof(command), "AT+CIPSERVER=1,%d\0", port);
-    retVal = _SendRAW(command);
+    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSERVER=1,%d\0", port);
+    retVal = _SendRAW(_commBuf);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     _tcpServPort = port;
@@ -436,7 +414,7 @@ uint32_t ESP8266::StopTCPServer()
 ///-----------------------------------------------------------------------------
 
 /**
- * Open TCP socket to a client at specific IP and port
+ * Open TCP socket to a client at specific IP and port, keepalive interval 7.2s
  * @param ipAddr string containing IP address of server
  * @param port TCP socket port of server
  * @return On success socket ID of TCP client in _client vector, on failiure
@@ -444,8 +422,29 @@ uint32_t ESP8266::StopTCPServer()
  */
 uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port)
 {
-    if (_InStatus(_SendRAW("AT+CIPSTART=\"TCP\","), ESP_STATUS_OK))
-        return _clients[_clients.size()-1]._id;
+    uint8_t sockID;
+    //  Find free socket number (0-4 supported)
+    for (sockID = 0; sockID < 4; sockID++)
+    {
+        bool used = false;
+        for (uint8_t j = 0; j < _clients.size(); j++)
+            if (_clients[j]._id == sockID) used = true;
+        if (!used) break;
+    }
+
+    //  Assemble command: Open TCP socket to specified IP and port, set
+    //  keepalive interval to 7200ms
+    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,7200",
+             sockID, ipAddr, port);
+
+    //  Execute command and check outcome
+    if (_InStatus(_SendRAW(_commBuf), ESP_STATUS_OK))
+    {
+        //  If success, set "server open" flag to prevent disabling UART
+        //  interrupt on received data (to be able to listen on incoming data)
+        _servOpen = true;
+        return sockID;
+    }
     else
         return ESP_STATUS_ERROR;
 }
@@ -510,15 +509,21 @@ uint32_t ESP8266::Send2(char* arg)
  */
 uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 {
+    //  Return value
     uint32_t retVal = ESP_NO_STATUS;
+    //  Flags to be set when theparameter has been found
     int16_t ipFlag= -1, respFlag = -1, sockOflag = -1, sockCflag = -1;
+    //  Pointer to char, used to temporary store return value of strstr function
     char *retTemp;
 
     if (rxLen < 1)    return retVal;
 
+    //  IP address embedded, save pointer to its first digit(as string)
     if ((retTemp = strstr(rxBuffer,"ip:\"")) != NULL)
         ipFlag = retTemp - rxBuffer + 4;
 
+    //  Message from one of the sockets, save pointer to first character
+    //  (which is always message length!)
     if ((retTemp = strstr(rxBuffer,"+IPD,")) != NULL)
     {
         respFlag = retTemp - rxBuffer + 5;
@@ -768,6 +773,7 @@ void UART7RxIntHandler(void)
      *  3) Watchdog timer has timed out changing 'flowControl' to "error"
      *      (on timeout WD timer also recalls the interrupt)
      */
+    if (rxLen > 2)
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
       || ( __esp->flowControl == ESP_STATUS_ERROR) )

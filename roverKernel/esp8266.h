@@ -21,7 +21,7 @@
  *  V1.2.1 26.1.2017
  *  +Implented watchdog(WD) timer with variable timeout to handle any blockage
  *      in communication (ESP sometimes not consistent with sending msg terminator)
- *  Add interface for initiating a connection to TCP server (run ESP as client)
+ *  +Establish a connection to TCP server (uses existing _espClient class)
  *  Add interface to send UDP packet
  */
 
@@ -31,7 +31,7 @@
 #include <vector>
 
 //  Enable debug information printed on serial port
-#define __DEBUG_SESSION__
+//#define __DEBUG_SESSION__
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 
@@ -104,7 +104,7 @@ class _espClient
         //  Specifies whether there's a response from this client ready to read
         volatile bool   _respRdy;
         //  Buffer for data received on this socket
-        volatile char   _respBody[128];
+        volatile char   _respBody[1024];
 };
 
 /**
@@ -140,7 +140,6 @@ class ESP8266
 
 		uint32_t    Send2(char* arg);
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
-		uint32_t    Execute(uint32_t flags, const char* arg, ...);
 
 		void		AddHook(void((*custHook)(uint8_t, uint8_t*, uint16_t*)));
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
@@ -153,7 +152,7 @@ class ESP8266
 	protected:
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
 		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
-		                     uint32_t timeout = 500);
+		                     uint32_t timeout = 1000);
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);
