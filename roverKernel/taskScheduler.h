@@ -30,11 +30,11 @@
 #define TASKSCHEDULER_H_
 
 #include "myLib.h"
+#include <vector>
 
 /// Max number of task in TaskSchedule queue
-#define TS_MAX_TASKS	10
 #define TS_TASK_MEMORY  50
-
+//#define __DEBUG_SESSION__
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
@@ -48,17 +48,17 @@ class _taskEntry
 
 	public:
 		_taskEntry();
-		_taskEntry(volatile _taskEntry& arg);
+		_taskEntry(const _taskEntry& arg);
 		_taskEntry(uint8_t uid, uint8_t task, uint32_t utcTime)
 		    :_libuid(uid), _task(task), _timestamp(utcTime) {};
 
-		void 		AddArg(float arg) volatile;
-		void        AddArg(void* arg, uint8_t argLen) volatile;
+		void 		AddArg(float arg);
+		void        AddArg(void* arg, uint8_t argLen);
 		uint16_t 	GetTask();
 		float		GetArg(uint8_t index);//Deprecated
 		uint16_t	GetArgNum();
 
-		void operator= (volatile _taskEntry& arg) volatile
+		_taskEntry& operator= (const _taskEntry& arg)
 		{
 		    _libuid = arg._libuid;
 			_task = arg._task;
@@ -67,10 +67,11 @@ class _taskEntry
 
 			for (uint8_t i = 0; i < sizeof(_args); i++)
 				_args[i] = arg._args[i];
+			return *this;
 		}
 
 	protected:
-		         void       _init() volatile;
+		         void       _init();
 		//  Unique identifier for library to request service from
 		volatile uint8_t    _libuid;
 		//  Service ID to execute
@@ -97,28 +98,29 @@ class TaskScheduler
 		TaskScheduler();
 		~TaskScheduler();
 
-		void 				 Reset() volatile;
-		bool				 IsEmpty() volatile;
-		uint8_t              PushBack(uint8_t libuid, uint8_t comm,
-		                                       int64_t time) volatile;
-		uint8_t              PushBack(_taskEntry te) volatile;
-		void                 AddStringArg(void* arg, uint8_t argLen) volatile;
-		void                 AddNumArg(float arg) volatile;
-		void                 AddNumArg(uint8_t* arg, uint8_t argLen) volatile;
-		volatile _taskEntry& PopFront() volatile;
-		volatile _taskEntry& PeekFront() volatile;
-		volatile _taskEntry& At(uint16_t index) volatile;
+		bool    operator()(const _taskEntry& arg1, const _taskEntry& arg2);
+		void 				 Reset();
+		bool				 IsEmpty();
+		uint8_t              SyncTask(uint8_t libuid, uint8_t comm,
+		                                       int64_t time);
+		uint8_t              SyncTask(_taskEntry te);
+		void                 AddStringArg(void* arg, uint8_t argLen);
+		void                 AddNumArg(float arg);
+		void                 AddNumArg(uint8_t* arg, uint8_t argLen);
+		_taskEntry           PopFront();
+		_taskEntry&          PeekFront();
+		_taskEntry&          At(uint16_t index);
 
 	private:
 		//  Queue of tasks to be executed
-		volatile _taskEntry	_taskLog[TS_MAX_TASKS];
+		//volatile _taskEntry	_taskLog[TS_MAX_TASKS];
+		std::vector<_taskEntry> _taskLog;
 		//  Iterators for task queue (B-begin, E-end)
-		volatile int8_t		_taskItB,
-							_taskItE;
+		volatile int8_t		_lastIndex;
 };
 
 /*	Global pointer to first instance of TaskScheduler object	*/
-extern volatile TaskScheduler* __taskSch;
+extern TaskScheduler* __taskSch;
 
 extern void TSSyncCallback(void);
 extern void TS_GlobalCheck(void);

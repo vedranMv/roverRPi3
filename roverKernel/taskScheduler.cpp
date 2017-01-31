@@ -35,8 +35,11 @@ void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
 }
 
 
-/*  Global pointer to FIRST instance of TaskScheduler object */
-volatile TaskScheduler* __taskSch;
+/*
+ * Global pointer to FIRST instance of TaskScheduler object
+ * (doesn't have to be volatile as this function shouldn't be called from ISR)
+ */
+TaskScheduler* __taskSch;
 
 /*******************************************************************************
  *******************************************************************************
@@ -49,12 +52,12 @@ _taskEntry::_taskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0)
     memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-_taskEntry::_taskEntry(volatile _taskEntry& arg)
+_taskEntry::_taskEntry(const _taskEntry& arg)
 {
-	*this = arg;
+    *this = (const _taskEntry&)arg;
 }
 
-void _taskEntry::_init() volatile
+void _taskEntry::_init()
 {
     _libuid = 0;
 	_task = 0;
@@ -63,13 +66,13 @@ void _taskEntry::_init() volatile
 	memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-void _taskEntry::AddArg(float arg) volatile
+void _taskEntry::AddArg(float arg)
 {
     memcpy((void*)(_args + 1 + _argN*4), (void*)&arg, 4);
 	_argN += 4;
 }
 
-void _taskEntry::AddArg(void* arg, uint8_t argLen) volatile
+void _taskEntry::AddArg(void* arg, uint8_t argLen)
 {
     memcpy((void*)(_args+_argN), arg, argLen);
     _argN += argLen;
@@ -100,11 +103,8 @@ uint16_t _taskEntry::GetArgNum()
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor                [PUBLIC]
 ///-----------------------------------------------------------------------------
-TaskScheduler::TaskScheduler() :_taskItB(0), _taskItE(0)
+TaskScheduler::TaskScheduler()
 {
-	for (uint8_t i = 0; i < TS_MAX_TASKS; i++)
-		_taskLog[i]._init();
-
 	if (__taskSch == 0) __taskSch = this;
 
 	HAL_TS_InitSysTick(100, TSSyncCallback);
@@ -121,16 +121,19 @@ TaskScheduler::~TaskScheduler()
 ///                      Schedule content manipulation                  [PUBLIC]
 ///-----------------------------------------------------------------------------
 
+bool TaskScheduler::operator()(const _taskEntry& arg1, const _taskEntry& arg2)
+{
+    if (arg1._timestamp < arg2._timestamp)
+        return true;
+    return false;
+}
+
 /**
  * @brief	Clear task schedule, remove all entries from ii
  */
-void TaskScheduler::Reset() volatile
+void TaskScheduler::Reset()
 {
-	//	Initialize all variables of the structure to 0
-	for (uint8_t i = 0; i < TS_MAX_TASKS; i++)
-			_taskLog[i]._init();
-	_taskItB = 0;
-	_taskItE = 0;
+    _taskLog.clear();
 }
 
 /**
@@ -138,16 +141,9 @@ void TaskScheduler::Reset() volatile
  * @return	true: if there's nothing in queue
  * 		   false: if queue contains data
  */
-bool TaskScheduler::IsEmpty() volatile
+bool TaskScheduler::IsEmpty()
 {
-	if (_taskItE > _taskItB)
-	    return false;
-	else if ((_taskItE != 0) && (_taskItB == _taskItE))
-	{
-	    Reset();
-	    return true;
-	}
-	else return true;
+    return (_taskLog.size() == 0);
 }
 
 /**
@@ -157,40 +153,56 @@ bool TaskScheduler::IsEmpty() volatile
  * @param time time stamp at which to execute the task
  * @return index of task in task queue
  */
-uint8_t TaskScheduler::PushBack(uint8_t libuid, uint8_t comm, int64_t time) volatile
+uint8_t TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time)
 {
-    _taskLog[_taskItE]._libuid = libuid;
-    _taskLog[_taskItE]._task = comm;
     if (time < 0)
-        _taskLog[_taskItE]._timestamp = (uint32_t)(-time) + __msSinceStartup;
+        time = (uint32_t)(-time) + __msSinceStartup;
     else
-        _taskLog[_taskItE]._timestamp = (uint32_t)time;
-    _taskItE++;
+        time = (uint32_t)time;
 
-    return (_taskItE - 1);
+    uint8_t i;
+    for (i = 0; i < _taskLog.size(); i++)
+        if (_taskLog[i]._timestamp > time)
+            break;
+    _taskLog.insert(_taskLog.begin()+i, _taskEntry(libuid, comm, time));
+
+    _lastIndex = i;
+    return (_taskLog.size()-1);
 }
 
-uint8_t TaskScheduler::PushBack(_taskEntry te) volatile
+uint8_t TaskScheduler::SyncTask(_taskEntry te)
 {
-    _taskLog[_taskItE] = te;
-    _taskItE++;
-
-    return (_taskItE - 1);
+    uint8_t i;
+    for (i = 0; i < _taskLog.size(); i++)
+        if (_taskLog[i]._timestamp > te._timestamp)
+            break;
+    _taskLog.insert(_taskLog.begin()+i, te);
+    _lastIndex = i;
+    return i;
 }
 
-void TaskScheduler::AddStringArg(void* arg, uint8_t argLen) volatile
+void TaskScheduler::AddStringArg(void* arg, uint8_t argLen)
 {
-    _taskLog[_taskItE - 1].AddArg(arg, argLen);
+    if (_lastIndex < _taskLog.size())
+        _taskLog[_lastIndex].AddArg(arg, argLen);
+    else
+        _lastIndex = 0;
 }
 
-void TaskScheduler::AddNumArg(float arg) volatile
+void TaskScheduler::AddNumArg(float arg)
 {
-    _taskLog[_taskItE - 1].AddArg(arg);
+    if (_lastIndex < _taskLog.size())
+        _taskLog[_lastIndex].AddArg(arg);
+    else
+        _lastIndex = 0;
 }
 
-void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
+void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen)
 {
-    _taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
+    if (_lastIndex < _taskLog.size())
+        _taskLog[_lastIndex].AddArg(stof(arg, argLen));
+    else
+        _lastIndex = 0;
 }
 
 /**
@@ -198,11 +210,11 @@ void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
  * @return  first element from task queue and delete it (by moving iterators).
  *          If the queue is empty it resets the queue.
  */
-volatile _taskEntry& TaskScheduler::PopFront() volatile
+_taskEntry/*&*/ TaskScheduler::PopFront()
 {
-	_taskItB++;
-
-	return _taskLog[_taskItB - 1];
+    _taskEntry retVal = _taskLog[0];
+    _taskLog.erase(_taskLog.begin());
+    return retVal;
 }
 
 /**
@@ -210,16 +222,16 @@ volatile _taskEntry& TaskScheduler::PopFront() volatile
  * @return		nothing: if index is outside of boundaries
  *	  _taskEntry object: if index is valid
  */
-volatile _taskEntry& TaskScheduler::At(uint16_t index) volatile
+_taskEntry& TaskScheduler::At(uint16_t index)
 {
-	if ((index+_taskItB) < _taskItE)
-		return _taskLog[index+_taskItB];
-	else
-		return _taskLog[0];
+    if (index < _taskLog.size())
+        return _taskLog[index];
+    else
+        return *_taskLog.begin();
 }
-volatile _taskEntry& TaskScheduler::PeekFront() volatile
+_taskEntry& TaskScheduler::PeekFront()
 {
-    return _taskLog[_taskItB];
+    return _taskLog[0];
 }
 
 /*******************************************************************************
@@ -257,7 +269,8 @@ void TS_GlobalCheck(void)
               (!__taskSch->IsEmpty()))
         {
             // Take out first entry to process it
-            _taskEntry tE = __taskSch->PopFront();
+            _taskEntry tE;
+            tE = __taskSch->PopFront();
 
             // Check if callback exists
             if ((__callbackVector + tE._libuid) == 0)

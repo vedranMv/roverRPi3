@@ -66,7 +66,6 @@ void _ESP_KernelCallback(void)
         {
             char ipAddr[15] = {0};
             uint16_t port;
-
             //  IP address starts on 2nd data byte and its a string of length
             //  equal to total length of data - 3bytes(used for port & KA)
             memcpy( (void*)ipAddr,
@@ -77,13 +76,12 @@ void _ESP_KernelCallback(void)
                     (void*)(__esp->_espSer.args + (__esp->_espSer.args[0]-1)),
                     2);
             //  If IP address is valid process request
-            if (__esp->_IPtoInt(ipAddr) != 0)
-            {
-                //  1st data byte is keep alive flag
-                //  Double negation to convert any integer into boolean
-                bool KA = !(!__esp->_espSer.args[1]);
-                __esp->_espSer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
-            }
+            if (__esp->_IPtoInt(ipAddr) == 0)
+                return;
+            //  1st data byte is keep alive flag
+            //  Double negation to convert any integer into boolean
+            bool KA = !(!__esp->_espSer.args[1]);
+            __esp->_espSer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
         }
         break;
     /*
@@ -92,18 +90,33 @@ void _ESP_KernelCallback(void)
      */
     case ESP_T_SENDTCP:
         {
+            //  Check if socket ID is valid
+            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+               return;
             //  Ensure that message is null-terminated
             if ((__esp->_espSer.args[0] + 1) < TS_TASK_MEMORY)
                 __esp->_espSer.args[__esp->_espSer.args[0]+1] = '\0';
             else
                 __esp->_espSer.args[49] = '\0';
-            //  Check if socket ID is valid
-           if (__esp->ValidSocket(__esp->_espSer.args[1]))
-           {
-              //  Initiate TCP send to required client
+            //  Initiate TCP send to required client
             __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
                                       ->SendTCP((char*)(__esp->_espSer.args+2));
-           }
+        }
+        break;
+    /*
+     * Receive data from an opened socket and send it to user-defined routine
+     * args[] = size(1B)|socketID(1B)\0
+     */
+    case ESP_T_RECVSOCK:
+        {
+            _espClient  *cli;
+            //  Check if socket ID is valid
+            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+                return;
+            cli = __esp->GetClientBySockID(__esp->_espSer.args[1]);
+            __esp->custHook(__esp->_espSer.args[1],
+                            (uint8_t*)(cli->RespBody),
+                            (uint16_t*)(&(cli->RespLen)));
         }
         break;
     /*
@@ -113,12 +126,11 @@ void _ESP_KernelCallback(void)
     case ESP_T_CLOSETCP:
         {
             //  Check if socket ID is valid
-            if (__esp->ValidSocket(__esp->_espSer.args[1]))
-            {
-                //  Initiate closing from client object
-                __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
-                                                  ->Close();
-            }
+            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+                return;
+            //  Initiate closing from client object
+            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
+                                              ->Close();
         }
         break;
     default:
@@ -189,7 +201,7 @@ void _espClient::operator= (const _espClient &arg)
     _alive = arg._alive;
     _respRdy = arg._respRdy;
     KeepAlive = arg.KeepAlive;
-    memcpy((void*)_respBody, (void*)(arg._respBody), sizeof(_respBody));
+    memcpy((void*)RespBody, (void*)(arg.RespBody), sizeof(RespBody));
 }
 
 ///-----------------------------------------------------------------------------
@@ -238,9 +250,9 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
     if (_respRdy)
     {
         //  Fill argument buffer
-        while(_respBody[(*bufferLen)] != 0)
+        while(RespBody[(*bufferLen)] != 0)
         {
-            buffer[(*bufferLen)] = _respBody[(*bufferLen)];
+            buffer[(*bufferLen)] = RespBody[(*bufferLen)];
             (*bufferLen)++;
         }
 
@@ -252,7 +264,7 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
         if (!KeepAlive)
         {
 #if defined(__USE_TASK_SCHEDULER__)
-            __taskSch->PushBack(ESP_UID, ESP_T_CLOSETCP, 0);
+            __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
             __taskSch->AddStringArg(&_id, 1);
 #else
             Close();
@@ -262,6 +274,41 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
         return ESP_NO_STATUS;
     }
     else return ESP_NORESPONSE;
+}
+
+/**
+ * Check is socket has any new data ready for user
+ * @note used when manually reading response body from member variable to check
+ * whether new data is available. If used, Done() MUST be called when done
+ * processing data in response body. Alternative: use Receive() function instead
+ * @return true: if there's new data from that socket
+ *         false: otherwise
+ */
+bool _espClient::Ready()
+{
+    return _respRdy;
+}
+
+/**
+ * Clears response body, flags and maintains socket alive if specified
+ * @note has to be called if user manually reads response body by reading member
+ * variable directly, and not through Receive() function call
+ */
+void _espClient::Done()
+{
+    //  Clear response body & flag
+    _Clear();
+    //  Check if it's supposed to stay open, if not force closing or schedule
+    //  closing(preferred) of socket
+    if (!KeepAlive)
+    {
+#if defined(__USE_TASK_SCHEDULER__)
+        __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
+        __taskSch->AddStringArg(&_id, 1);
+#else
+        Close();
+#endif
+    }
 }
 
 /**
@@ -281,7 +328,8 @@ uint32_t _espClient::Close()
  */
 void _espClient::_Clear()
 {
-    memset((void*)_respBody, 0, sizeof(_respBody));
+    memset((void*)RespBody, 0, sizeof(RespBody));
+    RespLen = 0;
     _respRdy = false;
 }
 /*******************************************************************************
@@ -604,7 +652,6 @@ uint32_t ESP8266::Send2(char* arg)
     return _clients[_IDtoIndex(0)].SendTCP(arg);
 }
 
-
 /**
  * @brief ESP reply message parser
  * Checks ESP reply stream for commands, actions and events and updates global
@@ -698,17 +745,17 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         uint8_t cmsgLen[3] = {0};
         while(rxBuffer[i++] != ':') //  ++ here so double dot is skipped when done
             cmsgLen[i-1-respFlag-2] = rxBuffer[i-1];
-        uint16_t imsgLen = (uint16_t)lroundf(stof(cmsgLen, i-1-respFlag));
+        cli->RespLen = (uint16_t)lroundf(stof(cmsgLen, i-1-respFlag));
 
         //  Use raspFlag to mark starting point
         respFlag = i;
-        //  Loop until meeting a terminating character
-        while(/*(rxBuffer[i] != '\n')*/(i-respFlag) < imsgLen)
+        //  Loop until the end of received message
+        while((i-respFlag) < cli->RespLen)
         {
-            cli->_respBody[i - respFlag] = rxBuffer[i];
+            cli->RespBody[i - respFlag] = rxBuffer[i];
             i++;
         }
-        cli->_respBody[i - respFlag] = '\n';
+        //cli->RespBody[i - respFlag] = '\n';
         cli->_respRdy = true;
     }
     //  Socket got opened, create new client for it
@@ -767,7 +814,6 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
 
     //  Start listening for reply
     HAL_ESP_IntEnable(true);
-
 
     //  If non-blocking mode is not enabled wait for status
     if (!(flags & ESP_NONBLOCKING_MODE))
@@ -904,13 +950,25 @@ void UART7RxIntHandler(void)
         //  pass it to a user-defined function for further processing
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
-            char resp[128];
-            uint16_t respLen = 0;
-            memset(resp, 0, 128);
             for (uint8_t i = 0; i < __esp->_clients.size(); i++)
-                if (!__esp->GetClientBySockID(i)->Receive(resp, &respLen))
-                   __esp->custHook(i, (uint8_t*)resp, &respLen);
-        }
+                if (__esp->GetClientByIndex(i)->Ready())
+                {
+#if defined(__USE_TASK_SCHEDULER__)
+            //  If using task scheduler, schedule receiving outside this ISR
+                    _taskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
+                    tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
+                    __taskSch->SyncTask(tE);
+#else
+                    //  If no task scheduler do everything in here
+                    char resp[128];
+                    uint16_t respLen = 0;
+                    memset(resp, 0, 128);
+                    __esp->GetClientByIndex(i)->Receive(resp, &respLen);
+                    __esp->custHook(i, (uint8_t*)resp, &respLen);
+#endif
+                }
+            }
+
 
         //  If ESP is running in server mode or status hasn't been OK/ERROR
         //  (because after them ESP sends no more messages) then continue

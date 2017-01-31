@@ -41,7 +41,7 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
     comm.Send("Recvd(%d):  %s\n", sockID, buf);
 
-    __taskSch->PushBack(ESP_UID,ESP_T_SENDTCP,-500);
+    __taskSch->SyncTask(ESP_UID,ESP_T_SENDTCP,-800);
     __taskSch->AddStringArg(&sockID, 1);
     __taskSch->AddStringArg(buf, *len);
 }
@@ -63,27 +63,30 @@ int main(void)
     GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
     GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
+    comm.Send("Initializing ESP\n");
     esp.InitHW();
+    comm.Send("Adding hook\n");
     esp.AddHook(RxHook);
+    comm.Send("Connecting to AP\n");
     esp.ConnectAP("sgvfyj7a", "7vxy3b5d");
 
     comm.Send("Board initialized!\r\n");
 
     uint16_t tmp;
 
-    ts.PushBack(ESP_UID,ESP_T_CONNTCP,-1000);
+    ts.SyncTask(ESP_UID,ESP_T_CONNTCP,-1000);
     tmp = 1;
     ts.AddStringArg(&tmp, 1);
     ts.AddStringArg((void*)"192.168.0.11", 12);
     tmp = 2701;
     ts.AddStringArg(&tmp, 2);
 
-    ts.PushBack(ESP_UID,ESP_T_SENDTCP,-2000);
+    ts.SyncTask(ESP_UID,ESP_T_SENDTCP,-2000);
     tmp = 0;
     ts.AddStringArg(&tmp, 1);
-    ts.AddStringArg((void*)"Hello from ESP module!!\0", 23);
+    ts.AddStringArg((void*)"Hello from ESP module!!\r\n", 25);
 
-    ts.PushBack(ESP_UID, ESP_T_CLOSETCP, -10000);
+    ts.SyncTask(ESP_UID, ESP_T_CLOSETCP, -10000);
     ts.AddStringArg(&tmp, 1);
 
     while(1)

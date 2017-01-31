@@ -33,7 +33,7 @@
 #include <vector>
 
 //  Enable debug information printed on serial port
-#define __DEBUG_SESSION__
+//#define __DEBUG_SESSION__
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 
@@ -45,7 +45,8 @@
     #define ESP_T_TCPSERV   0   //  Start/stop TCP server
     #define ESP_T_CONNTCP   1   //  Open TCP connection to server
     #define ESP_T_SENDTCP   2   //  Send data through socket with specific ID
-    #define ESP_T_CLOSETCP  3   //  Close socket with specific ID
+    #define ESP_T_RECVSOCK  3   //  Receive data from specific socket ID
+    #define ESP_T_CLOSETCP  4   //  Close socket with specific ID
 
 #endif
 
@@ -96,10 +97,15 @@ class _espClient
 
         uint32_t    SendTCP(char *buffer);
         uint32_t    Receive(char *buffer, uint16_t *bufferLen);
+        bool        Ready();
+        void        Done();
         uint32_t    Close();
 
         //  Keep socket alive (don't terminate it after first round of communication)
-        volatile bool   KeepAlive;
+        volatile bool       KeepAlive;
+        //  Buffer for data received on this socket
+        volatile char       RespBody[1024];
+        volatile uint16_t   RespLen;
 
     private:
         void        _Clear();
@@ -112,8 +118,6 @@ class _espClient
         volatile bool   _alive;
         //  Specifies whether there's a response from this client ready to read
         volatile bool   _respRdy;
-        //  Buffer for data received on this socket
-        volatile char   _respBody[1024];
 };
 
 /**
