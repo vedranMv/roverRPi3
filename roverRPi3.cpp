@@ -65,7 +65,6 @@ int main(void)
 
     comm.Send("Initializing ESP\n");
     esp.InitHW();
-    comm.Send("Adding hook\n");
     esp.AddHook(RxHook);
     comm.Send("Connecting to AP\n");
     esp.ConnectAP("sgvfyj7a", "7vxy3b5d");

@@ -49,7 +49,7 @@ uint32_t g_ui32SysClock;
 #define RAD_MIN         54000       //Left/Down
 #define RAD_PWM_ARG     62498       //PWM generator clock
 
-/**     ESP8266 - realted macros        */
+/**     ESP8266 - related macros        */
 #define ESP8266_UART_BASE UART7_BASE
 
 /**     MPU9250 - related macros        */
@@ -77,11 +77,11 @@ uint32_t _TM4CMsToCycles(uint32_t ms)
  */
 void HAL_BOARD_CLOCK_Init()
 {
-    /// Set the clock to use on-board 25MHz oscillator and generate 120MHz clock
+    // Set the clock to use on-board 25MHz oscillator and generate 120MHz clock
     g_ui32SysClock = SysCtlClockFreqSet((SYSCTL_XTAL_25MHZ |
                                         SYSCTL_OSC_MAIN | SYSCTL_USE_PLL |
                                         SYSCTL_CFG_VCO_480), 120000000);
-    ///  Enable Floating-point unit (FPU)
+    //  Enable Floating-point unit (FPU)
     FPUEnable();
     FPULazyStackingEnable();
     //  Enable interrupt handler
@@ -116,10 +116,10 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
 {
     static bool pinInit = false;
 
-    ///  Prevents reinitializing the pins every time a baud rate is updated
+    //  Prevents reinitializing the pins every time a baud rate is updated
     if (!pinInit)
     {
-        ///  Configure HW pins for UART and on/off signal
+        //  Configure HW pins for UART and on/off signal
         SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
         GPIOPinConfigure(GPIO_PC4_U7RX);
         GPIOPinConfigure(GPIO_PC5_U7TX);
@@ -134,15 +134,15 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
         pinInit = true;
     }
 
-    ///    Configure UART 7 peripheral used for ESP communication
+    //    Configure UART 7 peripheral used for ESP communication
     SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
     SysCtlPeripheralReset(SYSCTL_PERIPH_UART7);
     UARTClockSourceSet(ESP8266_UART_BASE, UART_CLOCK_SYSTEM);
     UARTConfigSetExpClk(ESP8266_UART_BASE, g_ui32SysClock, baud,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                          UART_CONFIG_PAR_NONE));
-
     UARTEnable(ESP8266_UART_BASE);
+    HAL_DelayUS(50000);    //  50ms delay after configuring
 
     return HAL_OK;
 }
@@ -154,14 +154,13 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
 void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
 {
     UARTDisable(ESP8266_UART_BASE);
-    ///  Enable Interrupt on received data
-    UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8 ,UART_FIFO_RX1_8 );
-    UARTFIFODisable(ESP8266_UART_BASE);
+    //  Enable Interrupt on received data
+    UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8, UART_FIFO_RX1_8 );
+    ///UARTFIFODisable(ESP8266_UART_BASE);
     UARTIntRegister(ESP8266_UART_BASE, intHandler);
-    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX /*| UART_INT_RT*/);
+    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
     IntDisable(INT_UART7);
     UARTEnable(ESP8266_UART_BASE);
-    IntMasterEnable();
 }
 
 /**
@@ -175,11 +174,12 @@ void HAL_ESP_HWEnable(bool enable)
     {
         GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0);
         SysCtlDelay(g_ui32SysClock/3);
+        HAL_DelayUS(1000000);
     }
     else
     {
         GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0xFF);
-        SysCtlDelay(g_ui32SysClock * 2.5/3);
+        HAL_DelayUS(2000000);
     }
 }
 
@@ -259,7 +259,6 @@ void HAL_ESP_InitWD(void((*intHandler)(void)))
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
     TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
-    /// Set up some big load that should never be reached (dT usually < 1s)
     TimerIntRegister(TIMER6_BASE, TIMER_A, intHandler);
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
     IntEnable(INT_TIMER6A);

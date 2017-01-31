@@ -467,7 +467,7 @@ bool ESP8266::IsConnected()
  */
 uint32_t ESP8266::MyIP()
 {
-    if (_ipAddress == 0) _SendRAW("AT+CIPSTA_CUR?\0", ESP_GOT_IP);
+    if (_ipAddress == 0) _SendRAW("AT+CIPSTA?\0");
 
     return _ipAddress;
 }
@@ -497,7 +497,6 @@ uint32_t ESP8266::DisconnectAP()
 uint32_t ESP8266::StartTCPServer(uint16_t port)
 {
     int8_t retVal = ESP_STATUS_OK;
-    //char command[50];
 
     //  Start TCP server, in case of error return
     snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSERVER=1,%d\0", port);
@@ -541,7 +540,6 @@ bool ESP8266::ServerOpened()
 uint32_t ESP8266::StopTCPServer()
 {
     int8_t retVal = ESP_STATUS_OK;
-
 
     //  Stop TCP server, in case of error return
     retVal = _SendRAW("AT+CIPSERVER=0");
@@ -755,7 +753,6 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
             cli->RespBody[i - respFlag] = rxBuffer[i];
             i++;
         }
-        //cli->RespBody[i - respFlag] = '\n';
         cli->_respRdy = true;
     }
     //  Socket got opened, create new client for it
@@ -824,6 +821,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
                 !(flowControl & flags));
 
         HAL_ESP_WDControl(false, 0);
+        HAL_DelayUS(1000);
         return flowControl;
     }
     else return ESP_NONBLOCKING_MODE;
@@ -924,11 +922,10 @@ void UART7RxIntHandler(void)
         //  Keep in mind buffer size
         rxLen %= 1024;
 #ifdef __DEBUG_SESSION__
-        if (((temp > 31) && (temp < 126))
-                || (temp == '\n')) UARTprintf("%c", temp);
+        if (((temp > 31) && (temp < 126)) || (temp == '\n'))
+            UARTprintf("%c", temp);
 #endif
     }
-
 
     //  All messages terminated by \r\n
     /*
@@ -938,14 +935,23 @@ void UART7RxIntHandler(void)
      *  3) Watchdog timer has timed out changing 'flowControl' to "error"
      *      (on timeout WD timer also recalls the interrupt)
      */
-    if ((rxLen > 2) || ( __esp->flowControl == ESP_STATUS_ERROR))
+    if (( __esp->flowControl == ESP_STATUS_ERROR) && (rxLen > 1))
+    {
+        rxBuffer[rxLen++] = '\r';
+        rxBuffer[rxLen++] = '\n';
+    }
+
+    //if ((rxLen > 2) || ( __esp->flowControl == ESP_STATUS_ERROR))
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
-      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
-      || ( __esp->flowControl == ESP_STATUS_ERROR) )
+      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' )))
+      //|| ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
         //  Parse data in receiving buffer
-        __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
+        if (__esp->flowControl == ESP_STATUS_ERROR)
+            __esp->flowControl |= __esp->ParseResponse(rxBuffer, rxLen);
+        else
+            __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
         //  If some data came from one of opened TCP sockets receive it and
         //  pass it to a user-defined function for further processing
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
@@ -953,7 +959,7 @@ void UART7RxIntHandler(void)
             for (uint8_t i = 0; i < __esp->_clients.size(); i++)
                 if (__esp->GetClientByIndex(i)->Ready())
                 {
-#if defined(__USE_TASK_SCHEDULER__)
+#if !defined(__USE_TASK_SCHEDULER__)
             //  If using task scheduler, schedule receiving outside this ISR
                     _taskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
@@ -968,8 +974,6 @@ void UART7RxIntHandler(void)
 #endif
                 }
             }
-
-
         //  If ESP is running in server mode or status hasn't been OK/ERROR
         //  (because after them ESP sends no more messages) then continue
         //  listening on serial port for new messages
@@ -977,6 +981,7 @@ void UART7RxIntHandler(void)
              (__esp->flowControl & ESP_STATUS_ERROR))
             && !__esp->ServerOpened())
             HAL_ESP_IntEnable(false);
+
         //  Reset receiving buffer and its size
         memset(rxBuffer, '\0', sizeof(rxBuffer));
         rxLen = 0;
