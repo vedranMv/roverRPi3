@@ -118,7 +118,7 @@ void RPIRover::ParseRpiCommand(uint8_t *buffer, uint16_t bufLen) volatile
 	//TODO: Change 0 to the UID of kernel module
 	for (i = 1; i <= NUM_OF_TASKS; i++)
 		if (strstr((char*)command, taskLookup[i - 1]) != NULL)
-			_ts.PushBackEntry(0, i);
+			_ts.PushBack(0, i,0);
 
 	//	If there's no arguments passed finish parsing
 	if (buffer[it] != ',') return;
@@ -131,11 +131,11 @@ void RPIRover::ParseRpiCommand(uint8_t *buffer, uint16_t bufLen) volatile
 		uint8_t arg[10], argLen = 0;
 		memset(arg, 0, 10);
 
-		//	Extrat each argument as string and save it
+		//	Extract each argument as string and save it
 		while (isdigit(buffer[it]) || (buffer[it] == '.') || (buffer[it] == '-'))
 			arg[argLen++] = buffer[it++];
 
-		_ts.AddArgForCurrent(arg, argLen);
+		_ts.AddNumArg(arg, argLen);
 		it++;		//Move from ',' sign to the first char of argument
 	}
 }

@@ -34,11 +34,11 @@
 	<variableList>
 		<variable>
 			<name>ORIGINAL_PROJECT_ROOT</name>
-			<value>file:/home/v125/ProgIDEs/ti/TivaWare_C_Series-2.1.0.12573/examples/boards/ek-tm4c1294xl/timers/ccs</value>
+			<value>file:/C:/ti/TivaWare_C_Series-2.1.0.12573/examples/boards/ek-tm4c1294xl/timers/ccs</value>
 		</variable>
 		<variable>
 			<name>SW_ROOT</name>
-			<value>file:/home/v125/ProgIDEs/ti/TivaWare_C_Series-2.1.0.12573</value>
+			<value>file:/C:/ti/TivaWare_C_Series-2.1.0.12573</value>
 		</variable>
 	</variableList>
 </projectDescription>

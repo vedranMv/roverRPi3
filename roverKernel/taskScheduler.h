@@ -52,8 +52,8 @@ class _taskEntry
 		_taskEntry(uint8_t uid, uint8_t task, uint32_t utcTime)
 		    :_libuid(uid), _task(task), _timestamp(utcTime) {};
 
-		void 		AddArg(float arg) volatile;//Deprecated
-		void        AddArg(uint8_t* arg, uint8_t argLen);
+		void 		AddArg(float arg) volatile;
+		void        AddArg(void* arg, uint8_t argLen) volatile;
 		uint16_t 	GetTask();
 		float		GetArg(uint8_t index);//Deprecated
 		uint16_t	GetArgNum();
@@ -69,9 +69,8 @@ class _taskEntry
 				_args[i] = arg._args[i];
 		}
 
-	//protected:
+	protected:
 		         void       _init() volatile;
-	public:
 		//  Unique identifier for library to request service from
 		volatile uint8_t    _libuid;
 		//  Service ID to execute
@@ -100,16 +99,12 @@ class TaskScheduler
 
 		void 				 Reset() volatile;
 		bool				 IsEmpty() volatile;
-		/*#########################  Deprecated  #############################*/
-		uint8_t 			 PushBackEntry(uint8_t libuid, uint8_t comm) volatile;
-		uint8_t              PushBackEntrySync(uint8_t libuid, uint8_t comm,
-		                                       uint32_t time) volatile;
-		void 				 AddArgForCurrent(uint8_t* arg,
-											  uint8_t argLen) volatile;
-		void                 AddStringArg(uint8_t* arg, uint8_t argLen) volatile;
+		uint8_t              PushBack(uint8_t libuid, uint8_t comm,
+		                                       int64_t time) volatile;
+		uint8_t              PushBack(_taskEntry te) volatile;
+		void                 AddStringArg(void* arg, uint8_t argLen) volatile;
+		void                 AddNumArg(float arg) volatile;
 		void                 AddNumArg(uint8_t* arg, uint8_t argLen) volatile;
-		/*#########################  Deprecated  #############################*/
-		uint8_t              PushBackTask(_taskEntry te) volatile;
 		volatile _taskEntry& PopFront() volatile;
 		volatile _taskEntry& PeekFront() volatile;
 		volatile _taskEntry& At(uint16_t index) volatile;
@@ -122,8 +117,9 @@ class TaskScheduler
 							_taskItE;
 };
 
-/*	Global pointer to last instance of TaskScheduler object	*/
+/*	Global pointer to first instance of TaskScheduler object	*/
 extern volatile TaskScheduler* __taskSch;
+
 extern void TSSyncCallback(void);
 extern void TS_GlobalCheck(void);
 
@@ -148,5 +144,7 @@ struct _callBackEntry
 
 extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);
 
+/// Internal time since TaskScheduler startup (in ms)
+extern volatile uint64_t __msSinceStartup;
 
 #endif /* TASKSCHEDULER_H_ */

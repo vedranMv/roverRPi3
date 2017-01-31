@@ -38,7 +38,7 @@ void _ESP_KernelCallback(void)
      * Start/Stop control for TCP server
      * 1st data byte of args[] is either 0(stop) or 1(start). Following bytes
      * 2 & 3 contain uint16_t value of port at which to start server
-     * args[] = size(1B)|enable(1B)|port(2B)
+     * args[] = size(1B)|enable(1B)|port(2B)\0
      * retVal ESP library status code
      */
     case ESP_T_TCPSERV:
@@ -71,7 +71,7 @@ void _ESP_KernelCallback(void)
             //  equal to total length of data - 3bytes(used for port & KA)
             memcpy( (void*)ipAddr,
                     (void*)(__esp->_espSer.args + 2),
-                    __esp->_espSer.args[0] - 2);
+                    __esp->_espSer.args[0] - 3);
             //  Port is last two bytes
             memcpy( (void*)&port,
                     (void*)(__esp->_espSer.args + (__esp->_espSer.args[0]-1)),
@@ -79,8 +79,9 @@ void _ESP_KernelCallback(void)
             //  If IP address is valid process request
             if (__esp->_IPtoInt(ipAddr) != 0)
             {
+                //  1st data byte is keep alive flag
                 //  Double negation to convert any integer into boolean
-                bool KA = !(!__esp->_espSer.args[0]);
+                bool KA = !(!__esp->_espSer.args[1]);
                 __esp->_espSer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
             }
         }
@@ -100,9 +101,24 @@ void _ESP_KernelCallback(void)
            if (__esp->ValidSocket(__esp->_espSer.args[1]))
            {
               //  Initiate TCP send to required client
-            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.serviceID)
+            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
                                       ->SendTCP((char*)(__esp->_espSer.args+2));
            }
+        }
+        break;
+    /*
+     * Close socket with specified ID
+     * args[] = size(1B)|socketID(1B)\0
+     */
+    case ESP_T_CLOSETCP:
+        {
+            //  Check if socket ID is valid
+            if (__esp->ValidSocket(__esp->_espSer.args[1]))
+            {
+                //  Initiate closing from client object
+                __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
+                                                  ->Close();
+            }
         }
         break;
     default:
@@ -111,6 +127,17 @@ void _ESP_KernelCallback(void)
 
 }
 #endif
+
+/**
+ * Routine invoked by watchdog timer on timeout
+ * Sets global status for current communication to "error", clears WD interrupt
+ * flag and CALLS the ESP's interrupt handler to process any remaining data in there
+ */
+void ESPWDISR()
+{
+    __esp->flowControl = ESP_STATUS_ERROR;
+    HAL_ESP_WDClearInt();
+}
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
@@ -145,7 +172,7 @@ _espClient::_espClient() : KeepAlive(true), _parent(0), _id(0) ,_alive(false)
 }
 
 _espClient::_espClient(uint8_t id, ESP8266 *par)
-    : KeepAlive(true), _parent(par), _id(id), _alive(false)
+    : KeepAlive(true), _parent(par), _id(id), _alive(true)
 {
     _Clear();
 }
@@ -220,8 +247,17 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
         //  Clear response body & flag
         _Clear();
 
-        //  Check if it's supposed to stay open
-        if (!KeepAlive) Close();
+        //  Check if it's supposed to stay open, if not force closing or schedule
+        //  closing(preferred) of socket
+        if (!KeepAlive)
+        {
+#if defined(__USE_TASK_SCHEDULER__)
+            __taskSch->PushBack(ESP_UID, ESP_T_CLOSETCP, 0);
+            __taskSch->AddStringArg(&_id, 1);
+#else
+            Close();
+#endif
+        }
 
         return ESP_NO_STATUS;
     }
@@ -230,11 +266,13 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
 
 /**
  * Force closing TCP socket with the client
+ * @note Object is deleted in ParseResponse function, once ESP confirm closing
  * @return status of close process (binary or of ESP_* flags received while closing)
  */
 uint32_t _espClient::Close()
 {
     snprintf(_commBuf, sizeof(_commBuf), "AT+CIPCLOSE=%d\0", _id);
+    _alive = false;
     return _parent->_SendRAW(_commBuf);
 }
 
@@ -271,21 +309,11 @@ ESP8266::~ESP8266()
 ///-----------------------------------------------------------------------------
 ///         Public functions used for configuring ESP8266               [PUBLIC]
 ///-----------------------------------------------------------------------------
-/**
- * Routine invoked by watchdog timer on timeout
- * Sets global status for current communication to "error", clears WD interrupt
- * flag and CALLS the ESP's interrupt handler to process any remaining data in there
- */
-void ESPWDISR()
-{
-    __esp->flowControl = ESP_STATUS_ERROR;
-    HAL_ESP_WDClearInt();
-}
 
 /**
  * Initialize UART port used for ESP module. Also enable watchdog timer used to
  * reset the port in case of any errors or hangs
- * @param baud baudrate used in serial communication between ESP and hardware
+ * @param baud baud-rate used in serial communication between ESP and hardware
  * @return error code, depending on the outcome
  */
 uint32_t ESP8266::InitHW(int32_t baud)
@@ -317,6 +345,7 @@ uint32_t ESP8266::InitHW(int32_t baud)
 void ESP8266::Enable(bool enable)
 {
     HAL_ESP_HWEnable(enable);
+    while (!HAL_ESP_IsHWEnabled());
 }
 
 /**
@@ -343,7 +372,6 @@ void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
 ///                  Functions used with access points                  [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-
 /**
  * Connected to AP using provided credentials
  * @param APname name of AP to connect to
@@ -361,9 +389,9 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 
     //  Assemble command & send it
     snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
-    //  Use standard send function but increase timeout to 4s as acquring IP
+    //  Use standard send function but increase timeout to 4s as acquiring IP
     //  address might take time
-    retVal = _SendRAW(_commBuf, 0, 4000);
+    retVal = _SendRAW(_commBuf, 0, 6000);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Acquire IP address and save it locally
@@ -409,11 +437,9 @@ uint32_t ESP8266::DisconnectAP()
     return _SendRAW("AT+CWQAP\0");
 }
 
-
 ///-----------------------------------------------------------------------------
 ///                      Functions related to TCP server                [PUBLIC]
 ///-----------------------------------------------------------------------------
-
 
 /**
  * Initiate TCP server on given port number
@@ -566,7 +592,7 @@ _espClient* ESP8266::GetClientBySockID(uint16_t id)
 
 
 /**
- * Sens a message to TCP client on socket ID 0 (if exists)
+ * Send a message to TCP client on socket ID 0 (if exists)
  * @param arg string message to send
  * @return error code, depending on the outcome
  */
@@ -591,7 +617,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 {
     //  Return value
     uint32_t retVal = ESP_NO_STATUS;
-    //  Flags to be set when theparameter has been found
+    //  Flags to be set when the parameter has been found
     int16_t ipFlag= -1, respFlag = -1, sockOflag = -1, sockCflag = -1;
     //  Pointer to char, used to temporary store return value of strstr function
     char *retTemp;
@@ -610,6 +636,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         retVal |= ESP_STATUS_IPD;
     }
 
+    //  Look for general status messages returned by ESP
     if (strstr(rxBuffer,"OK") != NULL)
         retVal |= ESP_STATUS_OK;
     if (strstr(rxBuffer,"busy...") != NULL)
@@ -626,23 +653,25 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     if (strstr(rxBuffer,"WIFI DISCONN") != NULL)
         retVal |= ESP_STATUS_CONNECTED;
 
-    if ((retTemp =strstr(rxBuffer,",CONNECT")) != NULL)
-    {
-        sockOflag = retTemp - rxBuffer - 1; //Sock ID position
-        retVal |= ESP_STATUS_SOCKOPEN;
-    }
-    if ((retTemp =strstr(rxBuffer,",CLOSED")) != NULL)
-    {
-        sockCflag = retTemp - rxBuffer - 1; //Sock ID position
-        retVal |= ESP_STATUS_SOCKCLOSE;
-    }
-
     if (strstr(rxBuffer,"SEND OK") != NULL)
         retVal |= ESP_STATUS_SENDOK;
     if (strstr(rxBuffer,"SUCCESS") != NULL)
         retVal |= ESP_RESPOND_SUCC;
     if (strstr(rxBuffer,">") != NULL)
         retVal |= ESP_STATUS_RECV;
+
+    //  If new socket is opened save socket id
+    if ((retTemp =strstr(rxBuffer,",CONNECT")) != NULL)
+    {
+        sockOflag = retTemp - rxBuffer - 1; //Sock ID position
+        retVal |= ESP_STATUS_SOCKOPEN;
+    }
+    //  If socket is closed save socket id
+    if ((retTemp =strstr(rxBuffer,",CLOSED")) != NULL)
+    {
+        sockCflag = retTemp - rxBuffer - 1; //Sock ID position
+        retVal |= ESP_STATUS_SOCKCLOSE;
+    }
 
     //  IP address embedded, extract it
     if (ipFlag >= 0)
@@ -656,19 +685,25 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         retVal |= ESP_GOT_IP;
     }
     //  TCP incoming data embedded, extract it
+    //  Data format:> +IPD,socketID,length:message
     if (respFlag >= 0)
     {
         int i;
+        //  Get client who sent the incoming data (based on socket ID)
         _espClient *cli = &_clients[_IDtoIndex(rxBuffer[respFlag] - 48)];
 
+        //  i points to socket ID
+        i = respFlag+2; //Skip colon and go to first digit of length
+        //  Double dot marks beginning of the message; also extract length of it
+        uint8_t cmsgLen[3] = {0};
+        while(rxBuffer[i++] != ':') //  ++ here so double dot is skipped when done
+            cmsgLen[i-1-respFlag-2] = rxBuffer[i-1];
+        uint16_t imsgLen = (uint16_t)lroundf(stof(cmsgLen, i-1-respFlag));
 
-        i = respFlag;
-        //  Double dot marks beginning of the message; find it
-        while(rxBuffer[i++] != ':');
         //  Use raspFlag to mark starting point
         respFlag = i;
         //  Loop until meeting a terminating character
-        while(rxBuffer[i] != '\n')
+        while(/*(rxBuffer[i] != '\n')*/(i-respFlag) < imsgLen)
         {
             cli->_respBody[i - respFlag] = rxBuffer[i];
             i++;
@@ -857,11 +892,12 @@ void UART7RxIntHandler(void)
      *  3) Watchdog timer has timed out changing 'flowControl' to "error"
      *      (on timeout WD timer also recalls the interrupt)
      */
-    if (rxLen > 2)
+    if ((rxLen > 2) || ( __esp->flowControl == ESP_STATUS_ERROR))
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
       || ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
+        HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
         //  Parse data in receiving buffer
         __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
         //  If some data came from one of opened TCP sockets receive it and

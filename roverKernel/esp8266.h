@@ -18,11 +18,13 @@
  *  +When in server mode can reply back to clients over TCP socket
  *  +On initialization library registers its services as a kernel module in task
  *  scheduler
- *  V1.2.1 26.1.2017
+ *  V1.2.1 - 26.1.2017
  *  +Implemented watchdog(WD) timer with variable timeout to handle any blockage
  *      in communication (ESP sometimes not consistent with sending msg terminator)
  *  +Establish a connection to TCP server (uses existing _espClient class)
- *  Add interface to send UDP packet
+ *  V1.3 - 31.1.2017
+ *  +Integration of library with task scheduler
+ *  TODO:Add interface to send UDP packet
  */
 
 #ifndef ESP8266_H_
@@ -31,7 +33,7 @@
 #include <vector>
 
 //  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
+#define __DEBUG_SESSION__
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 
@@ -43,6 +45,7 @@
     #define ESP_T_TCPSERV   0   //  Start/stop TCP server
     #define ESP_T_CONNTCP   1   //  Open TCP connection to server
     #define ESP_T_SENDTCP   2   //  Send data through socket with specific ID
+    #define ESP_T_CLOSETCP  3   //  Close socket with specific ID
 
 #endif
 
@@ -71,7 +74,7 @@
 #define ESP_GOT_IP              1<<15
 
 
-/// Clss prototypes definition
+/// Class prototypes definition
 class ESP8266;
 class _espClient;
 /// Short annotation for vector of TCP clients

@@ -36,21 +36,14 @@ ESP8266 esp;
 
 //RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
 
+
 void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
     comm.Send("Recvd(%d):  %s\n", sockID, buf);
 
-    /*if ((buf[0] == 'H') && (buf[1] == 'e'))
-    {
-        uint8_t msg[30]={0};
-        msg[0]=28;
-        __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-        __taskSch->AddStringArg(msg, 1);
-
-        snprintf((char*)msg, 30,"Hello you on the other side!");
-        __taskSch->PushBackEntrySync(0, 0, 0);//0 time - run task ASAP
-        __taskSch->AddStringArg(msg, 28);
-    }*/
+    __taskSch->PushBack(ESP_UID,ESP_T_SENDTCP,-500);
+    __taskSch->AddStringArg(&sockID, 1);
+    __taskSch->AddStringArg(buf, *len);
 }
 
 int main(void)
@@ -69,43 +62,28 @@ int main(void)
     GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
     GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
-
     esp.InitHW();
     esp.AddHook(RxHook);
     esp.ConnectAP("sgvfyj7a", "7vxy3b5d");
 
     comm.Send("Board initialized!\r\n");
-    uint32_t cliID;
 
-    cliID = esp.OpenTCPSock("192.168.0.11", 2701);
+    uint16_t tmp;
 
-    if (cliID != ESP_STATUS_ERROR)
-    {
-        esp.GetClientBySockID(cliID)->SendTCP("Hello from ESP module!\0");
-        HAL_DelayUS(2000000);
-        esp.GetClientBySockID(cliID)->Close();
-    }
+    ts.PushBack(ESP_UID,ESP_T_CONNTCP,-1000);
+    tmp = 1;
+    ts.AddStringArg(&tmp, 1);
+    ts.AddStringArg((void*)"192.168.0.11", 12);
+    tmp = 2701;
+    ts.AddStringArg(&tmp, 2);
 
-    _taskEntry te1(ESP_UID,ESP_T_CONNTCP,0);
-    char IPa[] = {"192.168.0.11"};
-    uint16_t port = 2701;
-    memcpy((void*)te1._args, IPa, 12);
-    memcpy((void*)(te1._args+12), &port, 2);
-    te1._argN = 14;
-    ts.PushBackTask(te1);
+    ts.PushBack(ESP_UID,ESP_T_SENDTCP,-2000);
+    tmp = 0;
+    ts.AddStringArg(&tmp, 1);
+    ts.AddStringArg((void*)"Hello from ESP module!!\0", 23);
 
-    _taskEntry te2(ESP_UID,ESP_T_SENDTCP,0);
-    char msg2[2];
-    msg2[0] = 23;
-    memcpy((void*)te2._args, msg2, 1);
-    te2._argN = 23;
-    ts.PushBackTask(te2);
-
-    _taskEntry te3(ESP_UID,ESP_T_SENDTCP,0);
-    char msg3[] = {"Hello from ESP module!!"};
-    memcpy((void*)te3._args, msg3, 23);
-    te3._argN = 23;
-    ts.PushBackTask(te3);
+    ts.PushBack(ESP_UID, ESP_T_CLOSETCP, -10000);
+    ts.AddStringArg(&tmp, 1);
 
     while(1)
     {

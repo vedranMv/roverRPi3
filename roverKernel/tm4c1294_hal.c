@@ -153,11 +153,15 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
  */
 void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
 {
+    UARTDisable(ESP8266_UART_BASE);
     ///  Enable Interrupt on received data
     UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8 ,UART_FIFO_RX1_8 );
+    UARTFIFODisable(ESP8266_UART_BASE);
     UARTIntRegister(ESP8266_UART_BASE, intHandler);
-    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
+    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX /*| UART_INT_RT*/);
     IntDisable(INT_UART7);
+    UARTEnable(ESP8266_UART_BASE);
+    IntMasterEnable();
 }
 
 /**
@@ -203,8 +207,9 @@ void HAL_ESP_IntEnable(bool enable)
 int32_t HAL_ESP_ClearInt()
 {
     uint32_t retVal = UARTIntStatus(ESP8266_UART_BASE, true);
-    ///  Clear all raised interrupt flags
-    UARTIntClear(ESP8266_UART_BASE, UARTIntStatus(ESP8266_UART_BASE, true));
+    //  Clear all raised interrupt flags
+    UARTIntClear(ESP8266_UART_BASE, retVal);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
     return retVal;
 }
 

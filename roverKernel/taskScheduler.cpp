@@ -13,6 +13,7 @@
 
 #include "taskScheduler.h"
 #include "tm4c1294_hal.h"
+#include "utils/uartstdio.h"
 
 
 /**
@@ -34,7 +35,7 @@ void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
 }
 
 
-/*  Global pointer to last instance of TaskScheduler object */
+/*  Global pointer to FIRST instance of TaskScheduler object */
 volatile TaskScheduler* __taskSch;
 
 /*******************************************************************************
@@ -68,11 +69,10 @@ void _taskEntry::AddArg(float arg) volatile
 	_argN += 4;
 }
 
-void _taskEntry::AddArg(uint8_t* arg, uint8_t argLen)
+void _taskEntry::AddArg(void* arg, uint8_t argLen) volatile
 {
-    memset((void*)_args, 0, TS_TASK_MEMORY);    //Each memory block is 50B
-    memcpy((void*)_args, (void*)arg, argLen);
-    _argN = argLen;
+    memcpy((void*)(_args+_argN), arg, argLen);
+    _argN += argLen;
 }
 
 uint16_t _taskEntry::GetTask()
@@ -104,7 +104,8 @@ TaskScheduler::TaskScheduler() :_taskItB(0), _taskItE(0)
 {
 	for (uint8_t i = 0; i < TS_MAX_TASKS; i++)
 		_taskLog[i]._init();
-	__taskSch = this;
+
+	if (__taskSch == 0) __taskSch = this;
 
 	HAL_TS_InitSysTick(100, TSSyncCallback);
 	HAL_TS_StartSysTick();
@@ -150,64 +151,46 @@ bool TaskScheduler::IsEmpty() volatile
 }
 
 /**
- * @brief	Add new command to task schedule
- * @note	Use AddArgForCurrent for adding arguments connected to command
- *
+ * Add task to the back of task queue
+ * @param libuid UID of library to call
+ * @param comm task ID within the library to execute
+ * @param time time stamp at which to execute the task
+ * @return index of task in task queue
  */
-uint8_t TaskScheduler::PushBackEntry(uint8_t libuid, uint8_t comm) volatile
-{
-    _taskLog[_taskItE]._libuid = libuid;
-	_taskLog[_taskItE]._task = comm;
-	_taskItE++;
-
-	return (_taskItE - 1);
-}
-
-uint8_t TaskScheduler::PushBackEntrySync(uint8_t libuid, uint8_t comm, uint32_t time) volatile
+uint8_t TaskScheduler::PushBack(uint8_t libuid, uint8_t comm, int64_t time) volatile
 {
     _taskLog[_taskItE]._libuid = libuid;
     _taskLog[_taskItE]._task = comm;
-    _taskLog[_taskItE]._timestamp = time;
+    if (time < 0)
+        _taskLog[_taskItE]._timestamp = (uint32_t)(-time) + __msSinceStartup;
+    else
+        _taskLog[_taskItE]._timestamp = (uint32_t)time;
     _taskItE++;
 
     return (_taskItE - 1);
 }
-/**
- * @brief	Add new argument for last command pushed in scheduler
- * @note	Arguments are added as strings, but saved as floats
- */
-void TaskScheduler::AddArgForCurrent(uint8_t* arg, uint8_t argLen) volatile
-{
-	//_taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
-    //  Copy memory directly
-    //memcpy((void*)_taskLog[_taskItE - 1]._args, (const void*)arg, argLen);
 
-}
-
-void TaskScheduler::AddStringArg(uint8_t* arg, uint8_t argLen) volatile
-{
-    //if ((_taskLog[_taskItE - 1]._argN +argLen) <= 50)
-    //{
-
-        memset((void*)_taskLog[_taskItE - 1]._args, 0, 50);    //Each memory block is 50B
-        memcpy((void*)(_taskLog[_taskItE - 1]._args),
-               (void*)arg, argLen);
-        _taskLog[_taskItE - 1]._argN = argLen;
-        //_taskLog[_taskItE - 1]._args[0] = _taskLog[_taskItE - 1]._argN;
-    //}
-}
-
-void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
-{
-    _taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
-}
-
-uint8_t TaskScheduler::PushBackTask(_taskEntry te) volatile
+uint8_t TaskScheduler::PushBack(_taskEntry te) volatile
 {
     _taskLog[_taskItE] = te;
     _taskItE++;
 
     return (_taskItE - 1);
+}
+
+void TaskScheduler::AddStringArg(void* arg, uint8_t argLen) volatile
+{
+    _taskLog[_taskItE - 1].AddArg(arg, argLen);
+}
+
+void TaskScheduler::AddNumArg(float arg) volatile
+{
+    _taskLog[_taskItE - 1].AddArg(arg);
+}
+
+void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
+{
+    _taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
 }
 
 /**
@@ -246,7 +229,7 @@ volatile _taskEntry& TaskScheduler::PeekFront() volatile
  ******************************************************************************/
 
 /// Internal time since TaskScheduler startup (in ms)
-static volatile uint64_t __msSinceStartup = 0;
+volatile uint64_t __msSinceStartup = 0;
 
 /**
  * SysTick interrupt
@@ -286,6 +269,10 @@ void TS_GlobalCheck(void)
             memcpy( (void*)(__callbackVector[tE._libuid]->args+1),
                     (void*)(tE._args),
                     tE._argN);
+#if defined(__DEBUG_SESSION__)
+            UARTprintf("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
+            UARTprintf("-(%d)> %s\n", tE._argN, tE._args);
+#endif
             // Call kernel module to execute task
             __callbackVector[tE._libuid]->callBackFunc();
         }
