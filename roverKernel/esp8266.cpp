@@ -27,18 +27,82 @@
  */
 void _ESP_KernelCallback(void)
 {
+    /*
+     *  Data in args[] array always has first byte(args[0]) containing the size
+     *  of the args[] array (without first byte). So total size is args[0]+1.
+     *  First data byte is accessed at args[0]
+     */
     switch (__esp->_espSer.serviceID)
     {
+    /*
+     * Start/Stop control for TCP server
+     * 1st data byte of args[] is either 0(stop) or 1(start). Following bytes
+     * 2 & 3 contain uint16_t value of port at which to start server
+     * args[] = size(1B)|enable(1B)|port(2B)
+     * retVal ESP library status code
+     */
+    case ESP_T_TCPSERV:
+        {
+            if (__esp->_espSer.args[1] == 1)
+            {
+                uint16_t port;
+                memcpy((void*)&port, (void*)(__esp->_espSer.args + 2), 2);
+                __esp->_espSer.retVal = __esp->StartTCPServer(port);
+                __esp->TCPListen(true);
+            }
+            else
+            {
+                __esp->_espSer.retVal = __esp->StopTCPServer();
+                __esp->TCPListen(false);
+            }
+        }
+        break;
+    /*
+     * Connect to TCP client on given IP address and port
+     * args[] = size(1B)|KeepAlive(1B)|IPaddress(7B-15B)|port(2B)|\0
+     * retVal ESP library error code (if > 5); or socket ID (if <=5)
+     */
+    case ESP_T_CONNTCP:
+        {
+            char ipAddr[15] = {0};
+            uint16_t port;
+
+            //  IP address starts on 2nd data byte and its a string of length
+            //  equal to total length of data - 3bytes(used for port & KA)
+            memcpy( (void*)ipAddr,
+                    (void*)(__esp->_espSer.args + 2),
+                    __esp->_espSer.args[0] - 2);
+            //  Port is last two bytes
+            memcpy( (void*)&port,
+                    (void*)(__esp->_espSer.args + (__esp->_espSer.args[0]-1)),
+                    2);
+            //  If IP address is valid process request
+            if (__esp->_IPtoInt(ipAddr) != 0)
+            {
+                //  Double negation to convert any integer into boolean
+                bool KA = !(!__esp->_espSer.args[0]);
+                __esp->_espSer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
+            }
+        }
+        break;
+    /*
+     * Send message to specific TCP client
+     * args[] = size(1B)|socketID(1B)|message|\0
+     */
     case ESP_T_SENDTCP:
         {
             //  Ensure that message is null-terminated
-            if (__esp->_espSer.args[0] < 50)
+            if ((__esp->_espSer.args[0] + 1) < TS_TASK_MEMORY)
                 __esp->_espSer.args[__esp->_espSer.args[0]+1] = '\0';
             else
                 __esp->_espSer.args[49] = '\0';
-            //  Initiate TCP send to required client
-            __esp->GetClientBySockID(__esp->_espSer.serviceID)
-                    ->SendTCP((char*)(__esp->_espSer.args+1));
+            //  Check if socket ID is valid
+           if (__esp->ValidSocket(__esp->_espSer.args[1]))
+           {
+              //  Initiate TCP send to required client
+            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.serviceID)
+                                      ->SendTCP((char*)(__esp->_espSer.args+2));
+           }
         }
         break;
     default:
@@ -63,7 +127,7 @@ ESP8266* __esp;
 //  Buffer used to assemble commands
 char _commBuf[512];
 
-//  Dummy function te be called to suppress "Unused variable" warnings
+//  Dummy function to be called to suppress "Unused variable" warnings
 void UNUSED(int32_t arg) { }
 
 /*******************************************************************************
@@ -75,18 +139,18 @@ void UNUSED(int32_t arg) { }
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor                [PUBLIC]
 ///-----------------------------------------------------------------------------
-_espClient::_espClient() : _parent(0), _id(0) ,_alive(false)
+_espClient::_espClient() : KeepAlive(true), _parent(0), _id(0) ,_alive(false)
 {
     _Clear();
 }
 
 _espClient::_espClient(uint8_t id, ESP8266 *par)
-    : _parent(par), _id(id), _alive(true)
+    : KeepAlive(true), _parent(par), _id(id), _alive(false)
 {
     _Clear();
 }
 _espClient::_espClient(const _espClient &arg)
-    : _parent(arg._parent), _id(arg._id), _alive(arg._alive)
+    : KeepAlive(arg.KeepAlive), _parent(arg._parent), _id(arg._id), _alive(arg._alive)
 {
     _Clear();
 }
@@ -97,8 +161,8 @@ void _espClient::operator= (const _espClient &arg)
     _id = arg._id;
     _alive = arg._alive;
     _respRdy = arg._respRdy;
-    for (int i = 0; i < sizeof(_respBody); i++)
-        _respBody[i] = arg._respBody[i];
+    KeepAlive = arg.KeepAlive;
+    memcpy((void*)_respBody, (void*)(arg._respBody), sizeof(_respBody));
 }
 
 ///-----------------------------------------------------------------------------
@@ -131,7 +195,7 @@ uint32_t _espClient::SendTCP(char *buffer)
     return _parent->flowControl;
 }
 /**
- * Read reasponse from client saved in internal buffer
+ * Read response from client saved in internal buffer
  * Internal buffer with response is filled as soon as response is received in
  * an interrupt. This function only copies response from internal buffer to a
  * user provided one and then clears internal (and data-ready flag).
@@ -153,8 +217,11 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
             (*bufferLen)++;
         }
 
-        //  Empty internal buffer - memset doesn't work on volatile
+        //  Clear response body & flag
         _Clear();
+
+        //  Check if it's supposed to stay open
+        if (!KeepAlive) Close();
 
         return ESP_NO_STATUS;
     }
@@ -189,7 +256,8 @@ void _espClient::_Clear()
 ///                      Class constructor & destructor                [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS)
+ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS), _tcpServPort(0),
+                     _ipAddress(0), _servOpen(false)
 {
     if (__esp == 0) __esp = this;
 }
@@ -380,6 +448,7 @@ uint32_t ESP8266::StartTCPServer(uint16_t port)
 void ESP8266::TCPListen(bool enable)
 {
     HAL_ESP_IntEnable(enable);
+    _servOpen = enable;
 }
 
 /**
@@ -414,14 +483,15 @@ uint32_t ESP8266::StopTCPServer()
 ///-----------------------------------------------------------------------------
 
 /**
- * Open TCP socket to a client at specific IP and port, keepalive interval 7.2s
+ * Open TCP socket to a client at specific IP and port, keep alive interval 7.2s
  * @param ipAddr string containing IP address of server
  * @param port TCP socket port of server
- * @return On success socket ID of TCP client in _client vector, on failiure
+ * @return On success socket ID of TCP client in _client vector, on failure
  *         ESP_STATUS_ERROR error code
  */
-uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port)
+uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
 {
+    uint32_t retVal;
     uint8_t sockID;
     //  Find free socket number (0-4 supported)
     for (sockID = 0; sockID < 4; sockID++)
@@ -433,22 +503,32 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port)
     }
 
     //  Assemble command: Open TCP socket to specified IP and port, set
-    //  keepalive interval to 7200ms
+    //  keep alive interval to 7200ms
     snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,7200",
              sockID, ipAddr, port);
 
     //  Execute command and check outcome
-    if (_InStatus(_SendRAW(_commBuf), ESP_STATUS_OK))
+    retVal = _SendRAW(_commBuf);
+    if (_InStatus(retVal, ESP_STATUS_OK))
     {
-        //  If success, set "server open" flag to prevent disabling UART
-        //  interrupt on received data (to be able to listen on incoming data)
-        _servOpen = true;
-        return sockID;
+        //  If success, start listening for potential incoming data from server
+        TCPListen(true);
+        GetClientBySockID(sockID)->KeepAlive = keepAlive;
+        retVal = sockID;
     }
-    else
-        return ESP_STATUS_ERROR;
+
+    return retVal;
 }
 
+/**
+ * Check if socket with the following ID is open (alive)
+ * @param id ID of the socket to check
+ * @return alive status of particular socket
+ */
+bool ESP8266::ValidSocket(uint16_t id)
+{
+    return GetClientBySockID(id)->_alive;
+}
 
 /**
  * Get pointer to client object on specific index in _client vector
@@ -583,7 +663,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 
 
         i = respFlag;
-        //  Doubledot marks beginning of the message; find it
+        //  Double dot marks beginning of the message; find it
         while(rxBuffer[i++] != ':');
         //  Use raspFlag to mark starting point
         respFlag = i;
@@ -621,7 +701,7 @@ bool ESP8266::_InStatus(const uint32_t status, const uint32_t flag)
 /**
  * @brief Send command to ESP8266 module
  * Sends command passed in the null-terminated txBuffer. This is a blocking
- * functon, awaiting reply from ESP. Function returns when status OK or ERROR
+ * function, awaiting reply from ESP. Function returns when status OK or ERROR
  * or any other status passed in flags have been received from ESP.
  * @param txBuffer null-terminated string with command to execute
  * @param flags bitwise OR of ESP_STATUS_* values
@@ -654,7 +734,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
     HAL_ESP_IntEnable(true);
 
 
-    //  If non-blockign mode is not enabled wait for status
+    //  If non-blocking mode is not enabled wait for status
     if (!(flags & ESP_NONBLOCKING_MODE))
     {
         HAL_ESP_WDControl(true, timeout);
@@ -706,7 +786,7 @@ uint32_t ESP8266::_IPtoInt(char *ipAddr)
 {
     uint32_t retVal = 0;
     uint8_t it = 0;
-    uint8_t oct = 3;    //IPV4 has 4 octets, 3 downto 0
+    uint8_t oct = 3;    //IPV4 has 4 octets, 3 down to 0
 
     //  Starts at first digit of first octet
     while (isdigit(ipAddr[it]))
@@ -718,7 +798,7 @@ uint32_t ESP8266::_IPtoInt(char *ipAddr)
         while(isdigit(ipAddr[it]))
             temp[ tempIt++ ] = ipAddr[ it++ ];
 
-        it++;   //Move iterrator from dot char
+        it++;   //  Move iterator from dot char
         //  Convert octet to int and push it to return variable
         retVal |= ((uint32_t)stoi((uint8_t*)temp, tempIt)) << (8 * oct--);
     }
@@ -736,6 +816,8 @@ uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
     int it;
     for (it = 0; it < _clients.size(); it++)
         if (_clients[it]._id == sockID) return it;
+    //  If not found, return any number bigger than 5 as it's maximum number of
+    //  clients ESP can have simultaneously
     return 444;
 }
 
@@ -747,16 +829,18 @@ void UART7RxIntHandler(void)
 {
     static char rxBuffer[1024] ;
     static uint16_t rxLen = 0;
-    uint32_t intMask = HAL_ESP_ClearInt();
 
-    HAL_ESP_WDControl(true, 0);    //Reset watchdog timer
+    HAL_ESP_ClearInt();     //  Clear interrupt
+    HAL_ESP_WDControl(true, 0);    //   Reset watchdog timer
 
+    //  Loop while there are characters in receiving buffer
     while (HAL_ESP_CharAvail())
     {
         char temp = HAL_ESP_GetChar();
+        //  Save only characters in valid range (ASCI > 30 or \n, \r)
         if ((temp > 30) || (temp == '\n') || (temp == '\r'))
             rxBuffer[rxLen++] = temp;
-
+        //  Keep in mind buffer size
         rxLen %= 1024;
 #ifdef __DEBUG_SESSION__
         if (((temp > 31) && (temp < 126))
@@ -778,9 +862,10 @@ void UART7RxIntHandler(void)
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
       || ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
-
+        //  Parse data in receiving buffer
         __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
-
+        //  If some data came from one of opened TCP sockets receive it and
+        //  pass it to a user-defined function for further processing
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
             char resp[128];
@@ -791,11 +876,14 @@ void UART7RxIntHandler(void)
                    __esp->custHook(i, (uint8_t*)resp, &respLen);
         }
 
+        //  If ESP is running in server mode or status hasn't been OK/ERROR
+        //  (because after them ESP sends no more messages) then continue
+        //  listening on serial port for new messages
         if (((__esp->flowControl & ESP_STATUS_OK) ||
              (__esp->flowControl & ESP_STATUS_ERROR))
             && !__esp->ServerOpened())
             HAL_ESP_IntEnable(false);
-
+        //  Reset receiving buffer and its size
         memset(rxBuffer, '\0', sizeof(rxBuffer));
         rxLen = 0;
     }

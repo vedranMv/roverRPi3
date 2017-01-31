@@ -19,7 +19,7 @@
  *      scheduler requires that service it will transfer necessary memory into
  *      kernel space and call provided callback function for particular module
  *  v2.2 - TODO
- *  Implement UTC clock ability, if at some point program finds out what the
+ *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  *
  ****Hardware dependencies:
@@ -49,11 +49,13 @@ class _taskEntry
 	public:
 		_taskEntry();
 		_taskEntry(volatile _taskEntry& arg);
-		_taskEntry(uint8_t task, uint32_t utcTime): _task(task), _timestamp(utcTime){};
+		_taskEntry(uint8_t uid, uint8_t task, uint32_t utcTime)
+		    :_libuid(uid), _task(task), _timestamp(utcTime) {};
 
-		void 		AddArg(float arg) volatile;
+		void 		AddArg(float arg) volatile;//Deprecated
+		void        AddArg(uint8_t* arg, uint8_t argLen);
 		uint16_t 	GetTask();
-		float		GetArg(uint8_t index);
+		float		GetArg(uint8_t index);//Deprecated
 		uint16_t	GetArgNum();
 
 		void operator= (volatile _taskEntry& arg) volatile
@@ -67,9 +69,10 @@ class _taskEntry
 				_args[i] = arg._args[i];
 		}
 
-	protected:
+	//protected:
 		         void       _init() volatile;
-		//  Unique ientifier for library to request service from
+	public:
+		//  Unique identifier for library to request service from
 		volatile uint8_t    _libuid;
 		//  Service ID to execute
 		volatile uint8_t    _task;
@@ -83,7 +86,7 @@ class _taskEntry
 
 /**
  * Task scheduler class implementation
- * @note Task and it arguments ar added separately. First add new task and then
+ * @note Task and it arguments are added separately. First add new task and then
  * use some of the 'Add*Arg' function to add argument(s) for that task
  */
 class TaskScheduler
@@ -97,6 +100,7 @@ class TaskScheduler
 
 		void 				 Reset() volatile;
 		bool				 IsEmpty() volatile;
+		/*#########################  Deprecated  #############################*/
 		uint8_t 			 PushBackEntry(uint8_t libuid, uint8_t comm) volatile;
 		uint8_t              PushBackEntrySync(uint8_t libuid, uint8_t comm,
 		                                       uint32_t time) volatile;
@@ -104,6 +108,8 @@ class TaskScheduler
 											  uint8_t argLen) volatile;
 		void                 AddStringArg(uint8_t* arg, uint8_t argLen) volatile;
 		void                 AddNumArg(uint8_t* arg, uint8_t argLen) volatile;
+		/*#########################  Deprecated  #############################*/
+		uint8_t              PushBackTask(_taskEntry te) volatile;
 		volatile _taskEntry& PopFront() volatile;
 		volatile _taskEntry& PeekFront() volatile;
 		volatile _taskEntry& At(uint16_t index) volatile;
@@ -129,15 +135,15 @@ extern void TS_GlobalCheck(void);
  * someone requests a service from kernel module; b) ServiceID of service to be
  * executed; c)Memory space used for arguments for callback function; d) Return
  * variable of the service execution
- * @note IMPORTANT! 1st byte of args ALWAYS contains number of following data bytes
- *  remember to use +1 offset in memory when ding memcpy on args array
+ * @note IMPORTANT! 1st byte of args ALWAYS contains number of following data
+ *  bytes, remember to use +1 offset in memory when doing memcpy on args array
  */
 struct _callBackEntry
 {
     void((*callBackFunc)(void));    // Pointer to callback function
     uint8_t serviceID;              // Requested service
     uint8_t args[TS_TASK_MEMORY];   // Arguments for service execution
-    int8_t  retVal;                 // (Optinal) Return variable of service exec
+    int32_t  retVal;                // (Optional) Return variable of service exec
 };
 
 extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);

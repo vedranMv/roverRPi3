@@ -19,7 +19,7 @@
  *  +On initialization library registers its services as a kernel module in task
  *  scheduler
  *  V1.2.1 26.1.2017
- *  +Implented watchdog(WD) timer with variable timeout to handle any blockage
+ *  +Implemented watchdog(WD) timer with variable timeout to handle any blockage
  *      in communication (ESP sometimes not consistent with sending msg terminator)
  *  +Establish a connection to TCP server (uses existing _espClient class)
  *  Add interface to send UDP packet
@@ -40,7 +40,10 @@
     //  Unique identifier of this module as registered in task scheduler
     #define ESP_UID         0
     //  Definitions of ServiceID for service offered by this module
-    #define ESP_T_SENDTCP   0
+    #define ESP_T_TCPSERV   0   //  Start/stop TCP server
+    #define ESP_T_CONNTCP   1   //  Open TCP connection to server
+    #define ESP_T_SENDTCP   2   //  Send data through socket with specific ID
+
 #endif
 
 
@@ -92,6 +95,9 @@ class _espClient
         uint32_t    Receive(char *buffer, uint16_t *bufferLen);
         uint32_t    Close();
 
+        //  Keep socket alive (don't terminate it after first round of communication)
+        volatile bool   KeepAlive;
+
     private:
         void        _Clear();
 
@@ -133,7 +139,8 @@ class ESP8266
 		bool        ServerOpened();
 		uint32_t    StopTCPServer();
 
-		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port);
+		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive=true);
+		bool        ValidSocket(uint16_t id);
 
 		void 		Enable(bool enable);
 		bool		IsEnabled();

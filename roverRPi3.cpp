@@ -86,6 +86,27 @@ int main(void)
         esp.GetClientBySockID(cliID)->Close();
     }
 
+    _taskEntry te1(ESP_UID,ESP_T_CONNTCP,0);
+    char IPa[] = {"192.168.0.11"};
+    uint16_t port = 2701;
+    memcpy((void*)te1._args, IPa, 12);
+    memcpy((void*)(te1._args+12), &port, 2);
+    te1._argN = 14;
+    ts.PushBackTask(te1);
+
+    _taskEntry te2(ESP_UID,ESP_T_SENDTCP,0);
+    char msg2[2];
+    msg2[0] = 23;
+    memcpy((void*)te2._args, msg2, 1);
+    te2._argN = 23;
+    ts.PushBackTask(te2);
+
+    _taskEntry te3(ESP_UID,ESP_T_SENDTCP,0);
+    char msg3[] = {"Hello from ESP module!!"};
+    memcpy((void*)te3._args, msg3, 23);
+    te3._argN = 23;
+    ts.PushBackTask(te3);
+
     while(1)
     {
         TS_GlobalCheck();

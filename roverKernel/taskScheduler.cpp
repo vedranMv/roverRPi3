@@ -43,10 +43,9 @@ volatile TaskScheduler* __taskSch;
  *******************************************************************************
  ******************************************************************************/
 
-_taskEntry::_taskEntry() : _task(0), _argN(0)
+_taskEntry::_taskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0)
 {
-	for (uint8_t i = 0; i< 10; i++)
-		_args[i] = 0.0f;
+    memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
 _taskEntry::_taskEntry(volatile _taskEntry& arg)
@@ -59,14 +58,21 @@ void _taskEntry::_init() volatile
     _libuid = 0;
 	_task = 0;
 	_argN = 0;
-	for (uint8_t i = 0; i< 10; i++)
-		_args[i] = 0.0f;
+	_timestamp = 0;
+	memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
 void _taskEntry::AddArg(float arg) volatile
 {
     memcpy((void*)(_args + 1 + _argN*4), (void*)&arg, 4);
 	_argN += 4;
+}
+
+void _taskEntry::AddArg(uint8_t* arg, uint8_t argLen)
+{
+    memset((void*)_args, 0, TS_TASK_MEMORY);    //Each memory block is 50B
+    memcpy((void*)_args, (void*)arg, argLen);
+    _argN = argLen;
 }
 
 uint16_t _taskEntry::GetTask()
@@ -115,7 +121,7 @@ TaskScheduler::~TaskScheduler()
 ///-----------------------------------------------------------------------------
 
 /**
- * @brief	Clear task schedule, remove all enties from ii
+ * @brief	Clear task schedule, remove all entries from ii
  */
 void TaskScheduler::Reset() volatile
 {
@@ -195,6 +201,15 @@ void TaskScheduler::AddNumArg(uint8_t* arg, uint8_t argLen) volatile
 {
     _taskLog[_taskItE - 1].AddArg(stof(arg, argLen));
 }
+
+uint8_t TaskScheduler::PushBackTask(_taskEntry te) volatile
+{
+    _taskLog[_taskItE] = te;
+    _taskItE++;
+
+    return (_taskItE - 1);
+}
+
 /**
  * @brief	Return first element from task queue
  * @return  first element from task queue and delete it (by moving iterators).
@@ -247,31 +262,31 @@ void TSSyncCallback(void)
  * Task scheduler callback routine
  * This routine has to be called in order to execute tasks pushed in task queue
  * and is recently removed from TSSynceCallback because some task might rely on
- * interrupt routines that couldn't be executed while MCU is within TSSyncCallback
- * function which is a SysTick ISR. (no interrupts while in ISR!)
+ * interrupt routines that can't be executed while MCU is within TSSyncCallback
+ * function which is a SysTick ISR. (no interrupts while in ISR)
  */
 void TS_GlobalCheck(void)
 {
+    //  Check if there task scheduled to execute
     if (!__taskSch->IsEmpty())
+        //  Check if the first task had to be executed already
         while((__taskSch->PeekFront()._timestamp <= __msSinceStartup) &&
               (!__taskSch->IsEmpty()))
         {
-            /// Take out first entry to process it
+            // Take out first entry to process it
             _taskEntry tE = __taskSch->PopFront();
 
-            /// Check if callback exists
+            // Check if callback exists
             if ((__callbackVector + tE._libuid) == 0)
                 return;
 
-            /// Transfer data into kernel memory space
-            (__callbackVector[tE._libuid]->serviceID) = tE._task;
-            uint8_t i;
-            //Num of args +1 as argN doesn't account for args[0]
+            // Transfer data for task into kernel memory space
+            __callbackVector[tE._libuid]->serviceID = tE._task;
             __callbackVector[tE._libuid]->args[0] = tE._argN;
-            for (i = 1; i <= (tE._argN); i++)
-                __callbackVector[tE._libuid]->args[i] = tE._args[i-1];
-            //memcpy(__callbackVector[tE._libuid]->args+1, tE._args[i-1])
-            /// Call to kernel module
+            memcpy( (void*)(__callbackVector[tE._libuid]->args+1),
+                    (void*)(tE._args),
+                    tE._argN);
+            // Call kernel module to execute task
             __callbackVector[tE._libuid]->callBackFunc();
         }
 }
