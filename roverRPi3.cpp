@@ -50,6 +50,7 @@ int main(void)
 {
     HAL_BOARD_CLOCK_Init();
     TaskScheduler ts;
+
     comm.InitHW();
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
