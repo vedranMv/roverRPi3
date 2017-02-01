@@ -49,7 +49,7 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 int main(void)
 {
     HAL_BOARD_CLOCK_Init();
-    TaskScheduler ts;
+    volatile TaskScheduler ts;
 
     comm.InitHW();
 

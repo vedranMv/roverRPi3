@@ -943,8 +943,8 @@ void UART7RxIntHandler(void)
 
     //if ((rxLen > 2) || ( __esp->flowControl == ESP_STATUS_ERROR))
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
-      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' )))
-      //|| ( __esp->flowControl == ESP_STATUS_ERROR) )
+      || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
+      || ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
         //  Parse data in receiving buffer
@@ -959,9 +959,9 @@ void UART7RxIntHandler(void)
             for (uint8_t i = 0; i < __esp->_clients.size(); i++)
                 if (__esp->GetClientByIndex(i)->Ready())
                 {
-#if !defined(__USE_TASK_SCHEDULER__)
+#if defined(__USE_TASK_SCHEDULER__)
             //  If using task scheduler, schedule receiving outside this ISR
-                    _taskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
+                    volatile _taskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
                     __taskSch->SyncTask(tE);
 #else

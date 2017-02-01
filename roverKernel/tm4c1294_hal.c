@@ -209,7 +209,6 @@ int32_t HAL_ESP_ClearInt()
     uint32_t retVal = UARTIntStatus(ESP8266_UART_BASE, true);
     //  Clear all raised interrupt flags
     UARTIntClear(ESP8266_UART_BASE, retVal);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
     return retVal;
 }
 
@@ -288,6 +287,8 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
 void HAL_ESP_WDClearInt()
 {
     TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
+
     IntPendSet(INT_UART7);
 }
 
@@ -859,6 +860,7 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
 
     SysTickPeriodSet(periodMs*(g_ui32SysClock/1000));
     SysTickIntRegister(custHook);
+    IntPrioritySet(FAULT_SYSTICK, 0);
     SysTickIntEnable();
     _systickSet = true;
 
