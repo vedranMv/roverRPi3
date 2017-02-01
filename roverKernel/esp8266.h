@@ -86,8 +86,8 @@ typedef std::vector<_espClient> espCli;
  */
 class _espClient
 {
-    friend class ESP8266;
-    friend void UART7RxIntHandler(void);
+    friend class    ESP8266;
+    friend void     UART7RxIntHandler(void);
     public:
         _espClient();
         _espClient(uint8_t id, ESP8266 *par);
@@ -126,9 +126,9 @@ class _espClient
 class ESP8266
 {
         /// Functions & classes needing direct access to all members
-        friend class _espClient;
-        friend void UART7RxIntHandler(void);
-        friend void _ESP_KernelCallback(void);
+        friend class    _espClient;
+        friend void     UART7RxIntHandler(void);
+        friend void     _ESP_KernelCallback(void);
 	public:
 		ESP8266();
 		~ESP8266();

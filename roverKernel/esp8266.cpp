@@ -18,6 +18,24 @@
 #include "utils/uartstdio.h"
 #include "tm4c1294_hal.h"
 
+/*      Lookup table for statuses returned by ESP8266       */
+/*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
+                                {"CONNECTED"}, {"DISCONNECTED"}, {"READY"},
+                                {"SOCK_OPEN"}, {"SOCK_CLOSED"}, {"RECEIVE"},
+                                {"FAILED"}, {"SEND OK"}, {"SUCCESS"}};*/
+
+//  Dummy instance used for return value when no available client
+_espClient dummy;
+
+//  Pointer to first created instance of ESP8266
+ESP8266* __esp;
+
+//  Buffer used to assemble commands
+char _commBuf[512];
+
+//  Dummy function to be called to suppress "Unused variable" warnings
+void UNUSED(int32_t arg) { }
+
 #if defined(__USE_TASK_SCHEDULER__)
 
 /**
@@ -128,7 +146,7 @@ void _ESP_KernelCallback(void)
             //  Check if socket ID is valid
             if (!__esp->ValidSocket(__esp->_espSer.args[1]))
                 return;
-            //  Initiate closing from client object
+            //  Initiate socket closing from client object
             __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
                                               ->Close();
         }
@@ -150,24 +168,6 @@ void ESPWDISR()
     __esp->flowControl = ESP_STATUS_ERROR;
     HAL_ESP_WDClearInt();
 }
-
-/*      Lookup table for statuses returned by ESP8266       */
-/*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
-                                {"CONNECTED"}, {"DISCONNECTED"}, {"READY"},
-                                {"SOCK_OPEN"}, {"SOCK_CLOSED"}, {"RECEIVE"},
-                                {"FAILED"}, {"SEND OK"}, {"SUCCESS"}};*/
-
-//  Dummy instance used for return value when no available client
-_espClient dummy;
-
-//  Pointer to first created instance of ESP8266
-ESP8266* __esp;
-
-//  Buffer used to assemble commands
-char _commBuf[512];
-
-//  Dummy function to be called to suppress "Unused variable" warnings
-void UNUSED(int32_t arg) { }
 
 /*******************************************************************************
  *******************************************************************************
@@ -265,7 +265,7 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
         {
 #if defined(__USE_TASK_SCHEDULER__)
             __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
-            __taskSch->AddStringArg(&_id, 1);
+            __taskSch->AddArgs(&_id, 1);
 #else
             Close();
 #endif
@@ -304,7 +304,7 @@ void _espClient::Done()
     {
 #if defined(__USE_TASK_SCHEDULER__)
         __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
-        __taskSch->AddStringArg(&_id, 1);
+        __taskSch->AddArgs(&_id, 1);
 #else
         Close();
 #endif
@@ -909,7 +909,7 @@ void UART7RxIntHandler(void)
     static char rxBuffer[1024] ;
     static uint16_t rxLen = 0;
 
-    HAL_ESP_ClearInt();     //  Clear interrupt
+    HAL_ESP_ClearInt();             //  Clear interrupt
     HAL_ESP_WDControl(true, 0);    //   Reset watchdog timer
 
     //  Loop while there are characters in receiving buffer
@@ -927,6 +927,16 @@ void UART7RxIntHandler(void)
 #endif
     }
 
+    /*
+     * If watchdog timer times out, artificially produce terminating sequence at
+     * the end of the buffer in order to trigger next if to read the content
+     */
+    if (( __esp->flowControl == ESP_STATUS_ERROR) && (rxLen > 1))
+    {
+        rxBuffer[rxLen++] = '\r';
+        rxBuffer[rxLen++] = '\n';
+    }
+
     //  All messages terminated by \r\n
     /*
      *  There are 3 occasions when we want to process data in input buffer:
@@ -935,13 +945,6 @@ void UART7RxIntHandler(void)
      *  3) Watchdog timer has timed out changing 'flowControl' to "error"
      *      (on timeout WD timer also recalls the interrupt)
      */
-    if (( __esp->flowControl == ESP_STATUS_ERROR) && (rxLen > 1))
-    {
-        rxBuffer[rxLen++] = '\r';
-        rxBuffer[rxLen++] = '\n';
-    }
-
-    //if ((rxLen > 2) || ( __esp->flowControl == ESP_STATUS_ERROR))
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
       || ( __esp->flowControl == ESP_STATUS_ERROR) )

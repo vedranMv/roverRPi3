@@ -32,7 +32,6 @@
 UartHW comm;
 ESP8266 esp;
 
-//#define __DEBUG_SESSION__
 
 //RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
 
@@ -42,8 +41,8 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
     comm.Send("Recvd(%d):  %s\n", sockID, buf);
 
     __taskSch->SyncTask(ESP_UID,ESP_T_SENDTCP,-800);
-    __taskSch->AddStringArg(&sockID, 1);
-    __taskSch->AddStringArg(buf, *len);
+    __taskSch->AddArgs(&sockID, 1);
+    __taskSch->AddArgs(buf, *len);
 }
 
 int main(void)
@@ -75,18 +74,18 @@ int main(void)
 
     ts.SyncTask(ESP_UID,ESP_T_CONNTCP,-1000);
     tmp = 1;
-    ts.AddStringArg(&tmp, 1);
-    ts.AddStringArg((void*)"192.168.0.11", 12);
+    ts.AddArgs(&tmp, 1);
+    ts.AddArgs((void*)"192.168.0.11", 12);
     tmp = 2701;
-    ts.AddStringArg(&tmp, 2);
+    ts.AddArgs(&tmp, 2);
 
     ts.SyncTask(ESP_UID,ESP_T_SENDTCP,-2000);
     tmp = 0;
-    ts.AddStringArg(&tmp, 1);
-    ts.AddStringArg((void*)"Hello from ESP module!!\r\n", 25);
+    ts.AddArgs(&tmp, 1);
+    ts.AddArgs((void*)"Hello from ESP module!!\r\n", 25);
 
     ts.SyncTask(ESP_UID, ESP_T_CLOSETCP, -10000);
-    ts.AddStringArg(&tmp, 1);
+    ts.AddArgs(&tmp, 1);
 
     while(1)
     {
