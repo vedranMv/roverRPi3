@@ -15,7 +15,6 @@
 #include "tm4c1294_hal.h"
 #include "utils/uartstdio.h"
 
-
 /**
  * @brief Callback vector for all available kernel modules
  * Once a new kernel module is initialized it has a possibility to register its
@@ -419,6 +418,8 @@ void TS_GlobalCheck(void)
                     (void*)(tE._args),
                     tE._argN);
 #if defined(__DEBUG_SESSION__)
+            UARTprintf("Now is %d \n", __msSinceStartup);
+
             UARTprintf("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
             UARTprintf("-(%d)> %s\n", tE._argN, tE._args);
 #endif

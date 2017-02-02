@@ -268,6 +268,8 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
 {
     //  Record last value for timeout, use it when timeout argument is 0
     static uint32_t LTM;
+    TimerDisable(TIMER6_BASE, TIMER_A);
+
     if (enable)
     {
         if (ms != 0)
@@ -280,8 +282,7 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
         HWREG(TIMER6_BASE + TIMER_O_TAV) = 0;
         TimerEnable(TIMER6_BASE, TIMER_A);
     }
-    else
-        TimerDisable(TIMER6_BASE, TIMER_A);
+
 }
 
 void HAL_ESP_WDClearInt()
@@ -846,6 +847,7 @@ uint32_t HAL_GetPWM(uint32_t id)
  */
 ///Keep track whether the SysTick has already been configured
 bool _systickSet = false;
+uint32_t _periodMS = 0;
 uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
 {
     /// Forbid configuring the timer period multiple times
@@ -863,6 +865,11 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
     IntPrioritySet(FAULT_SYSTICK, 0);
     SysTickIntEnable();
     _systickSet = true;
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
+    GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_7);
+    GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, 0x00);
+
+    _periodMS = periodMs;
 
     return 0;
 }
@@ -899,6 +906,6 @@ uint8_t HAL_TS_StopSysTick()
  */
 uint32_t HAL_TS_GetTimeStepMS()
 {
-    return (SysTickPeriodGet()*1000)/g_ui32SysClock;
+    return _periodMS;
 }
 

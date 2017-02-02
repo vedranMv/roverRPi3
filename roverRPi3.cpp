@@ -38,7 +38,7 @@ ESP8266 esp;
 
 void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
-    comm.Send("Recvd(%d):  %s\n", sockID, buf);
+    //comm.Send("Recvd(%d):  %s\n", sockID, buf);
 
     __taskSch->SyncTask(ESP_UID,ESP_T_SENDTCP,-800);
     __taskSch->AddArgs(&sockID, 1);
@@ -51,6 +51,7 @@ int main(void)
     volatile TaskScheduler ts;
 
     comm.InitHW();
+
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
