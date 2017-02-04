@@ -54,6 +54,7 @@ extern uint32_t g_ui32SysClock;
 
 extern void HAL_DelayUS(uint32_t us);
 extern void HAL_BOARD_CLOCK_Init();
+extern void UNUSED (int32_t arg);
 
 
 /**     ESP8266 - related HW API      */
@@ -113,6 +114,9 @@ extern void HAL_BOARD_CLOCK_Init();
     extern uint8_t     HAL_TS_StartSysTick();
     extern uint8_t     HAL_TS_StopSysTick();
     extern uint32_t    HAL_TS_GetTimeStepMS();
+
+/**     Test probes     */
+    extern void        HAL_ESP_TestProbe();
 
 #ifdef __cplusplus
 }

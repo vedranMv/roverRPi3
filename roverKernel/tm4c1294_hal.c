@@ -72,6 +72,12 @@ uint32_t _TM4CMsToCycles(uint32_t ms)
 ///-----------------------------------------------------------------------------
 ///                                                                     [PUBLIC]
 ///-----------------------------------------------------------------------------
+
+/**
+ *  Dummy function to be called to suppress "Unused variable" warnings
+ */
+void UNUSED (int32_t arg) { }
+
 /**
  * Initialize microcontroller board clock & enable on-board floating-point unit
  */
@@ -173,7 +179,6 @@ void HAL_ESP_HWEnable(bool enable)
     if (!enable)
     {
         GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0);
-        SysCtlDelay(g_ui32SysClock/3);
         HAL_DelayUS(1000000);
     }
     else
@@ -279,7 +284,6 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
         }
         else
             TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
-        HWREG(TIMER6_BASE + TIMER_O_TAV) = 0;
         TimerEnable(TIMER6_BASE, TIMER_A);
     }
 
@@ -288,9 +292,13 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
 void HAL_ESP_WDClearInt()
 {
     TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1));
 
     IntPendSet(INT_UART7);
+}
+
+void HAL_ESP_TestProbe()
+{
+    GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, ~GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_7));
 }
 
 /******************************************************************************
@@ -692,7 +700,7 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
     uint32_t data, dummy = 0;
-    dummy = dummy+0;//Put to avoid warning about dummy not being used
+    UNUSED(dummy);  //Prevent unused-variable warning
 
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
@@ -865,9 +873,6 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
     IntPrioritySet(FAULT_SYSTICK, 0);
     SysTickIntEnable();
     _systickSet = true;
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
-    GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_7);
-    GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, 0x00);
 
     _periodMS = periodMs;
 

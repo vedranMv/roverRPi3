@@ -16,21 +16,21 @@
 #include "utils/uartstdio.h"
 
 /**
- * @brief Callback vector for all available kernel modules
+ * Callback vector for all available kernel modules
  * Once a new kernel module is initialized it has a possibility to register its
  * service in task scheduler by providing designated callback function to be
  * called when requesting a service, and memory space for arguments to be
  * transfered to module when requesting a service
  */
-static volatile struct _callBackEntry *__callbackVector[10];
+static volatile struct _kernelEntry *__kernelVector[10];
 /**
  * Register services for a kernel modules into a callback vector
  * @param arg structure with parameters for callback action
  * @param uid Unique identifier of kernel module
  */
-void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid)
+void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid)
 {
-    __callbackVector[uid] = arg;
+    __kernelVector[uid] = arg;
 }
 
 
@@ -42,57 +42,54 @@ volatile TaskScheduler* __taskSch;
 
 /*******************************************************************************
  *******************************************************************************
- *********            _taskEntry class member functions                *********
+ *********            TaskEntry class member functions                *********
  *******************************************************************************
  ******************************************************************************/
 
-_taskEntry::_taskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0)
+///-----------------------------------------------------------------------------
+///                      Class constructors                             [PUBLIC]
+///-----------------------------------------------------------------------------
+TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0)
 {
     memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-_taskEntry::_taskEntry(const _taskEntry& arg)
+TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time)
+            :_libuid(uid), _task(task), _timestamp(time),  _argN(0)
 {
-    *this = (const _taskEntry&)arg;
+    memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-_taskEntry::_taskEntry(const volatile _taskEntry& arg)
+TaskEntry::TaskEntry(const TaskEntry& arg) :  _argN(0)
 {
-    *this = (const volatile _taskEntry&)arg;
+    *this = (const TaskEntry&)arg;
 }
 
-void _taskEntry::_init()
+TaskEntry::TaskEntry(const volatile TaskEntry& arg) :  _argN(0)
 {
-    _libuid = 0;
-	_task = 0;
-	_argN = 0;
-	_timestamp = 0;
-	memset((void*)_args, 0, TS_TASK_MEMORY);
+    *this = (const volatile TaskEntry&)arg;
 }
 
-void _taskEntry::AddArg(void* arg, uint8_t argLen) volatile
+
+/**
+ * Add argument(s) stored in a byte array [arg] of length [argLen]. Byte array
+ * may contain data of any type, as long as receiver of that data knows how to
+ * interpret bytes stored in the field
+ * @param arg byte array of data to pass to the function
+ * @param argLen length of byte array [arg] (in bytes)
+ */
+void TaskEntry::AddArg(void* arg, uint8_t argLen) volatile
 {
     memcpy((void*)(_args+_argN), arg, argLen);
     _argN += argLen;
 }
 
-uint16_t _taskEntry::GetTask()
-{
-	return _task;
-}
-
-float _taskEntry::GetArg(uint8_t index)
-{
-	if (index < _argN) return _args[index];
-	else return (-1);
-}
-
-uint16_t _taskEntry::GetArgNum()
-{
-	return _argN;
-}
-
-_taskEntry& _taskEntry::operator= (const _taskEntry& arg)
+/**
+ * Class assignment operators for various combinations of data types
+ * @param arg right side of equal-sign
+ * @return
+ */
+TaskEntry& TaskEntry::operator= (const TaskEntry& arg)
 {
     _libuid = arg._libuid;
     _task = arg._task;
@@ -104,7 +101,7 @@ _taskEntry& _taskEntry::operator= (const _taskEntry& arg)
     return *this;
 }
 
-volatile _taskEntry& _taskEntry::operator= (const volatile _taskEntry& arg)
+volatile TaskEntry& TaskEntry::operator= (const volatile TaskEntry& arg)
 {
     _libuid = arg._libuid;
     _task = arg._task;
@@ -116,7 +113,7 @@ volatile _taskEntry& _taskEntry::operator= (const volatile _taskEntry& arg)
     return *this;
 }
 
-volatile _taskEntry& _taskEntry::operator= (volatile _taskEntry& arg) volatile
+volatile TaskEntry& TaskEntry::operator= (volatile TaskEntry& arg) volatile
 {
     _libuid = arg._libuid;
     _task = arg._task;
@@ -125,18 +122,18 @@ volatile _taskEntry& _taskEntry::operator= (volatile _taskEntry& arg) volatile
 
     for (uint8_t i = 0; i < sizeof(_args); i++)
         _args[i] = arg._args[i];
-    return (volatile _taskEntry&) *this;
+    return (volatile TaskEntry&) *this;
 }
 
 /*******************************************************************************
  *******************************************************************************
- *********        LinkedList and its node member functions             *********
+ *********     Linked list node and its node member functions          *********
  *******************************************************************************
  ******************************************************************************/
 
 _llnode::_llnode() : _prev(0), _next(0), data() {};
 
-_llnode::_llnode(volatile _taskEntry arg, volatile _llnode *pre,
+_llnode::_llnode(volatile TaskEntry &arg, volatile _llnode *pre,
                  volatile _llnode *nex)
     : _prev(pre), _next(nex), data(arg) {};
 
@@ -148,24 +145,33 @@ _llnode::_llnode(volatile _taskEntry arg, volatile _llnode *pre,
 
 LinkedList::LinkedList() : head(0), tail(0), size(0) {}
 
-
-volatile _llnode* LinkedList::AddSort(_taskEntry arg) volatile
+/**
+ * Add argument into the linked list by keeping the list sorted. List sorted in
+ * an ascending order by the TaskEntry._timestamp parameter. Essentially tasks
+ * that need to executed sooner are at the beginning of the list.
+ * @note If new task has same _timestamp value (time to be executed at) as the
+ * task already in the list, new task is placed after the existing one
+ * @param arg task to add to the list
+ * @return pointer to the instance of task inside the list
+ */
+volatile _llnode* LinkedList::AddSort(TaskEntry &arg) volatile
 {
     volatile _llnode *tmp = new _llnode(arg),//  Create new node on the free store
              *node = head;           //  Define starting node
-
+    HAL_ESP_TestProbe();
     //  Find where to insert new node(worst-case: end of the list)
     while (node != 0)
     {
-        //  Sorting logic
-        if (tmp->data._timestamp <= node->data._timestamp) break;
+        //  Sorting logic - sorts list ascending, in case two tasks have the same
+        //  time to be executed at, new task is added after the old on in the list
+        if (tmp->data._timestamp < node->data._timestamp) break;
         //  If sorting logic doesn't break the loop move to next element
         node = node->_next;
     }
 
     //  Increase size of complete list
     size++;
-    /*************************************************INSERTION LOGIC**/
+    //*************************************************INSERTION LOGIC**/
     //  a) Haven't  moved from start - we have new smallest node
     if (node == head)   //  Insert before first element
     {
@@ -198,11 +204,20 @@ volatile _llnode* LinkedList::AddSort(_taskEntry arg) volatile
     }
 }
 
+/**
+ * Check whether the linked list is empty
+ * @return true: list is empty
+ *        false: list contains data
+ */
 bool LinkedList::Empty() volatile
 {
     return (head == tail) && (head == 0);
 }
 
+/**
+ * Delete content of the list.
+ * Traverses all nodes in the list and erases them from free store.
+ */
 void LinkedList::Drop() volatile
 {
     //  Check if list is already empty
@@ -226,14 +241,18 @@ void LinkedList::Drop() volatile
     }
 }
 
-_taskEntry LinkedList::PopFront() volatile
+/**
+ * Delete first element of the list and return its ->data content
+ * @return ->data content of the first node of the list
+ */
+TaskEntry LinkedList::PopFront() volatile
 {
     //  Check if list is empty
     if (LinkedList::Empty()) return nullNode;
     //  Check if there's only one element in this list
     if (head == tail) tail = 0;
     //  Extract data from node before it's deleted
-    _taskEntry retVal = head->data;
+    TaskEntry retVal = head->data;
     //  Move second node to the first position
     //  If there's only one node next points to nullptr so it's safe
     volatile _llnode *newHead = head->_next;
@@ -250,7 +269,12 @@ _taskEntry LinkedList::PopFront() volatile
     return retVal;
 }
 
-volatile _taskEntry& LinkedList::PeekFront() volatile
+/**
+ * Returns reference to the ->data content of first element of the list but it
+ * remains in the list (it's not deleted as with PopFront)
+ * @return reference to ->data content of first object of the list
+ */
+volatile TaskEntry& LinkedList::PeekFront() volatile
 {
     return head->data;
 }
@@ -282,15 +306,8 @@ TaskScheduler::~TaskScheduler()
 ///                      Schedule content manipulation                  [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-bool TaskScheduler::operator()(const _taskEntry& arg1, const _taskEntry& arg2)
-{
-    if (arg1._timestamp < arg2._timestamp)
-        return true;
-    return false;
-}
-
 /**
- * @brief	Clear task schedule, remove all entries from ii
+ * Clear task schedule, remove all entries from it
  */
 void TaskScheduler::Reset() volatile
 {
@@ -298,7 +315,7 @@ void TaskScheduler::Reset() volatile
 }
 
 /**
- * @brief	Return status of Task scheduler queue
+ * Return status of Task scheduler queue
  * @return	true: if there's nothing in queue
  * 		   false: if queue contains data
  */
@@ -308,31 +325,55 @@ bool TaskScheduler::IsEmpty() volatile
 }
 
 /**
- * Add task to the back of task queue
+ * Add task to the task list in a sorted fashion (ascending sort). Tasks that
+ * need to be executed sooner appear at the beginning of the list. If new task
+ * has the same execution time as the task already in the list, it's placed
+ * behind the existing task.
  * @param libuid UID of library to call
  * @param comm task ID within the library to execute
- * @param time time stamp at which to execute the task
- * @return index of task in task queue
+ * @param time time-stamp at which to execute the task
  */
-uint8_t TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time) volatile
+void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time) volatile
 {
+    /*
+     * If time is a positive number it represent time in milliseconds from
+     * start-up of the microcontroller. If time is a negative number or 0 it
+     * represents a time in milliseconds from current time as provided by SysTick
+     */
     if (time < 0)
-        time = (uint32_t)(-time) + __msSinceStartup;
+        time = (uint32_t)(-time) + msSinceStartup;
     else
         time = (uint32_t)time;
 
-    _lastIndex = _taskLog.AddSort(_taskEntry(libuid, comm, time));
-
-    return 0;
+    //  Save pointer to newly added task so additional arguments can be appended
+    //  to it through AddArgs function call
+    TaskEntry teTemp(libuid, comm, time);
+    _lastIndex = _taskLog.AddSort(teTemp);
 }
 
-uint8_t TaskScheduler::SyncTask(_taskEntry te) volatile
+/**
+ * Add task to the task list in a sorted fashion (ascending sort). Tasks that
+ * need to be executed sooner appear at the beginning of the list. If new task
+ * has the same execution time as the task already in the list, it's placed
+ * behind the existing task.
+ * @param te TaskEntry object to add the the list
+ */
+void TaskScheduler::SyncTask(TaskEntry te) volatile
 {
+    //  Save pointer to newly added task so additional arguments can be appended
+    //  to it through AddArgs function call
     _lastIndex = _taskLog.AddSort(te);
-    return 0;
 }
 
-
+/**
+ * Add arguments for the last pushed task. Any arguments added through here are
+ * appended to the existing arguments provided for this task. So this function
+ * can be repeatedly called to append multiple arguments.
+ * @note Once PopFront() function has been called it's not possible to append
+ * new arguments (because it's unknown if the _lastIndex node got deleted or not)
+ * @param arg byte array of data to append (regardless of data type)
+ * @param argLen size of byte array [arg]
+ */
 void TaskScheduler::AddArgs(void* arg, uint8_t argLen) volatile
 {
     if (_lastIndex != 0)
@@ -340,31 +381,27 @@ void TaskScheduler::AddArgs(void* arg, uint8_t argLen) volatile
 }
 
 /**
- * @brief	Return first element from task queue
- * @return  first element from task queue and delete it (by moving iterators).
+ * Return first element from task queue
+ * @note Once this function is called, _lastIndex pointer, that points to last
+ * added task is set to 0 (because it's not possible to know whether that task
+ * got deleted or no). This prevents calling AddArgs function until new task
+ * is added
+ * @return first element from task queue and delete it (by moving iterators).
  *          If the queue is empty it resets the queue.
  */
- _taskEntry TaskScheduler::PopFront() volatile
+ TaskEntry TaskScheduler::PopFront() volatile
 {
-     _taskEntry retVal;
+     TaskEntry retVal;
     retVal = _taskLog.PopFront();
     _lastIndex = 0;
     return retVal;
 }
 
 /**
- * @brief	Return task entry at given index
- * @return		nothing: if index is outside of boundaries
- *	  _taskEntry object: if index is valid
+ * Peek at the first element of task list but leave it in the list
+ * @return reference to first task in task list
  */
-/*_taskEntry TaskScheduler::At(uint16_t index) volatile
-{
-    if (index < _iterE)
-        return _taskLog[index];
-    else
-        return _taskLog[_iterB];
-}*/
-volatile _taskEntry& TaskScheduler::PeekFront() volatile
+volatile TaskEntry& TaskScheduler::PeekFront() volatile
 {
     return _taskLog.head->data;
 }
@@ -375,8 +412,8 @@ volatile _taskEntry& TaskScheduler::PeekFront() volatile
  *******************************************************************************
  ******************************************************************************/
 
-/// Internal time since TaskScheduler startup (in ms)
-volatile uint64_t __msSinceStartup = 0;
+/// Internal time since TaskScheduler startup (in ms) - updated in SysTick ISR
+volatile uint64_t msSinceStartup = 0;
 
 /**
  * SysTick interrupt
@@ -385,13 +422,13 @@ volatile uint64_t __msSinceStartup = 0;
  */
 void TSSyncCallback(void)
 {
-    __msSinceStartup += HAL_TS_GetTimeStepMS();
+    msSinceStartup += HAL_TS_GetTimeStepMS();
 }
 
 /**
  * Task scheduler callback routine
  * This routine has to be called in order to execute tasks pushed in task queue
- * and is recently removed from TSSynceCallback because some task might rely on
+ * and is recently removed from TSSyncCallback because some task might rely on
  * interrupt routines that can't be executed while MCU is within TSSyncCallback
  * function which is a SysTick ISR. (no interrupts while in ISR)
  */
@@ -400,30 +437,30 @@ void TS_GlobalCheck(void)
     //  Check if there task scheduled to execute
     if (!__taskSch->IsEmpty())
         //  Check if the first task had to be executed already
-        while((__taskSch->PeekFront()._timestamp <= __msSinceStartup) &&
+        while((__taskSch->PeekFront()._timestamp <= msSinceStartup) &&
               (!__taskSch->IsEmpty()))
         {
             // Take out first entry to process it
-            _taskEntry tE;
+            TaskEntry tE;
             tE = __taskSch->PopFront();
 
             // Check if callback exists
-            if ((__callbackVector + tE._libuid) == 0)
+            if ((__kernelVector + tE._libuid) == 0)
                 return;
 
             // Transfer data for task into kernel memory space
-            __callbackVector[tE._libuid]->serviceID = tE._task;
-            __callbackVector[tE._libuid]->args[0] = tE._argN;
-            memcpy( (void*)(__callbackVector[tE._libuid]->args+1),
+            __kernelVector[tE._libuid]->serviceID = tE._task;
+            __kernelVector[tE._libuid]->args[0] = tE._argN;
+            memcpy( (void*)(__kernelVector[tE._libuid]->args+1),
                     (void*)(tE._args),
                     tE._argN);
 #if defined(__DEBUG_SESSION__)
-            UARTprintf("Now is %d \n", __msSinceStartup);
+            UARTprintf("Now is %d \n", msSinceStartup);
 
             UARTprintf("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
             UARTprintf("-(%d)> %s\n", tE._argN, tE._args);
 #endif
             // Call kernel module to execute task
-            __callbackVector[tE._libuid]->callBackFunc();
+            __kernelVector[tE._libuid]->callBackFunc();
         }
 }

@@ -33,15 +33,13 @@ ESP8266* __esp;
 //  Buffer used to assemble commands
 char _commBuf[512];
 
-//  Dummy function to be called to suppress "Unused variable" warnings
-void UNUSED(int32_t arg) { }
 
 #if defined(__USE_TASK_SCHEDULER__)
 
 /**
  * Callback routine to invoke service offered by this module from task scheduler
- * @note It is assumed that once this function called task scheduler has already
- * copied required variables into the memory space provided for it.
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
  */
 void _ESP_KernelCallback(void)
 {
@@ -161,7 +159,8 @@ void _ESP_KernelCallback(void)
 /**
  * Routine invoked by watchdog timer on timeout
  * Sets global status for current communication to "error", clears WD interrupt
- * flag and CALLS the ESP's interrupt handler to process any remaining data in there
+ * flag and artificially produces ESP's interrupt to process any remaining data
+ * in the receiving buffer before communication got blocked
  */
 void ESPWDISR()
 {
@@ -234,16 +233,16 @@ uint32_t _espClient::SendTCP(char *buffer)
     return _parent->flowControl;
 }
 /**
- * Read response from client saved in internal buffer
+ * Read response from TCP socket(client) saved in internal buffer
  * Internal buffer with response is filled as soon as response is received in
  * an interrupt. This function only copies response from internal buffer to a
  * user provided one and then clears internal (and data-ready flag).
  * @param buffer pointer to user-provided buffer for incoming data
- * @param bufferLen used to return the buffer size to user
- * @return ESP_NO_STATUS: on success,
- *         ESP_NORESPONSE: if no response is available
+ * @param bufferLen used to return [buffer] size to user
+ * @return true: if response was present and is copied into the provided buffer
+ *        false: if no response is available
  */
-uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
+bool _espClient::Receive(char *buffer, uint16_t *bufferLen)
 {
     (*bufferLen) = 0;
     //  Check if there's new data received
@@ -271,18 +270,18 @@ uint32_t _espClient::Receive(char *buffer, uint16_t *bufferLen)
 #endif
         }
 
-        return ESP_NO_STATUS;
+        return true;
     }
-    else return ESP_NORESPONSE;
+    else return false;
 }
 
 /**
  * Check is socket has any new data ready for user
- * @note used when manually reading response body from member variable to check
+ * @note Used when manually reading response body from member variable to check
  * whether new data is available. If used, Done() MUST be called when done
  * processing data in response body. Alternative: use Receive() function instead
  * @return true: if there's new data from that socket
- *         false: otherwise
+ *        false: otherwise
  */
 bool _espClient::Ready()
 {
@@ -290,8 +289,8 @@ bool _espClient::Ready()
 }
 
 /**
- * Clears response body, flags and maintains socket alive if specified
- * @note has to be called if user manually reads response body by reading member
+ * Clear response body, flags and maintain socket alive if specified
+ * @note Has to be called if user manually reads response body by reading member
  * variable directly, and not through Receive() function call
  */
 void _espClient::Done()
@@ -313,7 +312,7 @@ void _espClient::Done()
 
 /**
  * Force closing TCP socket with the client
- * @note Object is deleted in ParseResponse function, once ESP confirm closing
+ * @note Object is deleted in ParseResponse function, once ESP confirms closing
  * @return status of close process (binary or of ESP_* flags received while closing)
  */
 uint32_t _espClient::Close()
@@ -366,6 +365,8 @@ ESP8266::~ESP8266()
  */
 uint32_t ESP8266::InitHW(int32_t baud)
 {
+    uint32_t retVal;
+
     HAL_ESP_InitPort(baud);
     HAL_ESP_RegisterIntHandler(UART7RxIntHandler);
     HAL_ESP_InitWD(ESPWDISR);
@@ -374,8 +375,8 @@ uint32_t ESP8266::InitHW(int32_t baud)
     Enable(true);
 
     //  Send test command(AT) then turn off echoing of commands(ATE0)
-    _SendRAW("AT\0");
-    _SendRAW("ATE0\0");
+    retVal = _SendRAW("AT\0");
+    retVal = _SendRAW("ATE0\0");
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
@@ -383,7 +384,7 @@ uint32_t ESP8266::InitHW(int32_t baud)
     TS_RegCallback(&_espSer, ESP_UID);
 #endif
 
-    return ESP_STATUS_OK;
+    return retVal;
 }
 
 /**
@@ -408,7 +409,8 @@ bool ESP8266::IsEnabled()
 /**
  * Register hook to user function
  * Register hook to user-function called every time new data from TCP/UDP client
- * is received. Received data is passed as an argument to hook function.
+ * is received. Received data is passed as an argument to hook function together
+ * with socket ID through which response came in
  * @param funPoint pointer to void function with 3 arguments
  */
 void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
@@ -424,7 +426,7 @@ void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
  * Connected to AP using provided credentials
  * @param APname name of AP to connect to
  * @param APpass password of AP connecting to
- * @return
+ * @return error code, depending on the outcome
  */
 uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 {
@@ -454,7 +456,8 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 
 /**
  * Check if ESP is connected to AP (if it acquired IP address)
- * @return true if it's connected, false otherwise
+ * @return true: if it's connected,
+ *        false: otherwise
  */
 bool ESP8266::IsConnected()
 {
@@ -463,7 +466,7 @@ bool ESP8266::IsConnected()
 
 /**
  * Get IP address assigned to device when connected to AP
- * @return
+ * @return IP address of ESP in integer form
  */
 uint32_t ESP8266::MyIP()
 {
@@ -514,8 +517,8 @@ uint32_t ESP8266::StartTCPServer(uint16_t port)
 }
 
 /**
- * Configure listening for incoming data when running server mode OR waiting for
- * response on opened TCP socket
+ * Configure listening for incoming data when running server mode or waiting for
+ * response on an opened TCP socket
  * @param enable set true for initiating listening, false otherwise
  */
 void ESP8266::TCPListen(bool enable)
@@ -526,7 +529,8 @@ void ESP8266::TCPListen(bool enable)
 
 /**
  * Check if TCP server is running
- * @return true if server is running, false if not
+ * @return true: server is running,
+ *        false: not
  */
 bool ESP8266::ServerOpened()
 {
@@ -556,10 +560,10 @@ uint32_t ESP8266::StopTCPServer()
 
 /**
  * Open TCP socket to a client at specific IP and port, keep alive interval 7.2s
- * @param ipAddr string containing IP address of server
+ * @param ipAddr string containing IP address of server(null-terminated)
  * @param port TCP socket port of server
- * @return On success socket ID of TCP client in _client vector, on failure
- *         ESP_STATUS_ERROR error code
+ * @return On success socket ID of TCP client in _client vector,
+ *         On failure ESP_STATUS_ERROR error code
  */
 uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
 {
@@ -593,7 +597,7 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
 }
 
 /**
- * Check if socket with the following ID is open (alive)
+ * Check if socket with the specified [id] is open (alive)
  * @param id ID of the socket to check
  * @return alive status of particular socket
  */
@@ -603,7 +607,7 @@ bool ESP8266::ValidSocket(uint16_t id)
 }
 
 /**
- * Get pointer to client object on specific index in _client vector
+ * Get pointer to client object based on specified [index] in _client vector
  * @param index desired index of client to get
  * @return pointer to ESP client object under given index (if it exists, if not
  *          dummy returned)
@@ -625,7 +629,7 @@ _espClient* ESP8266::GetClientByIndex(uint16_t index)
 }
 
 /**
- * Get pointer to client object on specific socket id
+ * Get pointer to client object having specified socket [id]
  * @param id socket id as returned by ESP on opened socket
  * @return pointer to ESP client object under given id (if it exists, if not
  *          dummy returned)
@@ -638,7 +642,7 @@ _espClient* ESP8266::GetClientBySockID(uint16_t id)
 
 
 /**
- * Send a message to TCP client on socket ID 0 (if exists)
+ * Send a message to TCP client on socket ID 0 (if exists) -not used
  * @param arg string message to send
  * @return error code, depending on the outcome
  */
@@ -651,11 +655,11 @@ uint32_t ESP8266::Send2(char* arg)
 }
 
 /**
- * @brief ESP reply message parser
+ * ESP reply message parser
  * Checks ESP reply stream for commands, actions and events and updates global
  * variables accordingly.
  * @param rxBuffer string containing reply message from ESP
- * @param rxLen length of rxBuffer string
+ * @param rxLen length of [rxBuffer] string
  * @return bitwise OR of all statuses(ESP_STATUS_*) found in the message string
  */
 uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
@@ -766,11 +770,11 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 }
 
 /**
- * @brief Check whether the flags are set in the status message
+ * Check whether the [flag]s are set in the [status] message
  * @param status to check for flags
  * @param flag bitwise OR of ESP_STATUS_* values to look for in status
  * @return true: if ALL flags are set in status
- *         false: if at least on flag is not set in status
+ *        false: if at least on flag is not set in status
  */
 bool ESP8266::_InStatus(const uint32_t status, const uint32_t flag)
 {
@@ -778,12 +782,14 @@ bool ESP8266::_InStatus(const uint32_t status, const uint32_t flag)
 }
 
 /**
- * @brief Send command to ESP8266 module
- * Sends command passed in the null-terminated txBuffer. This is a blocking
+ * Send command to ESP8266 module
+ * Sends command passed in the null-terminated [txBuffer]. This is a blocking
  * function, awaiting reply from ESP. Function returns when status OK or ERROR
- * or any other status passed in flags have been received from ESP.
+ * or any other status passed in [flags] have been received from ESP. Timeout
+ * is value at which watchdog timer interrupts the process and returns ERROR flag.
  * @param txBuffer null-terminated string with command to execute
  * @param flags bitwise OR of ESP_STATUS_* values
+ * @param timeout time in ms before the sending process is interrupted by WD timer
  * @return bitwise OR of ESP_STATUS_* returned by the ESP module
  */
 uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeout)
@@ -820,7 +826,6 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
                 !(flowControl & ESP_STATUS_ERROR) &&
                 !(flowControl & flags));
 
-        HAL_ESP_WDControl(false, 0);
         HAL_DelayUS(1000);
         return flowControl;
     }
@@ -830,7 +835,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
 /**
  * Write bytes directly to port (used when sending data of TCP/UDP socket)
  * @param buffer data to send to serial port
- * @param bufLen length of data in buffer
+ * @param bufLen length of data in [buffer]
  */
 void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
 {
@@ -859,7 +864,7 @@ void ESP8266::_FlushUART()
 /**
  * Convert IP address from string to integer
  * @param ipAddr string containing IP address X.X.X.X where X=0...255
- * @return  uint32_t value of IP passed as string
+ * @return uint32_t value of IP passed as string
  */
 uint32_t ESP8266::_IPtoInt(char *ipAddr)
 {
@@ -886,18 +891,19 @@ uint32_t ESP8266::_IPtoInt(char *ipAddr)
 }
 
 /**
- * Get client index in _clients vector based on socket ID
+ * Get client index in _clients vector based on its socket ID
  * @param sockID socket ID
- * @return index in _client vector or 444 if no client matches socket ID
+ * @return index in _client vector if socket exists
+ *         444U if no client matches socket ID
  */
 uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
 {
-    int it;
+    uint8_t it;
     for (it = 0; it < _clients.size(); it++)
         if (_clients[it]._id == sockID) return it;
     //  If not found, return any number bigger than 5 as it's maximum number of
     //  clients ESP can have simultaneously
-    return 444;
+    return 444U;
 }
 
 
@@ -910,7 +916,7 @@ void UART7RxIntHandler(void)
     static uint16_t rxLen = 0;
 
     HAL_ESP_ClearInt();             //  Clear interrupt
-    HAL_ESP_WDControl(true, 0);    //   Reset watchdog timer
+    HAL_ESP_WDControl(true, 0);     //   Reset watchdog timer
 
     //  Loop while there are characters in receiving buffer
     while (HAL_ESP_CharAvail())
@@ -937,34 +943,37 @@ void UART7RxIntHandler(void)
         rxBuffer[rxLen++] = '\n';
     }
 
-    //  All messages terminated by \r\n
     /*
      *  There are 3 occasions when we want to process data in input buffer:
      *  1) We've reached terminator sequence of the message (\r\n)
      *  2) ESP returned '> ' (without terminator) and awaits data
      *  3) Watchdog timer has timed out changing 'flowControl' to "error"
-     *      (on timeout WD timer also recalls the interrupt)
+     *      (on timeout WD timer also recalls this interrupt)
      */
     if (((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
       || ((rxBuffer[rxLen-2] == '>') && (rxBuffer[rxLen-1] == ' ' ))
       || ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
-        //  Parse data in receiving buffer
+
+        //  Parse data in receiving buffer - if there was an error from WD timer
+        //  leave it in so that we know there was a probelm
         if (__esp->flowControl == ESP_STATUS_ERROR)
             __esp->flowControl |= __esp->ParseResponse(rxBuffer, rxLen);
         else
             __esp->flowControl = __esp->ParseResponse(rxBuffer, rxLen);
+
         //  If some data came from one of opened TCP sockets receive it and
         //  pass it to a user-defined function for further processing
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
             for (uint8_t i = 0; i < __esp->_clients.size(); i++)
+                //  Check which socket received data
                 if (__esp->GetClientByIndex(i)->Ready())
                 {
 #if defined(__USE_TASK_SCHEDULER__)
-            //  If using task scheduler, schedule receiving outside this ISR
-                    volatile _taskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
+                //  If using task scheduler, schedule receiving outside this ISR
+                    volatile TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
                     __taskSch->SyncTask(tE);
 #else
@@ -990,5 +999,4 @@ void UART7RxIntHandler(void)
         rxLen = 0;
     }
 }
-
 

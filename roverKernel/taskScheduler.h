@@ -18,7 +18,10 @@
  *      its service by adding entry into the callback vector. Once the task
  *      scheduler requires that service it will transfer necessary memory into
  *      kernel space and call provided callback function for particular module
- *  v2.2 - TODO
+ *  v2.2
+ *  +Switched to linked list as internal container for tasks - allows more
+ *  flexibility in adding data (and can be sorted)
+ *
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  *
@@ -32,16 +35,17 @@
 #include "myLib.h"
 #include <vector>
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
 /// Max number of task in TaskSchedule queue
 #define TS_TASK_MEMORY  50
-#define TS_TASK_MAX     10
-//#define __DEBUG_SESSION__
+
 
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
  */
-class _taskEntry
+class TaskEntry
 {
     // Functions & classes needing direct access to all members
 	friend class TaskScheduler;
@@ -49,23 +53,18 @@ class _taskEntry
     friend void TS_GlobalCheck(void);
     friend class LinkedList;
 	public:
-		_taskEntry();
-		_taskEntry(const _taskEntry& arg);
-		_taskEntry(const volatile _taskEntry& arg);
-		_taskEntry(uint8_t uid, uint8_t task, uint32_t utcTime)
-		    :_libuid(uid), _task(task), _timestamp(utcTime) {};
+		TaskEntry();
+		TaskEntry(const TaskEntry& arg);
+		TaskEntry(const volatile TaskEntry& arg);
+		TaskEntry(uint8_t uid, uint8_t task, uint32_t utcTime);
 
 		void        AddArg(void* arg, uint8_t argLen) volatile;
-		uint16_t 	GetTask();
-		float		GetArg(uint8_t index);
-		uint16_t	GetArgNum();
 
-		         _taskEntry& operator= (const _taskEntry& arg);
-        volatile _taskEntry& operator= (const volatile _taskEntry& arg);
-        volatile _taskEntry& operator= (volatile _taskEntry& arg) volatile;
+		         TaskEntry& operator= (const TaskEntry& arg);
+        volatile TaskEntry& operator= (const volatile TaskEntry& arg);
+        volatile TaskEntry& operator= (volatile TaskEntry& arg) volatile;
 
 	protected:
-		         void       _init();
 		//  Unique identifier for library to request service from
 		volatile uint8_t    _libuid;
 		//  Service ID to execute
@@ -79,7 +78,9 @@ class _taskEntry
 };
 
 /**
- * Node of data (of type _taskEntry) used in linked list
+ * Node of data (of type TaskEntry) used in linked list
+ * All member functions & constructors are private as this class shouldn't be
+ * used outside the TaskScheduler object
  */
 class _llnode
 {
@@ -87,19 +88,20 @@ class _llnode
     friend class TaskScheduler;
     private:
         _llnode();
-        _llnode(volatile _taskEntry arg,
-                volatile _llnode *pre = 0,
-                volatile _llnode *nex = 0);
+        _llnode(volatile TaskEntry  &arg,
+                volatile _llnode    *pre = 0,
+                volatile _llnode    *nex = 0);
 
         volatile _llnode     *_prev,
                              *_next;
-        volatile _taskEntry  data;
+        volatile TaskEntry   data;
 };
 
 /**
- * Linked list of _taskEntry object
- * Linked list data container of sorted _taskEntry objects based on their
- * time stamp. Used only in TaskScheduler class too keep all pending task requests
+ * Linked list of TaskEntry object
+ * Linked list data container of sorted TaskEntry objects based on their
+ * time stamp. Used only in TaskScheduler class to keep all pending task
+ * requests ergo everything is private.
  */
 class LinkedList
 {
@@ -107,16 +109,16 @@ class LinkedList
     private:
         LinkedList();
 
-        volatile _llnode*       AddSort(_taskEntry arg) volatile;
+        volatile _llnode*       AddSort(TaskEntry &arg) volatile;
         bool                    Empty() volatile;
         void                    Drop() volatile;
-        _taskEntry              PopFront() volatile;
-        volatile _taskEntry&    PeekFront() volatile;
+        TaskEntry               PopFront() volatile;
+        volatile TaskEntry&     PeekFront() volatile;
 
     private:
-        volatile _llnode     *head,
-                             *tail;
-        volatile _taskEntry  nullNode;
+        volatile _llnode     * volatile head,
+                             * volatile tail;
+        const volatile TaskEntry   nullNode;
         volatile uint32_t    size;
 
 };
@@ -135,22 +137,21 @@ class TaskScheduler
 		TaskScheduler();
 		~TaskScheduler();
 
-		bool    operator()(const _taskEntry& arg1, const _taskEntry& arg2);
 		void 				 Reset() volatile;
 		bool				 IsEmpty() volatile;
-		uint8_t              SyncTask(uint8_t libuid, uint8_t comm,
+		void                 SyncTask(uint8_t libuid, uint8_t comm,
 		                                       int64_t time) volatile;
-		uint8_t              SyncTask(_taskEntry te) volatile;
+		void                 SyncTask(TaskEntry te) volatile;
 		void                 AddArgs(void* arg, uint8_t argLen) volatile;
-        _taskEntry           PopFront() volatile;
-		volatile _taskEntry& PeekFront() volatile;
+        TaskEntry            PopFront() volatile;
+		volatile TaskEntry&  PeekFront() volatile;
 
 	private:
 		//  Queue of tasks to be executed
 		volatile LinkedList	_taskLog;
 		//  Pointer to last added item (need to be able to append arguments)
 		//  ->Reset to zero after calling PopFront() function
-		volatile _llnode    *_lastIndex;
+		volatile _llnode    * volatile _lastIndex;
 };
 
 /*	Global pointer to first instance of TaskScheduler object	*/
@@ -170,7 +171,7 @@ extern void TS_GlobalCheck(void);
  * @note IMPORTANT! 1st byte of args ALWAYS contains number of following data
  *  bytes, remember to use +1 offset in memory when doing memcpy on args array
  */
-struct _callBackEntry
+struct _kernelEntry
 {
     void((*callBackFunc)(void));    // Pointer to callback function
     uint8_t serviceID;              // Requested service
@@ -178,9 +179,9 @@ struct _callBackEntry
     int32_t  retVal;                // (Optional) Return variable of service exec
 };
 
-extern void TS_RegCallback(struct _callBackEntry *arg, uint8_t uid);
+extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
 
 /// Internal time since TaskScheduler startup (in ms)
-extern volatile uint64_t __msSinceStartup;
+extern volatile uint64_t msSinceStartup;
 
 #endif /* TASKSCHEDULER_H_ */
