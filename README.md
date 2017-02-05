@@ -9,7 +9,11 @@ This project is mainly envisioned as a way for me to improve my C/C++ and docume
 Choice of C++ was mainly because it allows a more intuitive interface for both programming and understanding the code due to its higher abstraction through objects.
 
 Software modules implemented:
+
 *Task scheduler (TS) - able to register new services for every kernel module, execute them at specific time
+
 *ESP8266 - full implemented (sending/receiving over TCP, TCP client/server, AP connect/disconnect, automatic management of clients and opened sockets, watchdog timer…), integrated with TS
+
 *IR radar - perform scan by rotating around vertical axis, move vertical/horizontal axis, integrated with TS
+
 *HAL library - functions for all implemented modules
