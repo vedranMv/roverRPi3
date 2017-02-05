@@ -118,7 +118,7 @@ void RPIRover::ParseRpiCommand(uint8_t *buffer, uint16_t bufLen) volatile
 	//TODO: Change 0 to the UID of kernel module
 	for (i = 1; i <= NUM_OF_TASKS; i++)
 		if (strstr((char*)command, taskLookup[i - 1]) != NULL)
-			_ts.PushBack(0, i,0);
+			_ts.SyncTask(0, i,0);
 
 	//	If there's no arguments passed finish parsing
 	if (buffer[it] != ',') return;
@@ -135,7 +135,7 @@ void RPIRover::ParseRpiCommand(uint8_t *buffer, uint16_t bufLen) volatile
 		while (isdigit(buffer[it]) || (buffer[it] == '.') || (buffer[it] == '-'))
 			arg[argLen++] = buffer[it++];
 
-		_ts.AddNumArg(arg, argLen);
+		_ts.AddArgs(arg, argLen);
 		it++;		//Move from ',' sign to the first char of argument
 	}
 }
@@ -148,73 +148,6 @@ int8_t RPIRover::RPICallback()
 	uint16_t len = 0, i;
 	char tempBuf[128];
 
-
-	//	Process all tasks in the queue
-	while (!_ts.IsEmpty())
-	{
-		_taskEntry tE = _ts.PopFront();
-
-		//	Switch based on the current task
-		switch(tE.GetTask())
-		{
-			/*	Routine for performing radar scan	*/
-			case T_RADARSCAN:
-			    snprintf(tempBuf, sizeof(tempBuf), "%sradar\0", myPrefix);
-			 	_rd.Scan(sweep, &len, false);
-				_uhw.Send2(tempBuf);
-	    		for (i = 0; i < len; i++)
-	    		{
-	    		    if (i == (len-1))
-	    		        snprintf(tempBuf, sizeof(tempBuf), "%d%s", sweep[i], ending);
-	    		    else
-	    		        snprintf(tempBuf, sizeof(tempBuf), "%d,", sweep[i]);
-	    		    _uhw.Send2(tempBuf);
-	    		}
-	    		break;
-
-			/*	Routine for performing normal driving	*/
-			case T_ENGNORM:
-				//	Check if there's enough arguments
-				if (tE.GetArgNum() < 2)
-				{
-					SendErr("engnorm,tooFewArguments");
-					break;
-				}
-				if (!_ed.StartEngines(tE.GetArg(0),tE.GetArg(1)))
-				    _uhw.Send("%sengnorm,done\r", myPrefix);
-				else SendErr("engnorm,failed");
-				break;
-
-			/*	Routine for performing driving on arc path	*/
-			case T_ENGARC:
-				//	Check if there's enough arguments
-				if (tE.GetArgNum() < 3)
-				{
-					SendErr("engarc,tooFewArguments");
-					break;
-				}
-				if (!_ed.StartEnginesArc(tE.GetArg(0), tE.GetArg(1), tE.GetArg(2)))
-				    _uhw.Send("%sengarc,done", myPrefix);
-				else SendErr("engarc,failed");
-				break;
-
-			/*	Routine for running engines at percentage of max	*/
-			case T_ENGPERC:
-				//	Check if there's enough arguments
-				if (tE.GetArgNum() < 3)
-				{
-					SendErr("tooFewArguments");
-					break;
-				}
-				if (!_ed.RunAtPercPWM(tE.GetArg(0),tE.GetArg(1),tE.GetArg(2)))
-				    _uhw.Send("%sengperc,done\r", myPrefix);
-				else SendErr("engperc,failed");
-				break;
-			default:
-				SendErr("dontKnowCommand");
-				break;
-		}
-	}
 
 	return STATUS_OK;
 }

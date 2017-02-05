@@ -102,7 +102,7 @@ float stof (uint8_t *nums, uint8_t strLen)
  * 	\param strLen - length of nums variable
  * 	\return - int32_t value of number in nums string
  */
-int32_t stoi (volatile uint8_t *nums, volatile uint8_t strLen)
+int32_t stoi (uint8_t *nums, uint8_t strLen)
 {
 	int32_t retVal = 0, 		//Value to return
 			 multiplier = 1;	//Digit multiplier
@@ -132,7 +132,7 @@ int32_t stoi (volatile uint8_t *nums, volatile uint8_t strLen)
 	return retVal;
 }
 
-int32_t stoi (uint8_t *nums, uint8_t strLen)
+int32_t stoiv (volatile uint8_t *nums, volatile uint8_t strLen)
 {
     int32_t retVal = 0,         //Value to return
              multiplier = 1;    //Digit multiplier

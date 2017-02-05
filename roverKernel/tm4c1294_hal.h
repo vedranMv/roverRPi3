@@ -12,7 +12,7 @@
  *  ESP8266:
  *      UART7, pins PC4(Rx), PC5(Tx)
  *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
- *      Timer 6 - 4sec watchdog timer in case UART port hangs(likes to do so)
+ *      Timer 6 - watchdog timer in case UART port hangs(likes to do so)
  *  Engines:
  *      PWM0 - Generator 1
  *      PWM Out2(PF2 - left wheel), PWM Out3(PF3 - right wheel)
@@ -32,6 +32,7 @@
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
 
+#include "myLib.h"
 
 #define HAL_OK                  0
 /**     SysTick peripheral error codes      */

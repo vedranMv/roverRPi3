@@ -46,9 +46,9 @@ void _ESP_KernelCallback(void)
     /*
      *  Data in args[] array always has first byte(args[0]) containing the size
      *  of the args[] array (without first byte). So total size is args[0]+1.
-     *  First data byte is accessed at args[0]
+     *  First data byte is accessed at args[1] and args[0] is length of data
      */
-    switch (__esp->_espSer.serviceID)
+    switch (__esp->_espKer.serviceID)
     {
     /*
      * Start/Stop control for TCP server
@@ -59,16 +59,16 @@ void _ESP_KernelCallback(void)
      */
     case ESP_T_TCPSERV:
         {
-            if (__esp->_espSer.args[1] == 1)
+            if (__esp->_espKer.args[1] == 1)
             {
                 uint16_t port;
-                memcpy((void*)&port, (void*)(__esp->_espSer.args + 2), 2);
-                __esp->_espSer.retVal = __esp->StartTCPServer(port);
+                memcpy((void*)&port, (void*)(__esp->_espKer.args + 2), 2);
+                __esp->_espKer.retVal = __esp->StartTCPServer(port);
                 __esp->TCPListen(true);
             }
             else
             {
-                __esp->_espSer.retVal = __esp->StopTCPServer();
+                __esp->_espKer.retVal = __esp->StopTCPServer();
                 __esp->TCPListen(false);
             }
         }
@@ -85,19 +85,19 @@ void _ESP_KernelCallback(void)
             //  IP address starts on 2nd data byte and its a string of length
             //  equal to total length of data - 3bytes(used for port & KA)
             memcpy( (void*)ipAddr,
-                    (void*)(__esp->_espSer.args + 2),
-                    __esp->_espSer.args[0] - 3);
+                    (void*)(__esp->_espKer.args + 2),
+                    __esp->_espKer.args[0] - 3);
             //  Port is last two bytes
             memcpy( (void*)&port,
-                    (void*)(__esp->_espSer.args + (__esp->_espSer.args[0]-1)),
+                    (void*)(__esp->_espKer.args + (__esp->_espKer.args[0]-1)),
                     2);
             //  If IP address is valid process request
             if (__esp->_IPtoInt(ipAddr) == 0)
                 return;
             //  1st data byte is keep alive flag
             //  Double negation to convert any integer into boolean
-            bool KA = !(!__esp->_espSer.args[1]);
-            __esp->_espSer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
+            bool KA = !(!__esp->_espKer.args[1]);
+            __esp->_espKer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
         }
         break;
     /*
@@ -107,16 +107,16 @@ void _ESP_KernelCallback(void)
     case ESP_T_SENDTCP:
         {
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
                return;
             //  Ensure that message is null-terminated
-            if ((__esp->_espSer.args[0] + 1) < TS_TASK_MEMORY)
-                __esp->_espSer.args[__esp->_espSer.args[0]+1] = '\0';
+            if ((__esp->_espKer.args[0] + 1) < TS_TASK_MEMORY)
+                __esp->_espKer.args[__esp->_espKer.args[0]+1] = '\0';
             else
-                __esp->_espSer.args[49] = '\0';
+                __esp->_espKer.args[sizeof(__esp->_espKer.args-1)] = '\0';
             //  Initiate TCP send to required client
-            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
-                                      ->SendTCP((char*)(__esp->_espSer.args+2));
+            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[1])
+                                      ->SendTCP((char*)(__esp->_espKer.args+2));
         }
         break;
     /*
@@ -127,10 +127,10 @@ void _ESP_KernelCallback(void)
         {
             _espClient  *cli;
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
                 return;
-            cli = __esp->GetClientBySockID(__esp->_espSer.args[1]);
-            __esp->custHook(__esp->_espSer.args[1],
+            cli = __esp->GetClientBySockID(__esp->_espKer.args[1]);
+            __esp->custHook(__esp->_espKer.args[1],
                             (uint8_t*)(cli->RespBody),
                             (uint16_t*)(&(cli->RespLen)));
         }
@@ -142,10 +142,10 @@ void _ESP_KernelCallback(void)
     case ESP_T_CLOSETCP:
         {
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espSer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
                 return;
             //  Initiate socket closing from client object
-            __esp->_espSer.retVal = __esp->GetClientBySockID(__esp->_espSer.args[1])
+            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[1])
                                               ->Close();
         }
         break;
@@ -358,8 +358,9 @@ ESP8266::~ESP8266()
 ///-----------------------------------------------------------------------------
 
 /**
- * Initialize UART port used for ESP module. Also enable watchdog timer used to
- * reset the port in case of any errors or hangs
+ * Initialize hardware used to communicate with ESP module, watchdog timer used
+ * to handle any blockage in communication and (if using task scheduler)
+ * register kernel module so TS can make calls to this library.
  * @param baud baud-rate used in serial communication between ESP and hardware
  * @return error code, depending on the outcome
  */
@@ -380,8 +381,8 @@ uint32_t ESP8266::InitHW(int32_t baud)
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
-    _espSer.callBackFunc = _ESP_KernelCallback;
-    TS_RegCallback(&_espSer, ESP_UID);
+    _espKer.callBackFunc = _ESP_KernelCallback;
+    TS_RegCallback(&_espKer, ESP_UID);
 #endif
 
     return retVal;
@@ -439,12 +440,12 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 
     //  Assemble command & send it
     snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
-    //  Use standard send function but increase timeout to 4s as acquiring IP
+    //  Use standard send function but increase timeout to 6s as acquiring IP
     //  address might take time
-    retVal = _SendRAW(_commBuf, 0, 6000);
+    retVal = _SendRAW(_commBuf, 0, 16000);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
-    //  Acquire IP address and save it locally
+    //  Read acquired IP address and save it locally
     MyIP();
 
     //  Allow for multiple connections, in case of error return
@@ -470,7 +471,7 @@ bool ESP8266::IsConnected()
  */
 uint32_t ESP8266::MyIP()
 {
-    if (_ipAddress == 0) _SendRAW("AT+CIPSTA?\0");
+    if (_ipAddress == 0) _SendRAW("AT+CIPSTA\?\0");
 
     return _ipAddress;
 }
@@ -796,6 +797,8 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
 {
     uint16_t txLen = 0;
 
+    HAL_ESP_WDControl(false, timeout);
+
     //  Reset global status
     flowControl = ESP_NO_STATUS;
     //  Wait for any ongoing transmission then flush UART port
@@ -957,7 +960,7 @@ void UART7RxIntHandler(void)
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
 
         //  Parse data in receiving buffer - if there was an error from WD timer
-        //  leave it in so that we know there was a probelm
+        //  leave it in so that we know there was a problem
         if (__esp->flowControl == ESP_STATUS_ERROR)
             __esp->flowControl |= __esp->ParseResponse(rxBuffer, rxLen);
         else

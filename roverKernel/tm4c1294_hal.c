@@ -27,7 +27,7 @@
 #include "driverlib/fpu.h"
 
 #include "tm4c1294_hal.h"
-#include "myLib.h"
+
 
 uint32_t g_ui32SysClock;
 
@@ -257,7 +257,7 @@ char  HAL_ESP_GetChar()
 
 /**
  * Watchdog timer for ESP module - used to reset protocol if communication hangs
- * for too long
+ * for too long.
  */
 void HAL_ESP_InitWD(void((*intHandler)(void)))
 {
@@ -268,7 +268,11 @@ void HAL_ESP_InitWD(void((*intHandler)(void)))
     IntEnable(INT_TIMER6A);
 }
 
-
+/**
+ * On/Off control for WD timer
+ * @param enable desired state of timer (true-run/false-stop)
+ * @param ms time in millisec. after which the communication is interrupted
+ */
 void HAL_ESP_WDControl(bool enable, uint32_t ms)
 {
     //  Record last value for timeout, use it when timeout argument is 0
@@ -286,16 +290,36 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
             TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
         TimerEnable(TIMER6_BASE, TIMER_A);
     }
+    else if (ms != 0)
+        LTM = ms;
 
 }
 
+/**
+ * Clear interrupt flag of WD timer and manually set trigger the UART interrupt
+ * used to capture Rx data from ESP.
+ * Clarification: This function is called within ISR provided as an argument in
+ * initialization of WD timer. That ISR will set a signal for UART Rx ISR, to
+ * notify it that time is up and communication is terminated. In order to prevent
+ * calling UART ISR manually here is used a property of NVIC that allows to
+ * manually trigger an interrupt that will be executed as soon as processor
+ * leaves this (watchdog) interrupt. (Because there can be no interrupt within
+ * an interrupt)
+ */
 void HAL_ESP_WDClearInt()
 {
     TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
+    TimerDisable(TIMER6_BASE, TIMER_A);
 
     IntPendSet(INT_UART7);
 }
 
+/*
+ * Test probe that can be put where necessary to evaluate timings on the
+ * oscilloscope
+ * @note Pin PC7 is initialized in ESP hardware initialization. If ESP is not
+ * initialize calling this function will trigger FaultISR
+ */
 void HAL_ESP_TestProbe()
 {
     GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, ~GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_7));
@@ -477,10 +501,10 @@ void HAL_RAD_Init()
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOG);
 
-    ///  Set PWM clock divider to 32 - allows for low frequencies
+    //  Set PWM clock divider to 32 - allows for low frequencies
     PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
 
-    /// Configuration and initialization of Radar left-right PWM output
+    // Configuration and initialization of Radar left-right PWM output
     GPIOPinConfigure(GPIO_PF1_M0PWM1);
     GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
     PWMGenConfigure(PWM0_BASE, PWM_GEN_0,
@@ -490,7 +514,7 @@ void HAL_RAD_Init()
     PWMGenEnable(PWM0_BASE, PWM_GEN_0); //Start PWM generator block
     PWMOutputState(PWM0_BASE, PWM_OUT_1_BIT, true);
 
-    /// Configuration and initialization of Radar up-down axis PWM output
+    // Configuration and initialization of Radar up-down axis PWM output
     GPIOPinConfigure(GPIO_PG0_M0PWM4);
     GPIOPinTypePWM(GPIO_PORTG_BASE, GPIO_PIN_0);
     PWMGenConfigure(PWM0_BASE, PWM_GEN_2,
@@ -500,19 +524,19 @@ void HAL_RAD_Init()
     PWMGenEnable(PWM0_BASE, PWM_GEN_2); //Start PWM generator block
     PWMOutputState(PWM0_BASE, PWM_OUT_4_BIT, true);
 
-    /// Configure Radar ADC module to sample AIN 3 (used to read IR sensor output)
-    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_0);//Configure GPIO as ADC input
+    // Configure Radar ADC module to sample AIN 3 (used to read IR sensor output)
+    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_0);//  Configure GPIO as ADC input
     ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
     ADCSequenceStepConfigure(ADC0_BASE, 3, 0,
                              ADC_CTL_CH3 | ADC_CTL_IE | ADC_CTL_END);
     ADCSequenceEnable(ADC0_BASE, 3);
     ADCIntClear(ADC0_BASE, 3);
-    //Configure hardware averaging of 64 samples
+    //  Configure hardware averaging of 64 samples
     ADCHardwareOversampleConfigure(ADC0_BASE, 64);
 
     HAL_RAD_Enable(true);
 
-    ///  Wait for gimbal servos to get to specified positions
+    //  Wait for gimbal servos to get to specified positions
     SysCtlDelay(g_ui32SysClock/2);
 }
 

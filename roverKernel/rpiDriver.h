@@ -53,7 +53,7 @@ class RPIRover
 		UartHW          _dbg;
 		EngineData 		_ed;
 		TaskScheduler 	_ts;
-		RadarData		_rd;
+		RadarModule		_rd;
 
 };
 

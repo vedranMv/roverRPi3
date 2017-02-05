@@ -158,7 +158,7 @@ volatile _llnode* LinkedList::AddSort(TaskEntry &arg) volatile
 {
     volatile _llnode *tmp = new _llnode(arg),//  Create new node on the free store
              *node = head;           //  Define starting node
-    HAL_ESP_TestProbe();
+
     //  Find where to insert new node(worst-case: end of the list)
     while (node != 0)
     {

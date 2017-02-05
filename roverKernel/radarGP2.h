@@ -1,16 +1,24 @@
-/*
+/**
  * radarGP2.h
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
  *
+ *  IR-sensor based radar (on 2D gimbal)
+ *  (library Infrared Proximity Sensor, Sharp GP2Y0A21YK)
+ *  @version 1.2
+ *  V1.1
+ *  +Packed sensor functions and data into a C++ object
+ *  V1.2
+ *  +Added internal data buffer (dynamically allocated)
+ *  +Object is now kernel module (added support for task scheduler)
+ *  +Added hook to use function to execute when a scan is completed
+ *
  **** Hardware dependencies:
- * 	PE0 - AIN3 - Reads analog value from sensor(@1MSps/64)
- * 		Hardware averaging of 64 samples
- * 	PF1 - PWMOut1 - Controls radar angle (PWM block 0, Generator 0, Output 1)
- * 		Gen0 with divider 32 generates ~60Hz PWM (62498 passed as argument)
- * 		PWMOut1 runs between 53960 and 59740
- *	IMPORTANT: PWM module runs with clock divder of 32, should it be changed to
+ *      PWM - Generator 1 & 3
+ *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
+ *      ADC0: AIN3(PE0) - sampling sensor output
+ *	IMPORTANT: PWM module runs with clock divider of 32, should it be changed to
  *		e.g. 64, all number passed to PWM have to be halved (i.e. RADAR_LEFT
  *		will be 26980, RADAR_RIGHT 29870 etc.)
  */
@@ -18,23 +26,50 @@
 #ifndef RADARGP2_H_
 #define RADARGP2_H_
 
-class RadarData
-{
-	public:
-		RadarData();
-		~RadarData();
+//  Enable integration of this library with task scheduler
+#define __USE_TASK_SCHEDULER__
 
-		int8_t InitHW();
-		int8_t Scan(uint8_t *data, uint16_t *length, bool fine);
+#if defined(__USE_TASK_SCHEDULER__)
+    #include "taskScheduler.h"
+    //  Unique identifier of this module as registered in task scheduler
+    #define RADAR_UID       1
+    //  Definitions of ServiceID for service offered by this module
+    #define RADAR_SCAN      0   //  Initiate radar scan
+    #define RADAR_SETH      2   //  Set horizontal angle for radar
+    #define RADAR_SETV      3   //  Set vertical angle of radar
+
+#endif
+
+class RadarModule
+{
+    friend void _RADAR_KernelCallback(void);
+	public:
+		RadarModule();
+		~RadarModule();
+
+		void InitHW();
+		void AddHook(void((*funPoint)(uint8_t*, uint16_t*)));
+		void Scan(uint8_t *data, uint16_t *length, bool fine);
+		void Scan(bool fine);
 		bool ScanReady();
 
+		void SetHorAngle(float angle);
+        void SetVerAngle(float angle);
+
+        //  Hook to user routine called when the scan is complete
+        void    ((*custHook)(uint8_t*, uint16_t*));
+
 	protected:
-		void _SetVerAngle(float angle);
-		void _SetHorAngle(float angle);
-		bool _scanComplete;
+		bool    _scanComplete;
+		uint8_t *_scanData;
+		bool    _fineScan;
+#if defined(__USE_TASK_SCHEDULER__)
+		_kernelEntry _radKer;
+#endif
 };
 
-extern RadarData* __rD;
+//  Global pointer to FIRST created instance of RadarModule
+extern RadarModule* __rD;
 
 #endif /* RADARGP2_H_ */
 

@@ -38,7 +38,7 @@
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
 /// Max number of task in TaskSchedule queue
-#define TS_TASK_MEMORY  50
+#define TS_TASK_MEMORY  200
 
 
 

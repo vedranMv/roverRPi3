@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.1.5
+ *  @version 1.3
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -25,6 +25,11 @@
  *  V1.3 - 31.1.2017
  *  +Integration of library with task scheduler
  *  TODO:Add interface to send UDP packet
+ *
+ ****Hardware dependencies:
+ *      UART7, pins PC4(Rx), PC5(Tx)
+ *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
+ *      Timer 6 - watchdog timer in case UART port hangs(likes to do so)
  */
 
 #ifndef ESP8266_H_
@@ -155,7 +160,7 @@ class ESP8266
 		uint32_t    Send2(char* arg);
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
 
-		void		AddHook(void((*custHook)(uint8_t, uint8_t*, uint16_t*)));
+		void		AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)));
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
 
 		//  Hook to user routine called when data from socket is received
@@ -188,7 +193,7 @@ class ESP8266
 		//  Interface with task scheduler - provides memory space and function
 		//  to call in order for task scheduler to request service from this module
 #if defined(__USE_TASK_SCHEDULER__)
-		_kernelEntry _espSer;
+		_kernelEntry _espKer;
 #endif
 };
 
