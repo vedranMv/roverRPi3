@@ -981,7 +981,7 @@ void UART7RxIntHandler(void)
                 {
 #if defined(__USE_TASK_SCHEDULER__)
                 //  If using task scheduler, schedule receiving outside this ISR
-                    TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
+                    volatile TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
                     __taskSch->SyncTask(tE);
 #else

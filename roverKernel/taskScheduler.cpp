@@ -396,7 +396,7 @@ void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
  * behind the existing task.
  * @param te TaskEntry object to add the the list
  */
-void TaskScheduler::SyncTask(TaskEntry &te) volatile
+void TaskScheduler::SyncTask(TaskEntry te) volatile
 {
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call

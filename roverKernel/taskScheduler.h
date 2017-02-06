@@ -150,7 +150,7 @@ class TaskScheduler
 		bool				 IsEmpty() volatile;
 		void                 SyncTask(uint8_t libuid, uint8_t comm,
 		                              int64_t time, bool periodic = false) volatile;
-		void                 SyncTask(TaskEntry &te) volatile;
+		void                 SyncTask(TaskEntry te) volatile;
 		void                 AddArgs(void* arg, uint8_t argLen) volatile;
         TaskEntry            PopFront() volatile;
 		volatile TaskEntry&  PeekFront() volatile;
