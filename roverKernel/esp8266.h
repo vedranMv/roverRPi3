@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.3
+ *  @version 1.3.1
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -24,6 +24,8 @@
  *  +Establish a connection to TCP server (uses existing _espClient class)
  *  V1.3 - 31.1.2017
  *  +Integration of library with task scheduler
+ *  V1.3.1 - 6.2.2017
+ *  +Modified to support Task scheduler v2.3
  *  TODO:Add interface to send UDP packet
  *
  ****Hardware dependencies:

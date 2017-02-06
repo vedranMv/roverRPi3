@@ -43,10 +43,14 @@ char _commBuf[512];
  */
 void _ESP_KernelCallback(void)
 {
+    //  Check for null-pointer
+    if (__esp->_espKer.argN == 0)
+        return;
     /*
-     *  Data in args[] array always has first byte(args[0]) containing the size
-     *  of the args[] array (without first byte). So total size is args[0]+1.
-     *  First data byte is accessed at args[1] and args[0] is length of data
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
      */
     switch (__esp->_espKer.serviceID)
     {
@@ -54,15 +58,15 @@ void _ESP_KernelCallback(void)
      * Start/Stop control for TCP server
      * 1st data byte of args[] is either 0(stop) or 1(start). Following bytes
      * 2 & 3 contain uint16_t value of port at which to start server
-     * args[] = size(1B)|enable(1B)|port(2B)\0
+     * args[] = enable(1B)|port(2B)
      * retVal ESP library status code
      */
     case ESP_T_TCPSERV:
         {
-            if (__esp->_espKer.args[1] == 1)
+            if (__esp->_espKer.args[0] == 1)
             {
                 uint16_t port;
-                memcpy((void*)&port, (void*)(__esp->_espKer.args + 2), 2);
+                memcpy((void*)&port, (void*)(__esp->_espKer.args + 1), 2);
                 __esp->_espKer.retVal = __esp->StartTCPServer(port);
                 __esp->TCPListen(true);
             }
@@ -75,7 +79,7 @@ void _ESP_KernelCallback(void)
         break;
     /*
      * Connect to TCP client on given IP address and port
-     * args[] = size(1B)|KeepAlive(1B)|IPaddress(7B-15B)|port(2B)|\0
+     * args[] = KeepAlive(1B)|IPaddress(7B-15B)|port(2B)|
      * retVal ESP library error code (if > 5); or socket ID (if <=5)
      */
     case ESP_T_CONNTCP:
@@ -85,67 +89,64 @@ void _ESP_KernelCallback(void)
             //  IP address starts on 2nd data byte and its a string of length
             //  equal to total length of data - 3bytes(used for port & KA)
             memcpy( (void*)ipAddr,
-                    (void*)(__esp->_espKer.args + 2),
-                    __esp->_espKer.args[0] - 3);
+                    (void*)(__esp->_espKer.args + 1),
+                    __esp->_espKer.argN - 3);
             //  Port is last two bytes
             memcpy( (void*)&port,
-                    (void*)(__esp->_espKer.args + (__esp->_espKer.args[0]-1)),
+                    (void*)(__esp->_espKer.args + (__esp->_espKer.argN-2)),
                     2);
             //  If IP address is valid process request
             if (__esp->_IPtoInt(ipAddr) == 0)
                 return;
             //  1st data byte is keep alive flag
-            //  Double negation to convert any integer into boolean
-            bool KA = !(!__esp->_espKer.args[1]);
+            //  Double negation to convert any integer !=0 into boolean
+            bool KA = !(!__esp->_espKer.args[0]);
             __esp->_espKer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
         }
         break;
     /*
      * Send message to specific TCP client
-     * args[] = size(1B)|socketID(1B)|message|\0
+     * args[] = socketID(1B)|message|
      */
     case ESP_T_SENDTCP:
         {
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[0]))
                return;
             //  Ensure that message is null-terminated
-            if ((__esp->_espKer.args[0] + 1) < TS_TASK_MEMORY)
-                __esp->_espKer.args[__esp->_espKer.args[0]+1] = '\0';
-            else
-                __esp->_espKer.args[sizeof(__esp->_espKer.args-1)] = '\0';
+            __esp->_espKer.args[__esp->_espKer.argN] = '\0';
             //  Initiate TCP send to required client
-            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[1])
-                                      ->SendTCP((char*)(__esp->_espKer.args+2));
+            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[0])
+                                      ->SendTCP((char*)(__esp->_espKer.args+1));
         }
         break;
     /*
-     * Receive data from an opened socket and send it to user-defined routine
-     * args[] = size(1B)|socketID(1B)\0
+     * Receive data from an opened socket and pass it to user-defined routine
+     * args[] = socketID(1B)
      */
     case ESP_T_RECVSOCK:
         {
             _espClient  *cli;
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[0]))
                 return;
-            cli = __esp->GetClientBySockID(__esp->_espKer.args[1]);
-            __esp->custHook(__esp->_espKer.args[1],
+            cli = __esp->GetClientBySockID(__esp->_espKer.args[0]);
+            __esp->custHook(__esp->_espKer.args[0],
                             (uint8_t*)(cli->RespBody),
                             (uint16_t*)(&(cli->RespLen)));
         }
         break;
     /*
      * Close socket with specified ID
-     * args[] = size(1B)|socketID(1B)\0
+     * args[] = socketID(1B)
      */
     case ESP_T_CLOSETCP:
         {
             //  Check if socket ID is valid
-            if (!__esp->ValidSocket(__esp->_espKer.args[1]))
+            if (!__esp->ValidSocket(__esp->_espKer.args[0]))
                 return;
             //  Initiate socket closing from client object
-            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[1])
+            __esp->_espKer.retVal = __esp->GetClientBySockID(__esp->_espKer.args[0])
                                               ->Close();
         }
         break;
@@ -742,14 +743,17 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         //  Get client who sent the incoming data (based on socket ID)
         _espClient *cli = &_clients[_IDtoIndex(rxBuffer[respFlag] - 48)];
 
-        //  i points to socket ID
-        i = respFlag+2; //Skip colon and go to first digit of length
-        //  Double dot marks beginning of the message; also extract length of it
+        //  respFlag points to socket ID (single digit < 5)
+        i = respFlag+2; //Skip comma and go to first digit of length
+        //  Colon marks beginning of the message, everything before it and after
+        //  the current position(i) are digits of message length
         uint8_t cmsgLen[3] = {0};
-        while(rxBuffer[i++] != ':') //  ++ here so double dot is skipped when done
+        //  Extract message length
+        while(rxBuffer[i++] != ':') //  ++ here so colon is skipped when done
             cmsgLen[i-1-respFlag-2] = rxBuffer[i-1];
+        //  Convert message length string to int and save it
         cli->RespLen = (uint16_t)lroundf(stof(cmsgLen, i-1-respFlag));
-
+        // i now points to the first char of the actual received message
         //  Use raspFlag to mark starting point
         respFlag = i;
         //  Loop until the end of received message
@@ -758,6 +762,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
             cli->RespBody[i - respFlag] = rxBuffer[i];
             i++;
         }
+        //  Set flag that new response has been received
         cli->_respRdy = true;
     }
     //  Socket got opened, create new client for it
@@ -976,7 +981,7 @@ void UART7RxIntHandler(void)
                 {
 #if defined(__USE_TASK_SCHEDULER__)
                 //  If using task scheduler, schedule receiving outside this ISR
-                    volatile TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
+                    TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
                     __taskSch->SyncTask(tE);
 #else

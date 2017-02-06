@@ -5,10 +5,11 @@
  *      Author: Vedran
  *
  *  Task scheduler library
- *  v1.1
+ *  @version 2.3
+ *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
- *  v2.1 - 22.1.2017
+ *  V2.1 - 22.1.2017
  *  +Added time component to task entries - each task now has a time stamp at
  *      which it needs to be executed
  *  +Implemented SysTick in interrupt mode to count time from startup providing
@@ -18,10 +19,14 @@
  *      its service by adding entry into the callback vector. Once the task
  *      scheduler requires that service it will transfer necessary memory into
  *      kernel space and call provided callback function for particular module
- *  v2.2
+ *  V2.2
  *  +Switched to linked list as internal container for tasks - allows more
  *  flexibility in adding data (and can be sorted)
- *
+ *  V2.3 - 6.2.2016
+ *  +TaskEntry instance now uses dynamically allocated array for storing arguments
+ *  +Implemented support for periodic tasks. Once executed task is rescheduled
+ *  based on its period. For non-periodic tasks period must be set to 0.
+ *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  *
@@ -37,10 +42,6 @@
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
-/// Max number of task in TaskSchedule queue
-#define TS_TASK_MEMORY  200
-
-
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
@@ -56,9 +57,10 @@ class TaskEntry
 		TaskEntry();
 		TaskEntry(const TaskEntry& arg);
 		TaskEntry(const volatile TaskEntry& arg);
-		TaskEntry(uint8_t uid, uint8_t task, uint32_t utcTime);
+		TaskEntry(uint8_t uid, uint8_t task, uint32_t time, int32_t period = 0);
+		~TaskEntry();
 
-		void        AddArg(void* arg, uint8_t argLen) volatile;
+		void        AddArg(void* arg, uint16_t argLen) volatile;
 
 		         TaskEntry& operator= (const TaskEntry& arg);
         volatile TaskEntry& operator= (const volatile TaskEntry& arg);
@@ -70,11 +72,14 @@ class TaskEntry
 		//  Service ID to execute
 		volatile uint8_t    _task;
 		//  Number of arguments provided when doing service call
-		volatile uint8_t    _argN;
+		volatile uint16_t    _argN;
 		//  Time at which to exec. service (in ms from start-up of task scheduler)
 		volatile uint32_t   _timestamp;
-		//  Arguments used when calling service
-		volatile uint8_t    _args[TS_TASK_MEMORY];
+		//  Arguments used when calling service - array that is dynamically
+		//  allocated in AddArg function depending on the number of arguments
+		volatile uint8_t    *_args;
+		//  Period at which to execute this task (0 for non-periodic tasks)
+		int32_t            _period;
 };
 
 /**
@@ -86,6 +91,7 @@ class _llnode
 {
     friend class LinkedList;
     friend class TaskScheduler;
+
     private:
         _llnode();
         _llnode(volatile TaskEntry  &arg,
@@ -106,6 +112,8 @@ class _llnode
 class LinkedList
 {
     friend class TaskScheduler;
+    public:
+        ~LinkedList();
     private:
         LinkedList();
 
@@ -116,6 +124,7 @@ class LinkedList
         volatile TaskEntry&     PeekFront() volatile;
 
     private:
+        //  Volatile pointers as they might change inside ISRs
         volatile _llnode     * volatile head,
                              * volatile tail;
         const volatile TaskEntry   nullNode;
@@ -140,8 +149,8 @@ class TaskScheduler
 		void 				 Reset() volatile;
 		bool				 IsEmpty() volatile;
 		void                 SyncTask(uint8_t libuid, uint8_t comm,
-		                                       int64_t time) volatile;
-		void                 SyncTask(TaskEntry te) volatile;
+		                              int64_t time, bool periodic = false) volatile;
+		void                 SyncTask(TaskEntry &te) volatile;
 		void                 AddArgs(void* arg, uint8_t argLen) volatile;
         TaskEntry            PopFront() volatile;
 		volatile TaskEntry&  PeekFront() volatile;
@@ -175,7 +184,8 @@ struct _kernelEntry
 {
     void((*callBackFunc)(void));    // Pointer to callback function
     uint8_t serviceID;              // Requested service
-    uint8_t args[TS_TASK_MEMORY];   // Arguments for service execution
+    uint8_t *args;                  // Arguments for service execution
+    uint16_t argN;                  // Length of *args array
     int32_t  retVal;                // (Optional) Return variable of service exec
 };
 

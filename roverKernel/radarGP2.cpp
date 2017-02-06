@@ -19,40 +19,45 @@ RadarModule* __rD;
 
 void _RADAR_KernelCallback(void)
 {
+    //  Check for null-pointer
+    if (__rD->_radKer.args == 0)
+        return;
+
     /*
-     *  Data in args[] array always has first byte(args[0]) containing the size
-     *  of the args[] array (without first byte). So total size is args[0]+1.
-     *  First data byte is accessed at args[1] and args[0] is length of data
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
      */
     switch(__rD->_radKer.serviceID)
     {
     /*
      * Request a radar scan by rotating horizontal axis from 0° to 160°. First
      * data byte is either 1(fine scan) or 0(coarse scan).
-     * args[] = size(1B)|scanType(1B)\0
+     * args[] = scanType(1B)
      * retVal none
      */
     case RADAR_SCAN:
         {
             //  Double negation to convert any integer into boolean
-            bool fine = !(!__rD->_radKer.args[1]);
+            bool fine = !(!__rD->_radKer.args[0]);
             __rD->Scan(fine);
         }
         break;
         /*
          * Rotate radar horizontally to a specified angle (0°-right, 160°-left)
-         * args[] = size(1B)|angle(4B)\0
+         * args[] = angle(4B)
          * retVal none
          */
     case RADAR_SETH:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD->_radKer.args[0] == sizeof(float))
+            if (__rD->_radKer.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD->_radKer.args+1),
+                       (void*)( __rD->_radKer.args),
                        sizeof(float));
                 __rD->SetHorAngle(angle);
             }
@@ -60,18 +65,18 @@ void _RADAR_KernelCallback(void)
         break;
         /*
          * Rotate radar vertically to a specified angle (0°-up, 160°-down)
-         * args[] = size(1B)|angle(4B)\0
+         * args[] = angle(4B)
          * retVal none
          */
     case RADAR_SETV:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD->_radKer.args[0] == sizeof(float))
+            if (__rD->_radKer.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD->_radKer.args+1),
+                       (void*)( __rD->_radKer.args),
                        sizeof(float));
                 __rD->SetVerAngle(angle);
             }

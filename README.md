@@ -17,3 +17,4 @@ Software modules implemented:
 *IR radar - perform scan by rotating around vertical axis, move vertical/horizontal axis, integrated with TS
 
 *HAL library - functions for all implemented modules
+

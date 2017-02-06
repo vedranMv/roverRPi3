@@ -6,13 +6,15 @@
  *
  *  IR-sensor based radar (on 2D gimbal)
  *  (library Infrared Proximity Sensor, Sharp GP2Y0A21YK)
- *  @version 1.2
- *  V1.1
+ *  @version 1.2.1
+ *  v1.1
  *  +Packed sensor functions and data into a C++ object
  *  V1.2
  *  +Added internal data buffer (dynamically allocated)
  *  +Object is now kernel module (added support for task scheduler)
  *  +Added hook to use function to execute when a scan is completed
+ *  V1.2.1 - 6.2.2017
+ *  +Modified to support Task scheduler v2.3
  *
  **** Hardware dependencies:
  *      PWM - Generator 1 & 3

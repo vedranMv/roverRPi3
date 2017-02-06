@@ -49,8 +49,9 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
     uint8_t tmp;
 
+    //  Print received data
     comm.Send("%s", buf);
-
+    //  Schedule new radar scan at T+2s
     __taskSch->SyncTask(RADAR_UID, RADAR_SCAN, -2000);
     tmp = 0;
     __taskSch->AddArgs((void*)&tmp, 1);
@@ -59,10 +60,6 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
 void ScanComplete(uint8_t* data, uint16_t* dataLen)
 {
     uint8_t tmp = 0;
-
-    //  Print out scan on the serial
-    /*for (uint16_t i = 0; i < *dataLen; i++)
-        comm.Send("%d ", data[i]);*/
 
     data[*dataLen] = '\0';
 

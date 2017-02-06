@@ -4,7 +4,7 @@
  *  Created on: 30. 7. 2016.
  *      Author: Vedran
  */
-
+#include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
@@ -49,39 +49,61 @@ volatile TaskScheduler* __taskSch;
 ///-----------------------------------------------------------------------------
 ///                      Class constructors                             [PUBLIC]
 ///-----------------------------------------------------------------------------
-TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0)
+TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0), _args(0)
 {
-    memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time)
-            :_libuid(uid), _task(task), _timestamp(time),  _argN(0)
+TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time, int32_t period)
+:_libuid(uid), _task(task), _timestamp(time),  _argN(0), _args(0), _period(period)
 {
-    memset((void*)_args, 0, TS_TASK_MEMORY);
 }
 
-TaskEntry::TaskEntry(const TaskEntry& arg) :  _argN(0)
+TaskEntry::TaskEntry(const TaskEntry& arg) :  _argN(0), _args(0)
 {
     *this = (const TaskEntry&)arg;
 }
 
-TaskEntry::TaskEntry(const volatile TaskEntry& arg) :  _argN(0)
+TaskEntry::TaskEntry(const volatile TaskEntry& arg) :  _argN(0), _args(0)
 {
     *this = (const volatile TaskEntry&)arg;
+}
+
+TaskEntry::~TaskEntry()
+{
+    //  If there's any dynamically allocated data release it
+    if (_args != 0)
+        delete [] _args;
 }
 
 
 /**
  * Add argument(s) stored in a byte array [arg] of length [argLen]. Byte array
  * may contain data of any type, as long as receiver of that data knows how to
- * interpret bytes stored in the field
+ * interpret bytes stored in the field.
+ * Size of internal array holding bytes is dynamically reallocated every time
+ * this function is called in order to ensure there's enough space for all args.
+ * @note This function doesn't have overflow protection. It will try to save all
+ * provided arguments into and array, allocating as much space as it needs.
  * @param arg byte array of data to pass to the function
  * @param argLen length of byte array [arg] (in bytes)
  */
-void TaskEntry::AddArg(void* arg, uint8_t argLen) volatile
+void TaskEntry::AddArg(void* arg, uint16_t argLen) volatile
 {
-    memcpy((void*)(_args+_argN), arg, argLen);
+    //  Allocate new memory to fit all the arguments +1 space because argument
+    //  array has to be null-terminated
+    uint8_t *temp = new uint8_t[_argN+argLen+1];
+
+    //  Copy existing arguments from _args into a new memory location
+    memcpy((void*)temp, (void*)_args, _argN);
+    //  Delete data currently stored in pointer _args
+    delete [] _args;
+    //  Append new arguments to the new array of arguments
+    memcpy((void*)(temp+_argN), arg, argLen);
     _argN += argLen;
+    //  Null-terminate array
+    temp[_argN] = 0;
+    //  Save new array into a pointer in this object
+    _args = temp;
 }
 
 /**
@@ -95,9 +117,10 @@ TaskEntry& TaskEntry::operator= (const TaskEntry& arg)
     _task = arg._task;
     _argN = arg._argN;
     _timestamp = arg._timestamp;
+    _period = arg._period;
 
-    for (uint8_t i = 0; i < sizeof(_args); i++)
-        _args[i] = arg._args[i];
+    _args = new uint8_t[_argN];
+    memcpy((void*)_args, (void*)(arg._args), _argN);
     return *this;
 }
 
@@ -107,9 +130,12 @@ volatile TaskEntry& TaskEntry::operator= (const volatile TaskEntry& arg)
     _task = arg._task;
     _argN = arg._argN;
     _timestamp = arg._timestamp;
+    _period = arg._period;
 
-    for (uint8_t i = 0; i < sizeof(_args); i++)
-        _args[i] = arg._args[i];
+    _args = new uint8_t[_argN];
+    memcpy((void*)_args, (void*)(arg._args), _argN);
+    //for (uint8_t i = 0; i < _argN; i++)
+     //   _args[i] = arg._args[i];
     return *this;
 }
 
@@ -119,9 +145,12 @@ volatile TaskEntry& TaskEntry::operator= (volatile TaskEntry& arg) volatile
     _task = arg._task;
     _argN = arg._argN;
     _timestamp = arg._timestamp;
+    _period = arg._period;
 
-    for (uint8_t i = 0; i < sizeof(_args); i++)
-        _args[i] = arg._args[i];
+    _args = new uint8_t[_argN];
+    memcpy((void*)_args, (void*)(arg._args), _argN);
+    //for (uint8_t i = 0; i < _argN; i++)
+    //    _args[i] = arg._args[i];
     return (volatile TaskEntry&) *this;
 }
 
@@ -144,6 +173,13 @@ _llnode::_llnode(volatile TaskEntry &arg, volatile _llnode *pre,
  ******************************************************************************/
 
 LinkedList::LinkedList() : head(0), tail(0), size(0) {}
+
+LinkedList::~LinkedList()
+{
+    //  Delete any data in the list when it goes out of scope
+    if (size > 0)
+        Drop();
+}
 
 /**
  * Add argument into the linked list by keeping the list sorted. List sorted in
@@ -333,8 +369,10 @@ bool TaskScheduler::IsEmpty() volatile
  * @param comm task ID within the library to execute
  * @param time time-stamp at which to execute the task
  */
-void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time) volatile
+void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
+                             int64_t time, bool periodic) volatile
 {
+    int32_t period = (int32_t)time;
     /*
      * If time is a positive number it represent time in milliseconds from
      * start-up of the microcontroller. If time is a negative number or 0 it
@@ -347,7 +385,7 @@ void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time) volatil
 
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
-    TaskEntry teTemp(libuid, comm, time);
+    TaskEntry teTemp(libuid, comm, time, (periodic?period:0));
     _lastIndex = _taskLog.AddSort(teTemp);
 }
 
@@ -358,7 +396,7 @@ void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm, int64_t time) volatil
  * behind the existing task.
  * @param te TaskEntry object to add the the list
  */
-void TaskScheduler::SyncTask(TaskEntry te) volatile
+void TaskScheduler::SyncTask(TaskEntry &te) volatile
 {
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
@@ -448,12 +486,11 @@ void TS_GlobalCheck(void)
             if ((__kernelVector + tE._libuid) == 0)
                 return;
 
-            // Transfer data for task into kernel memory space
+            // Make task data available to kernel
             __kernelVector[tE._libuid]->serviceID = tE._task;
-            __kernelVector[tE._libuid]->args[0] = tE._argN;
-            memcpy( (void*)(__kernelVector[tE._libuid]->args+1),
-                    (void*)(tE._args),
-                    tE._argN);
+            __kernelVector[tE._libuid]->argN = tE._argN;
+            __kernelVector[tE._libuid]->args = (uint8_t*)tE._args;
+
 #if defined(__DEBUG_SESSION__)
             UARTprintf("Now is %d \n", msSinceStartup);
 
@@ -462,5 +499,13 @@ void TS_GlobalCheck(void)
 #endif
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();
+
+            //  If there's a period specified reschedule task
+            if (tE._period != 0)
+            {
+                //  Change time of execution based on period
+                tE._timestamp = msSinceStartup + labs(tE._period);
+                __taskSch->SyncTask(tE);
+            }
         }
 }
