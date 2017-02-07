@@ -29,12 +29,10 @@
 #include "roverKernel/taskScheduler.h"
 #include "roverKernel/esp8266.h"
 #include "roverKernel/radarGP2.h"
+#include "roverKernel/engines.h"
 
 UartHW comm;
-ESP8266 esp;
-RadarModule rm;
-
-
+EngineData ed;
 //RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
 
 /**
@@ -57,37 +55,32 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
     __taskSch->AddArgs((void*)&tmp, 1);
 }
 
-void ScanComplete(uint8_t* data, uint16_t* dataLen)
-{
-    uint8_t tmp = 0;
-
-    data[*dataLen] = '\0';
-
-
-    //  Schedule sending the data ASAP
-    __taskSch->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
-    __taskSch->AddArgs(&tmp, 1);
-    tmp = ((uint8_t)*dataLen);
-    UARTprintf("Scan returned %d \n", tmp);
-    __taskSch->AddArgs(data, tmp);
-}
-
 
 int main(void)
 {
     HAL_BOARD_CLOCK_Init();
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, 0x00);
 
-
-    uint16_t tmp;
+    //  Initialize after setting clock, it uses it for SysTick
     volatile TaskScheduler ts;
 
     //  Initialize UART port for connection with PC (for debugging)
     comm.InitHW();
-    rm.InitHW();
     comm.Send("HW initialized \n");
-    rm.AddHook(ScanComplete);
 
+    ed.InitHW();
 
+    while (1)
+    {
+        TS_GlobalCheck();
+    }
+}
+
+/*
+ESP8266 esp;
+RadarModule rm;
     comm.Send("Initializing ESP\n");
     //  Initialize hardware used to talk to ESP8266
     esp.InitHW();
@@ -117,8 +110,4 @@ int main(void)
     tmp = 0;
     ts.AddArgs(&tmp, 1);
 
-    while (1)
-    {
-        TS_GlobalCheck();
-    }
-}
+ */
