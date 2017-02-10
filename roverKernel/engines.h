@@ -23,6 +23,8 @@
 #ifndef ENGINES_H_
 #define ENGINES_H_
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
 
 /*
  * Movement direction definitions for H-bridge

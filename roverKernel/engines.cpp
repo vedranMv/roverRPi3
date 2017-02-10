@@ -86,10 +86,6 @@ void PP0ISR(void)
 	    HAL_ENG_IntEnable(ED_LEFT, false);
 	    HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
 	    HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
-		/*GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL,
-					 ~(GPIOPinRead(ED_HBR_BASE, ED_HBR_PINL)) );
-
-		PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, ENGINE_STOP);*/
 	}
 	/*else if ( (__pED->wheelCounter[ED_LEFT] < 10)
 				&& (__pED->wheelCounter[ED_LEFT] > 0) )
@@ -129,10 +125,6 @@ void PP1ISR(void)
         HAL_ENG_IntEnable(ED_RIGHT, false);
         HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
         HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
-		/*IntDisable(INT_GPIOP1);
-		GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR,
-					 ~(GPIOPinRead(ED_HBR_BASE, ED_HBR_PINR)) );
-		PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, ENGINE_STOP);*/
 	}
 	/*else if ( (__pED->wheelCounter[ED_RIGHT] < 10)
 				&& (__pED->wheelCounter[ED_RIGHT] > 0) )
@@ -151,8 +143,8 @@ int8_t EngineData::InitHW()
 
 /**
  * Move vehicle in desired direction
- * 		@param direction - selects the direcion of movement
- * 		@param arg - distance in centimeters(forward/backward) or angle in °(left/right)
+ * 		@param direction - selects the direction of movement
+ * 		@param arg - distance in centimeters(forward/backward) or angle in ï¿½(left/right)
  * 	TODO: Configure startup_ccs.c to support ISR for counters
  */
 int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
@@ -182,7 +174,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
  	wheelCounter[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
  	wheelCounter[ED_LEFT] -= engineOffset;
 
-	//if any wheel engine is turned off, dont count for it
+	//if any wheel engine is turned off, don't count for it
 	if ( (dir & 0x03) == 0 ) wheelCounter[ED_LEFT] = 0;
 	if ( ((dir >> 2) & 0x03) == 0 ) wheelCounter[ED_RIGHT] = 0;
 
@@ -191,9 +183,6 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //configure H-bridge
 
- 	//UARTprintf("\nEntering: LEFT: %d   RIGHT: %d \n", wheelCounter[0], wheelCounter[1]);
-	//snprintf(message,300,"\nEntering: LEFT: %d   RIGHT: %d \n", _wheelCounter[0], _wheelCounter[1]);
-	//sendToWIFI(message, 300);
 
 	HAL_ENG_IntEnable(ED_LEFT, true);
 	HAL_ENG_IntEnable(ED_RIGHT, true);
@@ -201,7 +190,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	while ( blocking && IsDriving() );
 	if (blocking) HAL_ENG_Enable(false);
 
-	return STATUS_OK;	//Successfull execution
+	return STATUS_OK;	//Successful execution
 }
 
 int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
@@ -209,7 +198,7 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 	if (!_DirValid(dir)) return STATUS_ARG_ERR;
 	HAL_ENG_Enable(true);
 
-	//	Set to non-zero number ot indicate that motors are running
+	//	Set to non-zero number to indicate that motors are running
 	wheelCounter[ED_LEFT] = 1;
 	wheelCounter[ED_RIGHT] = 1;
 
@@ -229,13 +218,13 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 	if (HAL_ENG_GetHBridge(ED_BOTH) != dir)
 	    HAL_ENG_SetHBridge(ED_BOTH, dir);
 
-	return STATUS_OK;	//Successfull execution
+	return STATUS_OK;	//Successful execution
 }
 
 /**
  * Move vehicle over a circular path
- * 		@param distance - distance ALONG THE CIRCUMFERENCE of arc that's neccessary to travel
- * 		@param angle - angle in °(left/right) that's needed to travel along the arc
+ * 		@param distance - distance ALONG THE CIRCUMFERENCE of arc that's necessary to travel
+ * 		@param angle - angle in ï¿½(left/right) that's needed to travel along the arc
  * 		@param smallRadius - radius that's going to be traveled by the inner wheel (smaller comparing to outter wheel)
  * 	Function can be called by only two of the arguments(leaving third 0) as arc parameters can be calculated based on:
  * 		-angle and distance
@@ -247,7 +236,7 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 {
 	float speedFactor = 1;
 
- 	//One of those paramaters is needed to be non-zero to calculate valid path
+ 	//One of those parameters is needed to be non-zero to calculate valid path
  	if ( (distance == 0.0f) && (smallRadius == 0.0f)) return STATUS_ARG_ERR;
  	HAL_ENG_Enable(true);
 
@@ -311,7 +300,7 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 	while ( IsDriving() );
 	HAL_ENG_Enable(false);
 
-	return STATUS_OK;	//Successfull execution
+	return STATUS_OK;	//Successful execution
 }
 
 /**
