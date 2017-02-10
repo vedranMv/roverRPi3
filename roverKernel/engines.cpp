@@ -95,44 +95,48 @@ void PP1ISR(void)
  */
 void ControlLoop(void)  //ISR
 {
-    static int32_t oldL = 0, oldR = 0;
+    static int32_t old[2] = {0};
     static const uint8_t threshold = 5;
     static float posI[2] = {0}, speedI[2] = {0};
 
     //  Adjust PWM +/-5 is threshold for activating control loop
-    if (labs(__ed->wheelCounter[ED_LEFT]) < threshold)
-        HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
-    else if (labs(__ed->wheelCounter[ED_LEFT]) >= threshold)
-    {// Control loop for left wheel
-        //  Calculate current speed of left wheel, dt=0.1
-        float tmpSpeed = (float)(oldL-__ed->wheelCounter[ED_LEFT]); //dPoints
+
+    // Control loop for left wheel
+    for (uint8_t i = ED_LEFT; i <= ED_RIGHT; i++)
+    {
+        //  Calculate current speed of wheel, dt=0.1
+        __ed->speedCurr[i] = (float)(old[i]-__ed->wheelCounter[i]); //dPoints
         //  dAlpha=dPoints*360/encResolution;[°(deg)]
-        tmpSpeed = tmpSpeed * 360.0f / __ed->_encRes;
+        __ed->speedCurr[i] = __ed->speedCurr[i] * 360.0f / __ed->_encRes;
         //  dist=wheelDia*pi*dAlpha/360;[cm]
-        tmpSpeed = __ed->_wheelDia*PI_CONST*tmpSpeed/360;
+        __ed->speedCurr[i] = __ed->_wheelDia*PI_CONST*__ed->speedCurr[i]/360;
         //  speed=dist/dt;[cm/s]
-        tmpSpeed = tmpSpeed/0.1f;
+        __ed->speedCurr[i] = __ed->speedCurr[i]/0.1f;
 
-        float error = __ed->speed[ED_LEFT]-tmpSpeed;
-        speedI[ED_LEFT]+=error;
+        //  If current speed is below speed limit use position PID control
+        if (__ed->speedCurr[i] < __ed->speedSetpoint[i])
+        {
+            float error = 0 - __ed->wheelCounter;
+            posI[i] += error * 0.1;
 
-        //  correction=Kp*e+Ki*I+Kd*d
-        float correction = (0.7)*error + \
-                           (10)*speedI[ED_LEFT] + \
-                           (3)*((float)(oldL-__ed->wheelCounter[ED_LEFT]));
+            //  correction=Kp*e+Ki*I+Kd*d
+            float correction = (0.7)*error + \
+                               (10)*posI[i] + \
+                               (3)*((float)(old[i]-__ed->wheelCounter[i]));
+        }
+        else
+        {
+            float error = __ed->speedSetpoint[i]-__ed->speedCurr[i];
+                       speedI[i] += error * 0.1;
+            //  correction=Kp*e+Ki*I+Kd*d
+            float correction = (0.7)*error + \
+                               (10)*speedI[i] + \
+                               (3)*((float)(old[i]-__ed->wheelCounter[i]));
+        }
+        //  Save values for next run
+        old[i] = 0-__ed->wheelCounter[i];
     }
 
-    if (labs(__ed->wheelCounter[ED_RIGHT]) < threshold)
-        HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
-    else if (labs(__ed->wheelCounter[ED_RIGHT]) >= threshold)
-    {// Control loop for right wheel
-
-    }
-
-
-    //  Save values for next run
-    oldL = __ed->wheelCounter[ED_LEFT];
-    oldR = __ed->wheelCounter[ED_RIGHT];
     //  Keep at the end of ISR as it restarts the timer
     HAL_ENG_TimIntClear(true);
 }
