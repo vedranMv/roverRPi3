@@ -29,12 +29,11 @@
 #include "roverKernel/taskScheduler.h"
 #include "roverKernel/esp8266.h"
 #include "roverKernel/radarGP2.h"
+#include "roverKernel/engines.h"
 
 UartHW comm;
-ESP8266 esp;
-RadarModule rm;
-
-
+EngineData ed;
+RadarModule rd;
 //RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
 
 /**
@@ -57,37 +56,53 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
     __taskSch->AddArgs((void*)&tmp, 1);
 }
 
-void ScanComplete(uint8_t* data, uint16_t* dataLen)
-{
-    uint8_t tmp = 0;
-
-    data[*dataLen] = '\0';
-
-
-    //  Schedule sending the data ASAP
-    __taskSch->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
-    __taskSch->AddArgs(&tmp, 1);
-    tmp = ((uint8_t)*dataLen);
-    UARTprintf("Scan returned %d \n", tmp);
-    __taskSch->AddArgs(data, tmp);
-}
-
 
 int main(void)
 {
     HAL_BOARD_CLOCK_Init();
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, 0x00);
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
+    GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1);
+    GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
+    GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
 
-    uint16_t tmp;
+    //  Initialize after setting clock, it uses it for SysTick
     volatile TaskScheduler ts;
 
     //  Initialize UART port for connection with PC (for debugging)
     comm.InitHW();
-    rm.InitHW();
     comm.Send("HW initialized \n");
-    rm.AddHook(ScanComplete);
+    rd.InitHW();
+
+    ed.InitHW();
+    comm.Send("Motors initialized \n");
+    ed.SetVehSpec(6.8f, 14.3f, 25.0f, 40);
+    comm.Send("Specs set \n");
+    ed.RunAtPercPWM(DIRECTION_FORWARD, 20.0f, 20.0f);
+    comm.Send("Run command sent \n");
 
 
+    while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
+    {
+        //TS_GlobalCheck();
+        comm.Send("Left: %d     Right: %d \n", lroundf(ed.speedCurr[0]), lroundf(ed.speedCurr[1]));
+        HAL_DelayUS(500000);
+    }
+
+    ed.RunAtPercPWM(DIRECTION_FORWARD, 0.0f, 0.0f);
+    HAL_ENG_TimControl(false);
+    HAL_ENG_Enable(false);
+    comm.Send("Done \n");
+    while(1);
+}
+
+/*
+ESP8266 esp;
+RadarModule rm;
     comm.Send("Initializing ESP\n");
     //  Initialize hardware used to talk to ESP8266
     esp.InitHW();
@@ -117,8 +132,4 @@ int main(void)
     tmp = 0;
     ts.AddArgs(&tmp, 1);
 
-    while (1)
-    {
-        TS_GlobalCheck();
-    }
-}
+ */

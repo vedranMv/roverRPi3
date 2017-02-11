@@ -3,6 +3,12 @@
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
+ *  @version v2.1
+ *  V1.0 - 29.5.2016
+ *  +Implemented C code as C++ object, adjusted it to use HAL
+ *  V2.0 - 7.2.2017
+ *  +Integration of library with task scheduler
+ *
  *
  ****Hardware dependencies:
  * 	PF2/PF3 - PWMOut2/PWMOut3 - Control left/right engine PWM signal (PWM block 0, Generator 1, Outputs 2,3)
@@ -11,11 +17,11 @@
  * 	PL0/PL1/PL2/PL3 - GPIO - H-bridge configuration for engines
  * 		PL1-PL0 -> sets direction of left engine (see direction Macros)
  * 		PL3-PL2 -> sets direction of right engine (see direction Macros)
- * 	PP0/PP1 - GPIO - Optical encoders for each wheel, resultion of 90 slits per rotation
+ * 	PP0/PP1 - GPIO - Optical encoders for each wheel, resolution of 90 slits per rotation
  * 		Interrupt based
  * 		PP0 -> counts left engine
  * 		PP1 -> counts right engine
- *	IMPORTANT: PWM module runs with clock divder of 32, should it be changed to
+ *	IMPORTANT: PWM module runs with clock divider of 32, should it be changed to
  *		e.g. 64, all number passed to PWM have to be halved
  *		Interrupts have to be registered through startup_ccs.c file
  */
@@ -25,12 +31,23 @@
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
+//  Enable integration of this library with task scheduler
+#define __USE_TASK_SCHEDULER__
 
+#if defined(__USE_TASK_SCHEDULER__)
+    #include "taskScheduler.h"
+    //  Unique identifier of this module as registered in task scheduler
+    #define ENGINES_UID         0
+    //  Definitions of ServiceID for service offered by this module
+    #define ENG_SET_SPEED       0   //  Update speed on L&R engine
+    #define ENG_SET_DIST        1   //  Update distance for L&R wheel
+
+#endif
 /*
  * Movement direction definitions for H-bridge
  */
 #define ENGINE_STOP 		1		//PWM argument for stopping engine
-#define ENGINE_FULL 		15000	//150	//PWM argument for engine full-speed
+#define ENGINE_FULL 		15000	//PWM argument for engine full-speed
 #define ENGINE_FULL_ARG 	18750
 
 #define DIRECTION_FORWARD 	0x0A	//move forward H-bridge configuration  1010
@@ -42,12 +59,9 @@
 #define ED_RIGHT 	1
 #define ED_BOTH     2
 
-
-bool debugMode;
-extern int32_t engineOffset; //Error in measurements between optical encoders-15
-
 class EngineData
 {
+    friend void ControlLoop(void);
 	public:
 		EngineData();
 		EngineData(float wheelD, float wheelS, float vehSiz, float encRes);
@@ -60,21 +74,22 @@ class EngineData
 		bool 	IsDriving() volatile;
 		void 	SetSafetySeq(uint8_t seq, uint32_t right, uint32_t left);
 
-		volatile int32_t wheelCounter[2];
-		volatile int32_t wheelSafety[2][10];
-		volatile int32_t safetyCounter[2];
+		volatile int32_t wheelCounter[2];   //  In encoder ticks
+		volatile float speedSetpoint[2];            //  In cm/s
+		volatile float speedCurr[2];
+		volatile float wheelSetpoint[2];
 	protected:
 		bool _DirValid(uint8_t dir);
+		uint32_t _cmpsToEncT(float &ticks);
 
-		//Mechanical properties
+		//  Mechanical properties of platform
 		float _wheelDia; 	//in cm
 		float _wheelSpacing; //in cm
 		float _vehicleSize; 	//in cm
-		float _encRes;	//Encoder resolution in points
-
+		float _encRes;	//Encoder resolution in points (# of points/rotation)
 };
 
-extern volatile EngineData* __pED;
+extern volatile EngineData* __ed;
 
 extern "C"
 {

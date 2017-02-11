@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "engines.h"
@@ -19,13 +20,12 @@
 #include "utils/uartstdio.h"
 
 
-volatile EngineData* __pED;
-int32_t engineOffset=0;	//Error in measurements between optical encoders - 0
+volatile EngineData* __ed;
 
 
 EngineData::EngineData()
 {
-	__pED = this;
+	__ed = this;
 }
 EngineData::EngineData(
 	float wheelD,
@@ -35,7 +35,7 @@ EngineData::EngineData(
 	: _wheelDia(wheelD), _wheelSpacing(wheelS), _vehicleSize(vehSiz),
 	  _encRes(encRes)
 {
-	__pED = this;
+	__ed = this;
 }
 
 void EngineData::SetVehSpec(
@@ -51,8 +51,6 @@ void EngineData::SetVehSpec(
 
 	wheelCounter[0] = 0;
 	wheelCounter[1] = 0;
-	safetyCounter[0] = 0;
-	safetyCounter[1] = 0;
 }
 
 
@@ -68,31 +66,12 @@ void PP0ISR(void)
 {
     HAL_ENG_IntClear(ED_LEFT);
     GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0));
-    //UARTprintf("RIGHT: %d\n", __pED->wheelCounter[ED_RIGHT]);
 
-	if (__pED->wheelCounter[ED_LEFT] > 0)
-	{
-		__pED->wheelCounter[ED_LEFT]--;
-		/*if (__pED->wheelCounter[ED_LEFT] <=
-		 		__pED->wheelSafety[ED_LEFT][__pED->safetyCounter[ED_LEFT]])
-		{
-			if (__pED->safetyCounter[ED_LEFT] > 1) __pED->safetyCounter[ED_LEFT]--;
-			PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, ENGINE_FULL * 0.55);
-		}*/
-	}
+    if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == 1)
+        __ed->wheelCounter[ED_LEFT]--;
+    else if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == 2)
+        __ed->wheelCounter[ED_LEFT]++;
 
-	if (__pED->wheelCounter[ED_LEFT] == 0)
-	{
-	    HAL_ENG_IntEnable(ED_LEFT, false);
-	    HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
-	    HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
-	}
-	/*else if ( (__pED->wheelCounter[ED_LEFT] < 10)
-				&& (__pED->wheelCounter[ED_LEFT] > 0) )
-	{
-	    HAL_ENG_SetPWM(ED_LEFT, 0.50 * ENGINE_FULL);
-		//PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, 0.50 * ENGINE_FULL);
-	}*/
 }
 
 /**
@@ -107,37 +86,72 @@ void PP1ISR(void)
 {
     HAL_ENG_IntClear(ED_RIGHT);
     GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_1));
-    //UARTprintf("LEFT: %d\n", __pED->wheelCounter[ED_RIGHT]);
 
-	if (__pED->wheelCounter[ED_RIGHT] > 0)
-	{
-		__pED->wheelCounter[ED_RIGHT]--;
-		/*if (__pED->wheelCounter[ED_RIGHT] <=
-		 	 	 __pED->wheelSafety[ED_RIGHT][__pED->safetyCounter[ED_RIGHT]])
-		{
-			if (__pED->safetyCounter[ED_RIGHT] > 0) __pED->safetyCounter[ED_RIGHT]--;
-			PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, ENGINE_FULL * 0.60);
-		}*/
-	}
+    if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x0C) == 4)
+        __ed->wheelCounter[ED_RIGHT]--;
+    else if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x0C) == 8)
+        __ed->wheelCounter[ED_RIGHT]++;
+}
 
-	if (__pED->wheelCounter[ED_RIGHT] == 0)
-	{
-        HAL_ENG_IntEnable(ED_RIGHT, false);
-        HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
-        HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
-	}
-	/*else if ( (__pED->wheelCounter[ED_RIGHT] < 10)
-				&& (__pED->wheelCounter[ED_RIGHT] > 0) )
-	{
-	    HAL_ENG_SetPWM(ED_RIGHT, 0.52 * ENGINE_FULL);
-		//PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, 0.52 * ENGINE_FULL);
-	}*/
+/**
+ * Wheel control loop on both speed and position
+ * If result for speed of control loop on distance produces speed higher than
+ * max speed change to applying speed control loop, otherwise use speed from
+ * position control
+ */
+void ControlLoop(void)  //ISR
+{
+    static int32_t old[2] = {0};
+    static float posI[2] = {0}, speedI[2] = {0};
+
+    //  Adjust PWM +/-5 is threshold for activating control loop
+
+    // Control loop for left wheel
+    for (uint8_t i = ED_LEFT; i < ED_RIGHT; i++)
+    {
+        //  Calculate current speed of the wheel, dt=0.1
+        //UARTprintf("%d:   %d   %d \n", i, lroundf(old[i]), lroundf(__ed->wheelCounter[i]));
+        __ed->speedCurr[i] = (float)(old[i]-__ed->wheelCounter[i]); //dPoints
+        //  dAlpha=dPoints*360/encResolution;[�(deg)]
+        __ed->speedCurr[i] = __ed->speedCurr[i] * 360.0f / __ed->_encRes;
+        //  dist=wheelDia*pi*dAlpha/360;[cm]
+        __ed->speedCurr[i] = __ed->_wheelDia*PI_CONST*__ed->speedCurr[i]/360.0f;
+        //  speed=dist/dt;[cm/s]
+        __ed->speedCurr[i] = __ed->speedCurr[i]/0.1f;
+
+        //  Calculate error and controller output
+        float error = __ed->wheelSetpoint[i] - __ed->wheelCounter[i];
+        posI[i] += error * 0.1;
+
+        //  correction=Kp*e+Ki*I+Kd*d
+        float output = (0.7)*error +
+                       (10)*posI[i] +
+                       (3)*((float)(old[i]-__ed->wheelCounter[i]));
+
+        //  If current speed is below speed limit use position PID control
+        if (__ed->speedCurr[i] < __ed->speedSetpoint[i])
+        {
+
+
+        }
+        //  Else keep current speed
+
+        //  Save values for next run
+        old[i] = __ed->wheelCounter[i];
+    }
+    //  Keep at the end of ISR as it also restarts the timer
+    HAL_ENG_TimIntClear(true);
 }
 
 int8_t EngineData::InitHW()
 {
     HAL_ENG_Init(ENGINE_STOP, ENGINE_FULL);
-
+    //  Run control loop 10Hz
+    HAL_ENG_TimInit(100, ControlLoop);
+    //  Listen for encoder input
+    HAL_ENG_IntEnable(ED_LEFT, true);
+    HAL_ENG_IntEnable(ED_RIGHT, true);
+    HAL_ENG_TimControl(true);
 	return STATUS_OK;
 }
 
@@ -150,7 +164,6 @@ int8_t EngineData::InitHW()
 int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 {
 	float wheelDistance ; //centimeters
-	//char message[300];
 
 	if (!_DirValid(dir)) return STATUS_ARG_ERR;
 
@@ -169,22 +182,31 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
  	//steps_to_do = distance * (circumfirance_of_wheel / 6_calibarting_points)
  	else wheelDistance = ((float)arg * _encRes)/(PI_CONST * _wheelDia);
 
- 	wheelCounter[ED_LEFT] = (uint32_t)roundf(wheelDistance);
+ 	wheelSetpoint[ED_LEFT] = (uint32_t)roundf(wheelDistance);
 
- 	wheelCounter[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
- 	wheelCounter[ED_LEFT] -= engineOffset;
+ 	wheelSetpoint[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
 
 	//if any wheel engine is turned off, don't count for it
-	if ( (dir & 0x03) == 0 ) wheelCounter[ED_LEFT] = 0;
-	if ( ((dir >> 2) & 0x03) == 0 ) wheelCounter[ED_RIGHT] = 0;
+	if ( (dir & 0x03) == 0 ) wheelSetpoint[ED_LEFT] = 0;
+	if ( ((dir >> 2) & 0x03) == 0 ) wheelSetpoint[ED_RIGHT] = 0;
 
+	//  Check direction of wheel and whether to either add or subtract distance
+    if ((dir & 0x0C) == 4)
+        wheelSetpoint[ED_RIGHT] += wheelCounter[ED_RIGHT];
+    else if ((dir & 0x0C) == 8)
+        wheelSetpoint[ED_RIGHT] -= wheelCounter[ED_RIGHT];
+    if ((dir & 0x03) == 1)
+        wheelSetpoint[ED_LEFT] += wheelCounter[ED_LEFT];
+    else if ((dir & 0x03) == 2)
+        wheelSetpoint[ED_LEFT] -= wheelCounter[ED_LEFT];
+
+#if defined(__DEBUG_SESSION__)
 	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
+#endif
 	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set left engine speed
 	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //configure H-bridge
 
-
-	HAL_ENG_IntEnable(ED_LEFT, true);
 	HAL_ENG_IntEnable(ED_RIGHT, true);
 
 	while ( blocking && IsDriving() );
@@ -242,24 +264,12 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 
 	if (angle > 90)//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
  	{
- 		distance = distance - wheelSafety[ED_LEFT][0] * _wheelDia * PI_CONST/_encRes;
+ 		//distance = distance - wheelSafety[ED_LEFT][0] * _wheelDia * PI_CONST/_encRes;
  		angle-= 90;
  		if (smallRadius == 0.0) smallRadius = (distance/sin(angle*PI_CONST/180) - _wheelSpacing/2);
  		wheelCounter[ED_LEFT] = lroundf((smallRadius * (angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
  		wheelCounter[ED_RIGHT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
- 		if (wheelCounter[ED_LEFT] < wheelSafety[ED_LEFT][0])
- 		{
- 			wheelCounter[ED_RIGHT] = wheelCounter[ED_RIGHT] - wheelCounter[ED_LEFT] + wheelSafety[ED_LEFT][0];
- 			wheelCounter[ED_LEFT] = wheelSafety[ED_LEFT][0];
- 		}
- 		else
- 		{
- 			wheelSafety[ED_LEFT][0] = wheelCounter[ED_LEFT] - wheelSafety[ED_LEFT][0];
- 			wheelSafety[ED_RIGHT][0] = 0;
- 		}
- 		//Neglect safety for now.. TODO: feature
- 		safetyCounter[ED_LEFT] = 0;
- 		safetyCounter[ED_RIGHT] = 0;
+
  		speedFactor = (float)wheelCounter[ED_LEFT]/((float)wheelCounter[ED_RIGHT]);
 
  		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
@@ -267,31 +277,19 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  	}
  	else
  	{
- 		distance = distance - wheelSafety[ED_RIGHT][0] * _wheelDia * PI_CONST/_encRes;
+ 		//distance = distance - wheelSafety[ED_RIGHT][0] * _wheelDia * PI_CONST/_encRes;
  		angle = 90 - angle;
  		if (smallRadius == 0.0) smallRadius = (distance/sin(angle*PI_CONST/180) - _wheelSpacing/2);
  		wheelCounter[ED_RIGHT] = lroundf((smallRadius * (angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
  		wheelCounter[ED_LEFT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
- 		if (wheelCounter[ED_RIGHT] < wheelSafety[ED_RIGHT][0])
- 		{
- 			wheelCounter[ED_LEFT] = wheelCounter[ED_LEFT] - wheelCounter[ED_RIGHT] + wheelSafety[ED_RIGHT][0];
- 			wheelCounter[ED_RIGHT] = wheelSafety[ED_RIGHT][0];
- 		}
- 		else
- 		{
- 			wheelSafety[ED_RIGHT][0]= wheelCounter[ED_RIGHT] - wheelSafety[ED_RIGHT][0];
- 			wheelSafety[ED_LEFT][0] = 0;
- 		}
- 		safetyCounter[ED_LEFT] = 0;
- 		safetyCounter[ED_RIGHT] = 0;
+
+
  		speedFactor = (float)wheelCounter[ED_RIGHT]/((float)wheelCounter[ED_LEFT]);	//Speed difference between the engines
-
-
 
  		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set right engine speed
  		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL * speedFactor *0.9);	//set left engine speed
  	}
-	wheelCounter[ED_LEFT] -= engineOffset;
+
 	HAL_ENG_SetHBridge(ED_BOTH, DIRECTION_FORWARD);
 
     HAL_ENG_IntEnable(ED_LEFT, true);
@@ -310,18 +308,6 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 bool EngineData::IsDriving() volatile
 {
 	return (wheelCounter[ED_LEFT] > 0) || (wheelCounter[ED_RIGHT] > 0);
-}
-
-/**
- * Set values for safety of a specified sequence and update safety counter
- */
-void EngineData::SetSafetySeq(uint8_t seq, uint32_t right, uint32_t left)
-{
-	wheelSafety[ED_LEFT][seq]= right;
-	wheelSafety[ED_RIGHT][seq] = left;
-
-	safetyCounter[ED_LEFT] = seq;
-	safetyCounter[ED_RIGHT] = seq;
 }
 
 /**

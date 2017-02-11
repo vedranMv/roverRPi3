@@ -484,6 +484,30 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
     }
 }
 
+
+void HAL_ENG_TimInit(uint32_t ms, void((*intHandler)(void)))
+{
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER5);
+    TimerLoadSet(TIMER5_BASE, TIMER_A, _TM4CMsToCycles(ms));
+    TimerConfigure(TIMER5_BASE, TIMER_CFG_ONE_SHOT_UP);
+    TimerIntRegister(TIMER5_BASE, TIMER_A, intHandler);
+    TimerIntEnable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
+    IntEnable(INT_TIMER5A);
+}
+
+void HAL_ENG_TimControl(bool enable)
+{
+    if (enable)
+        TimerEnable(TIMER5_BASE, TIMER_A);
+    else
+        TimerDisable(TIMER5_BASE, TIMER_A);
+}
+
+void HAL_ENG_TimIntClear(bool enable)
+{
+    TimerIntClear(TIMER5_BASE, TimerIntStatus(TIMER5_BASE, true));
+    HAL_ENG_TimControl(enable);
+}
 /******************************************************************************
  ******************************************************************************
  ************               Radar - related API                    ************
