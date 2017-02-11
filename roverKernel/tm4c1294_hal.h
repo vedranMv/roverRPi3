@@ -77,6 +77,7 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(bool enable);
     extern uint8_t     HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
+    extern uint32_t    HAL_ENG_GetPWM(uint32_t engine);
     extern uint8_t     HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir);
     extern uint32_t    HAL_ENG_GetHBridge(uint32_t mask);
     extern void        HAL_ENG_IntClear(uint32_t engine);

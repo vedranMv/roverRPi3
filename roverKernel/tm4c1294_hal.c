@@ -370,6 +370,7 @@ void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOP);
     SysCtlPeripheralReset(SYSCTL_PERIPH_GPIOP);
     GPIOPinTypeGPIOInput(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1);
+    GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE,GPIO_PIN_2);
     GPIOPadConfigSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_STRENGTH_12MA, GPIO_PIN_TYPE_STD);
     GPIODirModeSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_DIR_MODE_IN);
 
@@ -415,6 +416,15 @@ uint8_t HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm)
         return HAL_ENG_EOOR;
 
     return HAL_OK;
+}
+
+uint32_t HAL_ENG_GetPWM(uint32_t engine)
+{
+
+    if (engine == 0)
+        return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_LEFT);
+    else if (engine == 1)
+        return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_RIGHT);
 }
 
 /**

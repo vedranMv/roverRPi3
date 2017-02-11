@@ -61,8 +61,8 @@ int main(void)
 {
     HAL_BOARD_CLOCK_Init();
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
-    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0 | GPIO_PIN_1, 0x00);
+    GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_2 | GPIO_PIN_3);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2 | GPIO_PIN_3, 0x00);
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
     GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1);
@@ -80,20 +80,24 @@ int main(void)
 
     ed.InitHW();
     comm.Send("Motors initialized \n");
-    ed.SetVehSpec(6.8f, 14.3f, 25.0f, 40);
+    ed.SetVehSpec(7.0f, 14.3f, 25.0f, 40);
     comm.Send("Specs set \n");
-    ed.RunAtPercPWM(DIRECTION_FORWARD, 20.0f, 20.0f);
+    //ed.RunAtPercPWM(DIRECTION_FORWARD, 20.0f, 20.0f);
+    ed.speedSetpoint[0] = 12.0f;
+    ed.speedSetpoint[1] = 12.0f;
+    //HAL_ENG_TimControl(false);
+    ed.StartEngines(DIRECTION_FORWARD, 5.0f, false);
     comm.Send("Run command sent \n");
-
+    //ed.RunAtPercPWM(DIRECTION_FORWARD, 6.0f, 6.0f);
 
     while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {
         //TS_GlobalCheck();
-        comm.Send("Left: %d     Right: %d \n", lroundf(ed.speedCurr[0]), lroundf(ed.speedCurr[1]));
-        HAL_DelayUS(500000);
+        //comm.Send("Left: %d     Right: %d \n", lroundf(ed.speedCurr[0]), lroundf(ed.speedCurr[1]));
+        //HAL_DelayUS(250000);
     }
 
-    ed.RunAtPercPWM(DIRECTION_FORWARD, 0.0f, 0.0f);
+    //ed.RunAtPercPWM(DIRECTION_FORWARD, 0.0f, 0.0f);
     HAL_ENG_TimControl(false);
     HAL_ENG_Enable(false);
     comm.Send("Done \n");

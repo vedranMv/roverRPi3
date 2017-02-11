@@ -65,11 +65,11 @@ void EngineData::SetVehSpec(
 void PP0ISR(void)
 {
     HAL_ENG_IntClear(ED_LEFT);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_0));
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_2));
 
-    if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == 1)
+    if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == DIR_WHEEL_BCK)
         __ed->wheelCounter[ED_LEFT]--;
-    else if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == 2)
+    else if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x03) == DIR_WHEEL_FWD)
         __ed->wheelCounter[ED_LEFT]++;
 
 }
@@ -85,73 +85,119 @@ void PP0ISR(void)
 void PP1ISR(void)
 {
     HAL_ENG_IntClear(ED_RIGHT);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_1, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_1));
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_3, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_3));
 
-    if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x0C) == 4)
+    if ((HAL_ENG_GetHBridge(ED_BOTH) >> 2) == DIR_WHEEL_BCK)
         __ed->wheelCounter[ED_RIGHT]--;
-    else if ((HAL_ENG_GetHBridge(ED_BOTH) & 0x0C) == 8)
+    else if ((HAL_ENG_GetHBridge(ED_BOTH) >> 2) == DIR_WHEEL_FWD)
         __ed->wheelCounter[ED_RIGHT]++;
 }
 
 /**
- * Wheel control loop on both speed and position
+ * Wheel control loop - simple P controller on both wheels that calculates PWM
+ * based on the error in position
  * If result for speed of control loop on distance produces speed higher than
  * max speed change to applying speed control loop, otherwise use speed from
  * position control
+ * for dt =0.05 -> Kp=.18 Ki=0.52
  */
 void ControlLoop(void)  //ISR
 {
-    static int32_t old[2] = {0};
-    static float posI[2] = {0}, speedI[2] = {0};
+    static int32_t old[2] = {0}, zeros = 0;
+    static float corrLocal[2] = {0.1, 0.1}, posI[2] = {0};//0.06
+    static const float dT = 0.1f, Kp[2]={0.11, 0.05}, Ki[2] = {0.3, 0.38};//0.4
 
-    //  Adjust PWM +/-5 is threshold for activating control loop
+    GPIOPinWrite(GPIO_PORTP_BASE,GPIO_PIN_2, 0xFF);
 
-    // Control loop for left wheel
-    for (uint8_t i = ED_LEFT; i < ED_RIGHT; i++)
+    // Control loop for wheels
+    for (uint8_t i = ED_LEFT; i <= ED_RIGHT; i++)
     {
         //  Calculate current speed of the wheel, dt=0.1
-        //UARTprintf("%d:   %d   %d \n", i, lroundf(old[i]), lroundf(__ed->wheelCounter[i]));
-        __ed->speedCurr[i] = (float)(old[i]-__ed->wheelCounter[i]); //dPoints
+        __ed->speedCurr[i] = (float)(__ed->wheelCounter[i]-old[i]); //dPoints
         //  dAlpha=dPoints*360/encResolution;[�(deg)]
         __ed->speedCurr[i] = __ed->speedCurr[i] * 360.0f / __ed->_encRes;
         //  dist=wheelDia*pi*dAlpha/360;[cm]
         __ed->speedCurr[i] = __ed->_wheelDia*PI_CONST*__ed->speedCurr[i]/360.0f;
         //  speed=dist/dt;[cm/s]
-        __ed->speedCurr[i] = __ed->speedCurr[i]/0.1f;
+        __ed->speedCurr[i] = __ed->speedCurr[i]/dT;
 
         //  Calculate error and controller output
         float error = __ed->wheelSetpoint[i] - __ed->wheelCounter[i];
-        posI[i] += error * 0.1;
+        if (error < 6)
+            posI[i] += error*dT;
+        else posI[i] = 0;
 
-        //  correction=Kp*e+Ki*I+Kd*d
-        float output = (0.7)*error +
-                       (10)*posI[i] +
-                       (3)*((float)(old[i]-__ed->wheelCounter[i]));
-
-        //  If current speed is below speed limit use position PID control
-        if (__ed->speedCurr[i] < __ed->speedSetpoint[i])
+        if (fabsf(error) < 2.0f)
         {
+            zeros++;
+            continue;
+        }
 
+        //  Only P controller -> correction = Kp*e
+        float correction = Kp[i]*error + Ki[i]*posI[i];//0,13P0,1I
 
+        UARTprintf("%d: %d__%d\n", i, lroundf(error), lroundf(__ed->speedCurr[i]));
+        //  If current speed is below speed limit use position PID control
+        if (fabsf(__ed->speedCurr[i]) < __ed->speedSetpoint[i])
+        {
+            //  Adjust direction of rotation (in case position is overshot)
+            if (correction > 0)
+                HAL_ENG_SetHBridge(i, DIR_WHEEL_FWD<<(2*i));
+            else
+                HAL_ENG_SetHBridge(i, DIR_WHEEL_BCK<<(2*i));
+            //  Save newly set correction
+            corrLocal[i] = fabsf(correction);
+        }
+        //  If current speed is over the speed limit but newly calculated speed
+        //  is slower update current speed
+        else if (corrLocal[i] > correction)
+        {
+            //  Adjust direction of rotation (in case position is overshot)
+            if (correction > 0)
+                HAL_ENG_SetHBridge(i, DIR_WHEEL_FWD<<(2*i));
+            else
+                HAL_ENG_SetHBridge(i, DIR_WHEEL_BCK<<(2*i));
+            //  Save newly set correction
+            corrLocal[i] = fabsf(correction);
         }
         //  Else keep current speed
+
+        //  Update PWM
+        uint32_t tmp = (uint32_t)((float)ENGINE_FULL*corrLocal[i])+1;
+        HAL_ENG_SetPWM(i, (tmp<ENGINE_FULL?tmp:ENGINE_FULL));
+
+        //  Count number of zero-errors in order to find steady-state
+        if (lroundf(error) == 0) zeros++;
+        else zeros = 0;
 
         //  Save values for next run
         old[i] = __ed->wheelCounter[i];
     }
     //  Keep at the end of ISR as it also restarts the timer
     HAL_ENG_TimIntClear(true);
+    if (zeros >= 6)
+    {
+        zeros = 0;
+        old[0] = old[1] = 0;
+        corrLocal[0] = corrLocal[1] = 0.2;
+        posI[0] = posI[1] = 0;
+
+        HAL_ENG_Enable(false);
+        HAL_ENG_TimControl(false);
+    }
+    GPIOPinWrite(GPIO_PORTP_BASE,GPIO_PIN_2, 0x00);
+
 }
 
 int8_t EngineData::InitHW()
 {
     HAL_ENG_Init(ENGINE_STOP, ENGINE_FULL);
-    //  Run control loop 10Hz
+    //  Run control loop 10Hz 50->20Hz
     HAL_ENG_TimInit(100, ControlLoop);
     //  Listen for encoder input
     HAL_ENG_IntEnable(ED_LEFT, true);
     HAL_ENG_IntEnable(ED_RIGHT, true);
-    HAL_ENG_TimControl(true);
+    //HAL_ENG_TimControl(true);
 	return STATUS_OK;
 }
 
@@ -168,6 +214,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	if (!_DirValid(dir)) return STATUS_ARG_ERR;
 
 	HAL_ENG_Enable(true);
+	HAL_ENG_TimControl(true);
  	/**
  	 * Configure PWM generators, H-bridges and set conditions to be evaluated
  	 * during movement
@@ -182,9 +229,9 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
  	//steps_to_do = distance * (circumfirance_of_wheel / 6_calibarting_points)
  	else wheelDistance = ((float)arg * _encRes)/(PI_CONST * _wheelDia);
 
- 	wheelSetpoint[ED_LEFT] = (uint32_t)roundf(wheelDistance);
+ 	wheelSetpoint[ED_LEFT] = lroundf(wheelDistance);
 
- 	wheelSetpoint[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
+ 	wheelSetpoint[ED_RIGHT] = wheelSetpoint[ED_LEFT];	//set counter for right engine
 
 	//if any wheel engine is turned off, don't count for it
 	if ( (dir & 0x03) == 0 ) wheelSetpoint[ED_LEFT] = 0;
@@ -203,11 +250,11 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 #if defined(__DEBUG_SESSION__)
 	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
 #endif
-	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set left engine speed
-	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
+	/*HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set left engine speed
+	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed*/
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //configure H-bridge
 
-	HAL_ENG_IntEnable(ED_RIGHT, true);
+	//HAL_ENG_IntEnable(ED_RIGHT, true);
 
 	while ( blocking && IsDriving() );
 	if (blocking) HAL_ENG_Enable(false);

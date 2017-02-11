@@ -55,6 +55,9 @@
 #define DIRECTION_LEFT 		0x09	//turn left H-bridge configuration 1001
 #define DIRECTION_RIGHT 	0x06	//turn right H-bridge configuration 0110
 
+#define DIR_WHEEL_FWD       0x02
+#define DIR_WHEEL_BCK       0x01
+
 #define ED_LEFT		0
 #define ED_RIGHT 	1
 #define ED_BOTH     2
