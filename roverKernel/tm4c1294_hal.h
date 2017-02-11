@@ -18,7 +18,6 @@
  *      PWM Out2(PF2 - left wheel), PWM Out3(PF3 - right wheel)
  *      GPIO PL0&PL1(left wheel), PL2&PL3(right wheel)
  *      GPIO PP0(left optical encoder), PP1(right optical encoder) - interrupt
- *      Timer 5 - periodic timer for running control loop on engiens
  *  Radar:
  *      PWM - Generator 1 & 3
  *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
@@ -75,16 +74,13 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ESP_WDClearInt();
 /**     Engines - related HW API      */
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
-    extern void        HAL_ENG_Enable(bool enable);
+    extern void        HAL_ENG_Enable(uint32_t engine, bool enable);
     extern uint8_t     HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
     extern uint32_t    HAL_ENG_GetPWM(uint32_t engine);
     extern uint8_t     HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir);
     extern uint32_t    HAL_ENG_GetHBridge(uint32_t mask);
     extern void        HAL_ENG_IntClear(uint32_t engine);
     extern void        HAL_ENG_IntEnable(uint32_t engine, bool enable);
-    extern void        HAL_ENG_TimInit(uint32_t ms, void((*intHandler)(void)));
-    extern void        HAL_ENG_TimControl(bool enable);
-    extern void        HAL_ENG_TimIntClear(bool enable);
 /**     Radar - related HW API        */
     extern void        HAL_RAD_SetVerAngle(float angle);
     extern float       HAL_RAD_GetVerAngle();

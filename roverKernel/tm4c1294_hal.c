@@ -383,11 +383,17 @@ void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
 
 /**
  * Enable/disable PWM output from the microcontroller
+ * @param engine engine ID (one of ED_X macros from engines.h library)
  * @param enable state of PWM output
  */
-void HAL_ENG_Enable(bool enable)
+void HAL_ENG_Enable(uint32_t engine, bool enable)
 {
-    PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, enable);
+    if (engine == 0)
+        PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT , enable);
+    else if (engine == 1)
+        PWMOutputState(ED_PWM_BASE, PWM_OUT_3_BIT, enable);
+    else if (engine == 2)
+        PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, enable);
 }
 
 /**
@@ -425,6 +431,8 @@ uint32_t HAL_ENG_GetPWM(uint32_t engine)
         return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_LEFT);
     else if (engine == 1)
         return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_RIGHT);
+    else
+        return HAL_ENG_EOOR;
 }
 
 /**
@@ -494,30 +502,6 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
     }
 }
 
-
-void HAL_ENG_TimInit(uint32_t ms, void((*intHandler)(void)))
-{
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER5);
-    TimerLoadSet(TIMER5_BASE, TIMER_A, _TM4CMsToCycles(ms));
-    TimerConfigure(TIMER5_BASE, TIMER_CFG_ONE_SHOT_UP);
-    TimerIntRegister(TIMER5_BASE, TIMER_A, intHandler);
-    TimerIntEnable(TIMER5_BASE, TIMER_TIMA_TIMEOUT);
-    IntEnable(INT_TIMER5A);
-}
-
-void HAL_ENG_TimControl(bool enable)
-{
-    if (enable)
-        TimerEnable(TIMER5_BASE, TIMER_A);
-    else
-        TimerDisable(TIMER5_BASE, TIMER_A);
-}
-
-void HAL_ENG_TimIntClear(bool enable)
-{
-    TimerIntClear(TIMER5_BASE, TimerIntStatus(TIMER5_BASE, true));
-    HAL_ENG_TimControl(enable);
-}
 /******************************************************************************
  ******************************************************************************
  ************               Radar - related API                    ************

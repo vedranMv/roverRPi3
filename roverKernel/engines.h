@@ -78,9 +78,7 @@ class EngineData
 		void 	SetSafetySeq(uint8_t seq, uint32_t right, uint32_t left);
 
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
-		volatile float speedSetpoint[2];            //  In cm/s
-		volatile float speedCurr[2];
-		volatile float wheelSetpoint[2];
+
 	protected:
 		bool _DirValid(uint8_t dir);
 		uint32_t _cmpsToEncT(float &ticks);
