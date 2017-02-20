@@ -39,10 +39,42 @@ void _ENG_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__esp->_espKer.serviceID)
+    switch (__ed->_edKer.serviceID)
     {
-    case
+    /*
+     * Move vehicle in a single direction given by arguments
+     * args[] = direction(uint8_t)|length-or-angle(4B float)|blocking(1B)
+     */
+    case ENG_MOVE_ENG:
+        {
+            uint8_t dir, temp;
+            float arg;
+            bool blocking;
 
+            memcpy((void*)&dir,
+                   (void*)__ed->_edKer.args,
+                   1);
+            memcpy((void*)&arg,
+                   (void*)(__ed->_edKer.args + 1),
+                   sizeof(float));
+            memcpy((void*)&temp,
+                   (void*)(__ed->_edKer.args + 1 + sizeof(float)),
+                   1);
+            blocking = !(!temp);
+
+            ((EngineData*)__ed)->StartEngines(dir, arg, blocking);
+        }
+        break;
+    case ENG_MOVE_ARC:
+        {
+
+        }
+        break;
+    case ENG_MOVE_PERC:
+        {
+
+        }
+        break;
     default:
         break;
     }
@@ -108,8 +140,6 @@ void PP0ISR(void)
         HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
         HAL_ENG_Enable(ED_LEFT, false);
     }
-
-
 }
 
 /**
@@ -128,24 +158,7 @@ void PP1ISR(void)
     if (__ed->wheelCounter[ED_RIGHT] > 0)
             __ed->wheelCounter[ED_RIGHT]--;
 
-<<<<<<< HEAD
     /*if (__ed->wheelCounter[ED_RIGHT] == 3)
-=======
-/**
- * Do control on both speed and position
- * If result for speed of control loop on distance produces speed higher than
- * max speed change to applying speed control loop, otherwise use speed from
- * position control
- */
-void ControlLoop(void)  //ISR
-{
-    static const uint8_t threshold = 5;
-
-    //  Adjust PWM +/-5 is threshold for activating control loop
-
-    // Control loop for left wheel
-    for (uint8_t i = ED_LEFT; i <= ED_RIGHT; i++)
->>>>>>> refs/heads/master1
     {
         HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
     }
@@ -164,7 +177,12 @@ int8_t EngineData::InitHW()
     //  Listen for encoder input
     HAL_ENG_IntEnable(ED_LEFT, true);
     HAL_ENG_IntEnable(ED_RIGHT, true);
-    //HAL_ENG_TimControl(true);
+
+#if defined(__USE_TASK_SCHEDULER__)
+    //  Register module services with task scheduler
+    _edKer.callBackFunc = _ENG_KernelCallback;
+    TS_RegCallback(&_edKer, ENGINES_UID);
+#endif
 	return STATUS_OK;
 }
 
@@ -320,5 +338,4 @@ bool EngineData::_DirValid(uint8_t dir)
 		return true;
 	return false;
 }
-
 

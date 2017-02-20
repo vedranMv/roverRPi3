@@ -9,6 +9,7 @@
 #define MYLIB_H_
 
 #include <stdint.h>
+#include <string.h>
 
 #define STATUS_OK 					 0
 #define STATUS_ARG_ERR				-1

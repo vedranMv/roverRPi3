@@ -5,7 +5,7 @@
  *      Author: Vedran
  *
  *  Task scheduler library
- *  @version 2.3
+ *  @version 2.4
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -26,6 +26,9 @@
  *  +TaskEntry instance now uses dynamically allocated array for storing arguments
  *  +Implemented support for periodic tasks. Once executed task is rescheduled
  *  based on its period. For non-periodic tasks period must be set to 0.
+ *  V2.4 - 20.2.2017
+ *  +Implemented repeat counter. Periodic tasks can now be automatically killed
+ *  after a predefined number of repeats.
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
@@ -57,7 +60,8 @@ class TaskEntry
 		TaskEntry();
 		TaskEntry(const TaskEntry& arg);
 		TaskEntry(const volatile TaskEntry& arg);
-		TaskEntry(uint8_t uid, uint8_t task, uint32_t time, int32_t period = 0);
+		TaskEntry(uint8_t uid, uint8_t task, uint32_t time,
+		          int32_t period = 0, int32_t repeats = 0);
 		~TaskEntry();
 
 		void        AddArg(void* arg, uint16_t argLen) volatile;
@@ -79,7 +83,11 @@ class TaskEntry
 		//  allocated in AddArg function depending on the number of arguments
 		volatile uint8_t    *_args;
 		//  Period at which to execute this task (0 for non-periodic tasks)
-		int32_t            _period;
+		int32_t             _period;
+		//  Number of times to repeat the task. When positive, defines how
+		//  many repeats of that task remain, when negative, task
+		//  will be repeated indefinitely. When == 0, task is killed.
+		int32_t             _repeats;
 };
 
 /**
@@ -148,8 +156,8 @@ class TaskScheduler
 
 		void 				 Reset() volatile;
 		bool				 IsEmpty() volatile;
-		void                 SyncTask(uint8_t libuid, uint8_t comm,
-		                              int64_t time, bool periodic = false) volatile;
+		void                 SyncTask(uint8_t libuid, uint8_t comm, int64_t time,
+		                              bool periodic = false, int32_t rep = 0) volatile;
 		void                 SyncTask(TaskEntry te) volatile;
 		void                 AddArgs(void* arg, uint8_t argLen) volatile;
         TaskEntry            PopFront() volatile;

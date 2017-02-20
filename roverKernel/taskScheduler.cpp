@@ -53,8 +53,10 @@ TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0), _args(0)
 {
 }
 
-TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time, int32_t period)
-:_libuid(uid), _task(task), _timestamp(time),  _argN(0), _args(0), _period(period)
+TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time,
+                     int32_t period, int32_t repeats)
+            :_libuid(uid), _task(task), _timestamp(time),
+             _argN(0), _args(0), _period(period), _repeats(repeats)
 {
 }
 
@@ -118,6 +120,7 @@ TaskEntry& TaskEntry::operator= (const TaskEntry& arg)
     _argN = arg._argN;
     _timestamp = arg._timestamp;
     _period = arg._period;
+    _repeats = arg._repeats;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -131,6 +134,7 @@ volatile TaskEntry& TaskEntry::operator= (const volatile TaskEntry& arg)
     _argN = arg._argN;
     _timestamp = arg._timestamp;
     _period = arg._period;
+    _repeats = arg._repeats;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -146,6 +150,7 @@ volatile TaskEntry& TaskEntry::operator= (volatile TaskEntry& arg) volatile
     _argN = arg._argN;
     _timestamp = arg._timestamp;
     _period = arg._period;
+    _repeats = arg._repeats;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -367,10 +372,14 @@ bool TaskScheduler::IsEmpty() volatile
  * behind the existing task.
  * @param libuid UID of library to call
  * @param comm task ID within the library to execute
- * @param time time-stamp at which to execute the task
+ * @param time time-stamp at which to execute the task. If >0 its absolute time
+ * in ms since startup of task scheduler. If <=0 its relative time from NOW
+ * @param rep repeat counter. Number of times to repeat the periodic task before
+ * killing it. Set to a negative number for indefinite repeat. When scheduled,
+ * task WILL BE repeated at least once.
  */
 void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
-                             int64_t time, bool periodic) volatile
+                             int64_t time, bool periodic, int32_t rep) volatile
 {
     int32_t period = (int32_t)time;
     /*
@@ -378,14 +387,19 @@ void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
      * start-up of the microcontroller. If time is a negative number or 0 it
      * represents a time in milliseconds from current time as provided by SysTick
      */
-    if (time < 0)
+    if (time <= 0)
         time = (uint32_t)(-time) + msSinceStartup;
     else
         time = (uint32_t)time;
 
+    //  Subtract 1 from number of repetition as 0 counts as actual repetition
+    //  e.g. To repeat task 3 times (rep from arguments) task will be
+    //  executed with index 2, 1 and 0
+    if (rep > 0) rep--;
+
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
-    TaskEntry teTemp(libuid, comm, time, (periodic?period:0));
+    TaskEntry teTemp(libuid, comm, time, (periodic?period:0), rep);
     _lastIndex = _taskLog.AddSort(teTemp);
 }
 
@@ -501,8 +515,11 @@ void TS_GlobalCheck(void)
             __kernelVector[tE._libuid]->callBackFunc();
 
             //  If there's a period specified reschedule task
-            if (tE._period != 0)
+            if ((tE._period != 0) && (tE._repeats != 0))
             {
+                //  If using repeat counter decrease it
+                if (tE._repeats > 0)
+                    tE._repeats--;
                 //  Change time of execution based on period
                 tE._timestamp = msSinceStartup + labs(tE._period);
                 __taskSch->SyncTask(tE);

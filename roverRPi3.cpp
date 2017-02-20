@@ -80,15 +80,30 @@ int main(void)
 
     ed.InitHW();
     comm.Send("Motors initialized \n");
-    ed.SetVehSpec(6.9f, 14.3f, 25.0f, 40);
+    ed.SetVehSpec(7.0f, 14.3f, 25.0f, 40);
     comm.Send("Specs set \n");
 
-    ed.StartEngines(DIRECTION_FORWARD, 5.0f, false);
-    comm.Send("Run command sent \n");
+    /*ed.StartEngines(DIRECTION_FORWARD, 5.0f, false);
+    comm.Send("Run command sent \n");*/
+
+    /*
+     * Create periodic task, repeated 3 times, with period of 3s
+     * On every task execution moves the vehicle 5cm forward, doesn't wait
+     * for the vehicle to complete the action.
+     * -------------------------------------------------------------------------
+     */
+    ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
+    uint8_t dir = DIRECTION_FORWARD;
+    float arg = 5.0f;
+    bool blckgn = false;
+    ts.AddArgs(&dir, 1);
+    ts.AddArgs(&arg, 4);
+    ts.AddArgs(&blckgn, 1);
+    //--------------------------------------------------------------------------
 
     while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {
-
+        TS_GlobalCheck();
     }
 
     HAL_ENG_Enable(ED_BOTH, false);

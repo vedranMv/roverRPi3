@@ -37,10 +37,11 @@
 #if defined(__USE_TASK_SCHEDULER__)
     #include "taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
-    #define ENGINES_UID         0
+    #define ENGINES_UID         2
     //  Definitions of ServiceID for service offered by this module
-    #define ENG_SET_SPEED       0   //  Update speed on L&R engine
-    #define ENG_SET_DIST        1   //  Update distance for L&R wheel
+    #define ENG_MOVE_ENG        0
+    #define ENG_MOVE_ARC        1
+    #define ENG_MOVE_PERC       2
 
 #endif
 /*
