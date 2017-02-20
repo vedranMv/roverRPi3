@@ -23,6 +23,35 @@
 volatile EngineData* __ed;
 int32_t engineOffset=0;	//Error in measurements between optical encoders - 0
 
+#if defined(__USE_TASK_SCHEDULER__)
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
+ */
+void _ENG_KernelCallback(void)
+{
+    //  Check for null-pointer
+    if (__ed->_edKer.argN == 0)
+        return;
+    /*
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
+     */
+    switch (__esp->_espKer.serviceID)
+    {
+    case
+
+    default:
+        break;
+    }
+}
+
+
+#endif
+
 
 EngineData::EngineData()
 {
@@ -95,9 +124,7 @@ void PP1ISR(void)
  */
 void ControlLoop(void)  //ISR
 {
-    static int32_t old[2] = {0};
     static const uint8_t threshold = 5;
-    static float posI[2] = {0}, speedI[2] = {0};
 
     //  Adjust PWM +/-5 is threshold for activating control loop
 
