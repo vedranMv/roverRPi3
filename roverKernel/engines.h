@@ -65,6 +65,7 @@
 class EngineData
 {
     friend void ControlLoop(void);
+    friend void _ENG_KernelCallback(void);
 	public:
 		EngineData();
 		EngineData(float wheelD, float wheelS, float vehSiz, float encRes);
@@ -88,6 +89,12 @@ class EngineData
 		float _wheelSpacing; //in cm
 		float _vehicleSize; 	//in cm
 		float _encRes;	//Encoder resolution in points (# of points/rotation)
+
+        //  Interface with task scheduler - provides memory space and function
+        //  to call in order for task scheduler to request service from this module
+#if defined(__USE_TASK_SCHEDULER__)
+        _kernelEntry _edKer;
+#endif
 };
 
 extern volatile EngineData* __ed;

@@ -22,6 +22,35 @@
 
 volatile EngineData* __ed;
 
+#if defined(__USE_TASK_SCHEDULER__)
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
+ */
+void _ENG_KernelCallback(void)
+{
+    //  Check for null-pointer
+    if (__ed->_edKer.argN == 0)
+        return;
+    /*
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
+     */
+    switch (__esp->_espKer.serviceID)
+    {
+    case
+
+    default:
+        break;
+    }
+}
+
+
+#endif
+
 
 EngineData::EngineData()
 {
@@ -99,7 +128,24 @@ void PP1ISR(void)
     if (__ed->wheelCounter[ED_RIGHT] > 0)
             __ed->wheelCounter[ED_RIGHT]--;
 
+<<<<<<< HEAD
     /*if (__ed->wheelCounter[ED_RIGHT] == 3)
+=======
+/**
+ * Do control on both speed and position
+ * If result for speed of control loop on distance produces speed higher than
+ * max speed change to applying speed control loop, otherwise use speed from
+ * position control
+ */
+void ControlLoop(void)  //ISR
+{
+    static const uint8_t threshold = 5;
+
+    //  Adjust PWM +/-5 is threshold for activating control loop
+
+    // Control loop for left wheel
+    for (uint8_t i = ED_LEFT; i <= ED_RIGHT; i++)
+>>>>>>> refs/heads/master1
     {
         HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
     }
