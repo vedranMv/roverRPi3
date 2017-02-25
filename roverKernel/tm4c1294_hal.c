@@ -111,7 +111,7 @@ void HAL_DelayUS(uint32_t us)   //1000
  ************               ESP8266 - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-
+#ifdef __HAL_USE_ESP8266__
 /**
  * Initialize UART port communicating with ESP8266 chip - 8 data bits, no parity,
  * 1 stop bit, no flow control
@@ -324,13 +324,14 @@ void HAL_ESP_TestProbe()
 {
     GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, ~GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_7));
 }
+#endif  //  __HAL_USE_ESP8266__
 
 /******************************************************************************
  ******************************************************************************
  ************               Engines - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-
+#ifdef __HAL_USE_ENGINES__
 /**
  * Initialize hardware used to run engines
  * @param pwmMin pwm value used to stop the motors
@@ -501,13 +502,14 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
         else IntDisable(INT_GPIOP1);
     }
 }
+#endif  //  __HAL_USE_ENGINES_
 
 /******************************************************************************
  ******************************************************************************
  ************               Radar - related API                    ************
  ******************************************************************************
  ******************************************************************************/
-
+#ifdef __HAL_USE_RADAR__
 /**
  * Initialize hardware used for IR radar peripheral
  */
@@ -632,13 +634,14 @@ uint32_t HAL_RAD_ADCTrigger()
 
     return retVal;
 }
+#endif //   __HAL_USE_RADAR__
 
 /******************************************************************************
  ******************************************************************************
  ************               MPU9250 - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-
+#ifdef __HAL_USE_MPU9250__
 /**
  * Initializes I2C 2 bus for communication with MPU (SDA - PN4, SCL - PN5)
  *      Bus frequency 1MHz, connection timeout: 100ms
@@ -857,6 +860,7 @@ uint32_t HAL_TIM_GetValue()
 {
     return TimerValueGet(TIMER7_BASE, TIMER_A);
 }
+#endif  //  __HAL_USE_MPU9250__
 
 /******************************************************************************
  ******************************************************************************
@@ -888,7 +892,7 @@ uint32_t HAL_GetPWM(uint32_t id)
  ************            TaskScheduler - related API               ************
  ******************************************************************************
  ******************************************************************************/
-
+#ifdef __HAL_USE_TASKSCH__
 /**
  * Setup SysTick interrupt and period
  * @param periodMs time in milliseconds how often to trigger an interrupt
@@ -955,4 +959,4 @@ uint32_t HAL_TS_GetTimeStepMS()
 {
     return _periodMS;
 }
-
+#endif  //  __HAL_USE_TASKSCH__

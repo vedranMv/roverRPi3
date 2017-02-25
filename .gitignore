@@ -1,6 +1,7 @@
-/Debug/
-/.launches/
-/.settings/
-.ccsproject
-.cproject
-.project
+# Ignore everything
+*
+
+# But not these files
+!.gitignore
+!roverRPi3.cpp
+!roverKernel/*

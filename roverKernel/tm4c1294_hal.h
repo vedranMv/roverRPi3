@@ -32,6 +32,13 @@
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
 
+//  Define kernel modules for which is necessary to compile HAL interface
+#define __HAL_USE_ESP8266__
+#define __HAL_USE_ENGINES__
+#define __HAL_USE_RADAR__
+#define __HAL_USE_MPU9250__
+#define __HAL_USE_TASKSCH__
+
 #include "myLib.h"
 
 #define HAL_OK                  0
@@ -59,6 +66,7 @@ extern void UNUSED (int32_t arg);
 
 
 /**     ESP8266 - related HW API      */
+#ifdef __HAL_USE_ESP8266__
     extern uint32_t    HAL_ESP_InitPort(uint32_t baud);
     extern void        HAL_ESP_RegisterIntHandler(void((*intHandler)(void)));
     extern void        HAL_ESP_HWEnable(bool enable);
@@ -72,6 +80,8 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ESP_InitWD(void((*intHandler)(void)));
     extern void        HAL_ESP_WDControl(bool enable, uint32_t timeout);
     extern void        HAL_ESP_WDClearInt();
+#endif
+
 /**     Engines - related HW API      */
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(uint32_t engine, bool enable);
