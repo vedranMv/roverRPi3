@@ -8,7 +8,9 @@
  *  +Implemented C code as C++ object, adjusted it to use HAL
  *  V2.0 - 7.2.2017
  *  +Integration of library with task scheduler
- *
+ *  V2.1 - 25.2.2017
+ *  +Completed kernel callback function, now supports calls to all functions
+ *  offered by the EngineData kernel module
  *
  ****Hardware dependencies:
  * 	PF2/PF3 - PWMOut2/PWMOut3 - Control left/right engine PWM signal (PWM block 0, Generator 1, Outputs 2,3)
@@ -44,20 +46,17 @@
     #define ENG_MOVE_PERC       2
 
 #endif
-/*
- * Movement direction definitions for H-bridge
- */
+
+/**     PWM arguments for different motor speed */
 #define ENGINE_STOP 		1		//PWM argument for stopping engine
 #define ENGINE_FULL 		15000	//PWM argument for engine full-speed
 #define ENGINE_FULL_ARG 	18750
 
+/**     Movement direction definitions for H-bridge - Direction macros  */
 #define DIRECTION_FORWARD 	0x0A	//move forward H-bridge configuration  1010
 #define DIRECTION_BACKWARD 	0x05	//move backward H-bridge configuration 0101
 #define DIRECTION_LEFT 		0x09	//turn left H-bridge configuration 1001
 #define DIRECTION_RIGHT 	0x06	//turn right H-bridge configuration 0110
-
-#define DIR_WHEEL_FWD       0x02
-#define DIR_WHEEL_BCK       0x01
 
 #define ED_LEFT		0
 #define ED_RIGHT 	1
@@ -98,6 +97,7 @@ class EngineData
 #endif
 };
 
+//  Global pointer to FIRST created instance of EngineData
 extern volatile EngineData* __ed;
 
 extern "C"

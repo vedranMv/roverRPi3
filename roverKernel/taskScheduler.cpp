@@ -34,10 +34,7 @@ void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid)
 }
 
 
-/*
- * Global pointer to FIRST instance of TaskScheduler object
- * (doesn't have to be volatile as this function shouldn't be called from ISR)
- */
+//  Global pointer to FIRST instance of TaskScheduler object
 volatile TaskScheduler* __taskSch;
 
 /*******************************************************************************

@@ -1,4 +1,4 @@
-/*
+/**
  * engines.c
  *
  *  Created on: 29. 5. 2016.
@@ -19,7 +19,7 @@
 #include "inc/hw_memmap.h"
 #include "utils/uartstdio.h"
 
-
+//  Global pointer to FIRST created instance of EngineData
 volatile EngineData* __ed;
 
 #if defined(__USE_TASK_SCHEDULER__)
@@ -65,14 +65,45 @@ void _ENG_KernelCallback(void)
             ((EngineData*)__ed)->StartEngines(dir, arg, blocking);
         }
         break;
+    /*
+     * Move vehicle following an arch
+     * args[] = distance(4B float)|angle(4B float)|small-radius(4B float)
+     */
     case ENG_MOVE_ARC:
         {
+            float dist, angl, smallRad;
 
+            memcpy((void*)&dist,
+                   (void*)__ed->_edKer.args,
+                   sizeof(float));
+            memcpy((void*)&angl,
+                   (void*)(__ed->_edKer.args + sizeof(float)),
+                   sizeof(float));
+            memcpy((void*)&smallRad,
+                   (void*)(__ed->_edKer.args + 2 * sizeof(float)),
+                   sizeof(float));
+            ((EngineData*)__ed)->StartEnginesArc(dist, angl, smallRad);
         }
         break;
+    /*
+     * Move each wheel at given percentage of full speed
+     * args[] = direction(uint8_t)|leftPercent(4B float)|rightPercent(4B float)
+     */
     case ENG_MOVE_PERC:
         {
+            uint8_t dir;
+            float percLeft, percRight;
 
+            memcpy((void*)&dir,
+                   (void*)__ed->_edKer.args,
+                   1);
+            memcpy((void*)&percLeft,
+                   (void*)(__ed->_edKer.args+1),
+                   sizeof(float));
+            memcpy((void*)&percRight,
+                   (void*)(__ed->_edKer.args + sizeof(float)+1),
+                   sizeof(float));
+            ((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
         }
         break;
     default:

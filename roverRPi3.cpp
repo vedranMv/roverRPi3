@@ -92,15 +92,18 @@ int main(void)
      * for the vehicle to complete the action.
      * -------------------------------------------------------------------------
      */
-    ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
+    /*ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
     uint8_t dir = DIRECTION_FORWARD;
     float arg = 5.0f;
     bool blckgn = false;
     ts.AddArgs(&dir, 1);
     ts.AddArgs(&arg, 4);
-    ts.AddArgs(&blckgn, 1);
-    //--------------------------------------------------------------------------
-
+    ts.AddArgs(&blckgn, 1);*/
+    //-------------------Above should be equivalent to------------------------------------------
+    ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
+    ts.AddArg((uint8_t)DIRECTION_FORWARD);
+    ts.AddArg(5.0f);
+    ts.AddArg(false);
 
     while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {

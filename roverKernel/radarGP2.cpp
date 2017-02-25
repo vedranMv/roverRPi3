@@ -1,4 +1,4 @@
-/*
+/**
  * radarGP2.c
  *
  *  Created on: 29. 5. 2016.
@@ -15,6 +15,7 @@
 #include "tm4c1294_hal.h"
 #include "utils/uartstdio.h"
 
+//  Global pointer to FIRST created instance of RadarModule
 RadarModule* __rD;
 
 void _RADAR_KernelCallback(void)
@@ -32,7 +33,7 @@ void _RADAR_KernelCallback(void)
     switch(__rD->_radKer.serviceID)
     {
     /*
-     * Request a radar scan by rotating horizontal axis from 0° to 160°. First
+     * Request a radar scan by rotating horizontal axis from 0ï¿½ to 160ï¿½. First
      * data byte is either 1(fine scan) or 0(coarse scan).
      * args[] = scanType(1B)
      * retVal none
@@ -45,7 +46,7 @@ void _RADAR_KernelCallback(void)
         }
         break;
         /*
-         * Rotate radar horizontally to a specified angle (0°-right, 160°-left)
+         * Rotate radar horizontally to a specified angle (0ï¿½-right, 160ï¿½-left)
          * args[] = angle(4B)
          * retVal none
          */
@@ -64,7 +65,7 @@ void _RADAR_KernelCallback(void)
         }
         break;
         /*
-         * Rotate radar vertically to a specified angle (0°-up, 160°-down)
+         * Rotate radar vertically to a specified angle (0ï¿½-up, 160ï¿½-down)
          * args[] = angle(4B)
          * retVal none
          */
@@ -151,8 +152,8 @@ void RadarModule::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
  */
 void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 {
-	/*	Step corresponds to 1/8° making total of ~1270 point @ 160° area
-	 * 		alternatively step=36.25 for 1° (making ~160 points @ 160° area)
+	/*	Step corresponds to 1/8ï¿½ making total of ~1270 point @ 160ï¿½ area
+	 * 		alternatively step=36.25 for 1ï¿½ (making ~160 points @ 160ï¿½ area)
 	 */
 	float angle = 0,
 	      step = 0.125f;
@@ -163,11 +164,11 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	//  Enable PWM for radar
 	HAL_RAD_Enable(true);
 
-	//  Start at ~10° horizontal angle(far right)
+	//  Start at ~10ï¿½ horizontal angle(far right)
 	if (HAL_RAD_GetHorAngle() != 0)
 	    HAL_RAD_SetHorAngle(0);
 
-	//  Start at ~100° vertical angle(roughly middle)
+	//  Start at ~100ï¿½ vertical angle(roughly middle)
 	if (HAL_RAD_GetVerAngle() != 100)
 	        HAL_RAD_SetVerAngle(100);
 
@@ -175,12 +176,12 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	HAL_DelayUS(30000);
 
 	/*
-	 * Start scan with radar turned to the right (~10°), scan from right to
+	 * Start scan with radar turned to the right (~10ï¿½), scan from right to
 	 * 	left, with resolution of 8 measurements within a single degree of
 	 * 	rotation. If fine scan is requested, all measurements are pushed into a
 	 * 	[data] array. If not 8 measurements are averaged together giving one
 	 * 	measurement for each degree of rotation.
-	 * 	7ms settling time between 0.125° -> avg speed of scanning 18°/s
+	 * 	7ms settling time between 0.125ï¿½ -> avg speed of scanning 18ï¿½/s
 	 */
 	while (angle <= 160.0f)
 	{
@@ -269,7 +270,7 @@ void RadarModule::Scan(bool fine)
 }
 
 /**
- * Set horizontal angle of radar to a specified value (0° right, 160° left)
+ * Set horizontal angle of radar to a specified value (0ï¿½ right, 160ï¿½ left)
  * @param angle
  */
 void RadarModule::SetHorAngle(float angle)
@@ -278,7 +279,7 @@ void RadarModule::SetHorAngle(float angle)
 }
 
 /**
- * Set vertical angle of radar to a specified value (0° up, 160° down)
+ * Set vertical angle of radar to a specified value (0ï¿½ up, 160ï¿½ down)
  * @param angle
  */
 void RadarModule::SetVerAngle(float angle)
