@@ -3,7 +3,13 @@
  *
  *  Created on: 25. 3. 2015.
  *      Author: Vedran
- *
+ *  @version V1.2
+ *  V1.0 - 25.3.2016
+ *  +MPU9250 library now implemented as a C++ object
+ *  V1.1 - 25.6.2016
+ *  +New class Orientation added in order to provide single interface for position data
+ *  V1.2 - 25.2.2017
+ *  +Integration
  ****Hardware dependencies:
  *  Timer 7 - measuring dT, time step used in integration
  *  GPIO A5 - Data Ready interrupt pin
@@ -13,13 +19,13 @@
 #ifndef MPU9250_H_
 #define MPU9250_H_
 
-
 #include "tm4c1294_hal.h"
 
-#define AK8963_ADDRESS   0x0C
+/*      Device addresses        */
+#define AK8963_ADDRESS   0x0C // Magnetometer I2C address
 #define MPU9250_ADDRESS  0x68 // Device address when ADO = 0
 
-/**         Magnetometer Register map   */
+/*      Magnetometer Register map   */
 #define WHO_AM_I_AK8963  0x00 // should return 0x48
 #define INFO             0x01
 #define AK8963_ST1       0x02  // data ready status bit 0
@@ -37,7 +43,7 @@
 #define AK8963_ASAY      0x11  // Fuse ROM y-axis sensitivity adjustment value
 #define AK8963_ASAZ      0x12  // Fuse ROM z-axis sensitivity adjustment value
 
-/**         MPU9250 Register map        */
+/*      MPU9250 Register map        */
 #define SELF_TEST_X_GYRO 0x00
 #define SELF_TEST_Y_GYRO 0x01
 #define SELF_TEST_Z_GYRO 0x02
@@ -137,7 +143,7 @@
 #define SIGNAL_PATH_RESET  0x68
 #define MOT_DETECT_CTRL  0x69
 #define USER_CTRL        0x6A  // Bit 7 enable DMP, bit 3 reset DMP
-#define PWR_MGMT_1       0x6B // Device defaults to the SLEEP mode
+#define PWR_MGMT_1       0x6B  // Device defaults to the SLEEP mode
 #define PWR_MGMT_2       0x6C
 #define DMP_BANK         0x6D  // Activates a specific bank in the DMP
 #define DMP_RW_PNT       0x6E  // Set read/write pointer to a specific start address in specified DMP bank
@@ -157,11 +163,10 @@
 
 /*
  * Range configuration parameters
- * Gyro: 1 (+/-250°/s), 2 (+/-500°/s), 3 (+/-1000°/s), 4 (+/-2000°/s),
- * Acc: 1 (+/-2g), 2 (+/-4g), 3 (+/-8g), 4 (+/-16g),
+ * Gyro: 1 (+/-250ï¿½/s), 2 (+/-500ï¿½/s), 3 (+/-1000ï¿½/s), 4 (+/-2000ï¿½/s),
+ * Accel: 1 (+/-2g), 2 (+/-4g), 3 (+/-8g), 4 (+/-16g),
  * Mag:
  */
-
 #define RANGE_2G 		0
 #define RANGE_4G 		1<<3
 #define RANGE_8G 		2<<3
@@ -173,10 +178,10 @@
 #define RANGE_2000DPS	3<<3
 
 /*
- * REG_INT_ENABLE confgurations
+ * REG_INT_ENABLE configurations
  * 	-enable interrupt on following events
  * REG_INT_FLAGS
- * 	-use same bit to check for occured interrupts
+ * 	-use same bit to check for occurred interrupts
  */
 #define WAKE_ON_MOTION	1<<6
 #define FIFO_OVERFLOW	1<<4
@@ -200,6 +205,9 @@
 class Orientation;
 class MPU9250;
 
+/**
+ * Object containing orientation data calculated from raw sensor readings
+ */
 class Orientation
 {
     friend class MPU9250;
@@ -218,13 +226,19 @@ class Orientation
         }
 
     protected:
+        //  RPY orientation
         float _roll;
         float _pitch;
         float _yaw;
+        //  Set-point for RPY
         float _RPYsetpoints[3];
+        //  Direction of gravity
         float _gravityVect;
 };
 
+/**
+ * Class object for MPU9250 sensor
+ */
 class MPU9250
 {
     public:
@@ -248,23 +262,31 @@ class MPU9250
         Orientation*    IMU() { return &_ort; }
 
         volatile float  dT;
-        void((*userHook)(float*,float*));//1st acceleration array, 2nd gyro
+        //  Function to be hooked when new sensor data is received. 1st argument
+        //  is float[3] array for acceleration, 2nd is float[3] for gyroscope
+        void((*userHook)(float*,float*));
     protected:
         void    _GetRawGyro();
         void    _GetRawAcc();
         void    _GetRawMag();
 
-        volatile float  _rawData[3][3]; //  {{x,y,z}°/s, {x,y,z}m/s^2, {x,y,z}}
+        //  Raw sensor data [0][]-3axis gyro, [1][]-3axis accel, [2][]-3axis mag
+        //  {{x,y,z}ï¿½/s, {x,y,z}m/s^2, {x,y,z}}
+        volatile float  _rawData[3][3];
+        //  Flag set by ISR whenever new raw data is available
         volatile bool   _dataFlag;
+        //  Holds measuring range of all 3 instruments: +/-_range[]
         float           _range[3];
+        //  Offset of instruments at all 3 axes
         float           _off[3][3];
+        //  Holds orientation calculated from raw sensor data
         Orientation     _ort;
+#if defined(__USE_TASK_SCHEDULER__)
+        _kernelEntry _mpuKer;
+#endif
 };
 
 
-/*extern "C"
-{*/
-    extern void dataISR(void);
-//}
+extern void dataISR(void);
 
 #endif /* MPU9250_H_ */

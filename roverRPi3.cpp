@@ -22,19 +22,19 @@
 #include "driverlib/fpu.h"
 #include "driverlib/ssi.h"
 
-
+//  Kernel includes
 #include "roverKernel/tm4c1294_hal.h"
-
 #include "roverKernel/uartHW.h"
 #include "roverKernel/taskScheduler.h"
 #include "roverKernel/esp8266.h"
 #include "roverKernel/radarGP2.h"
 #include "roverKernel/engines.h"
+#include "roverKernel/mpu9250.h"
 
+//  Kernel modules under test
 UartHW comm;
-EngineData ed;
-RadarModule rd;
-//RPIRover rpiRov(6.8f, 14.3f, 25.0f, 40);
+MPU9250 mpu;
+
 
 /**
  * Function to be called when a new data is received from TCP clients on ALL
@@ -56,6 +56,11 @@ void RxHook(uint8_t sockID, uint8_t *buf, uint16_t *len)
     __taskSch->AddArgs((void*)&tmp, 1);
 }
 
+void mpuHook(float *acc, float* gyro)
+{
+
+}
+
 
 int main(void)
 {
@@ -66,48 +71,36 @@ int main(void)
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
     GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1);
-    GPIOPadConfigSet(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,GPIO_STRENGTH_8MA,GPIO_PIN_TYPE_STD_WPU);
+    GPIOPadConfigSet(GPIO_PORTJ_BASE,
+                    GPIO_PIN_0|GPIO_PIN_1,
+                    GPIO_STRENGTH_8MA,
+                    GPIO_PIN_TYPE_STD_WPU);
     GPIOPinWrite(GPIO_PORTJ_BASE,GPIO_PIN_0|GPIO_PIN_1,0x00);
 
 
-    //  Initialize after setting clock, it uses it for SysTick
+    //  Initialize after setting clock, it uses board-clock for SysTick
     volatile TaskScheduler ts;
 
     //  Initialize UART port for connection with PC (for debugging)
     comm.InitHW();
     comm.Send("HW initialized \n");
-    rd.InitHW();
 
-    ed.InitHW();
-    comm.Send("Motors initialized \n");
-    ed.SetVehSpec(7.0f, 14.3f, 25.0f, 40);
-    comm.Send("Specs set \n");
-
-    /*ed.StartEngines(DIRECTION_FORWARD, 5.0f, false);
-    comm.Send("Run command sent \n");*/
-
-    /*
-     * Create periodic task, repeated 3 times, with period of 3s
-     * On every task execution moves the vehicle 5cm forward, doesn't wait
-     * for the vehicle to complete the action.
-     * -------------------------------------------------------------------------
-     */
-    /*ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
-    uint8_t dir = DIRECTION_FORWARD;
-    float arg = 5.0f;
-    bool blckgn = false;
-    ts.AddArgs(&dir, 1);
-    ts.AddArgs(&arg, 4);
-    ts.AddArgs(&blckgn, 1);*/
-    //-------------------Above should be equivalent to------------------------------------------
-    ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
-    ts.AddArg((uint8_t)DIRECTION_FORWARD);
-    ts.AddArg(5.0f);
-    ts.AddArg(false);
+    mpu.InitHW();
+    mpu.InitSW();
+    //mpu.AddHook(mpuHook);
+    mpu.Listen(true);
 
     while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {
+        float roll, pitch, yaw;
         TS_GlobalCheck();
+        if (mpu.IsDataReady())
+        {
+            mpu.IMU()->GetOrientation(&roll, &pitch, &yaw);
+            UARTprintf("R: %d   P: %d   Y: %d \n", lroundf(roll),
+                                                   lroundf(pitch),
+                                                   lroundf(yaw));
+        }
     }
 
     HAL_ENG_Enable(ED_BOTH, false);
@@ -118,6 +111,13 @@ int main(void)
 /*
 ESP8266 esp;
 RadarModule rm;
+EngineData ed;
+RadarModule rd;
+
+
+    //  Initialize radar so it doesn't twitch when the rover is powered on
+    rd.InitHW();
+
     comm.Send("Initializing ESP\n");
     //  Initialize hardware used to talk to ESP8266
     esp.InitHW();
@@ -146,5 +146,20 @@ RadarModule rm;
     ts.SyncTask(ESP_UID,ESP_T_CLOSETCP,-40000);
     tmp = 0;
     ts.AddArgs(&tmp, 1);
+
+    ed.InitHW();
+    comm.Send("Motors initialized \n");
+    ed.SetVehSpec(7.0f, 14.3f, 25.0f, 40);
+    com.Send("Specs set \n");
+    //
+    // Create periodic task, repeated 3 times, with period of 3s
+    // On every task execution moves the vehicle 5cm forward, doesn't wait
+    // for the vehicle to complete the action.
+    // -------------------------------------------------------------------------
+    //
+    ts.SyncTask(ENGINES_UID, ENG_MOVE_ENG, -3000, true, 3);
+    ts.AddArg((uint8_t)DIRECTION_FORWARD);
+    ts.AddArg(5.0f);
+    ts.AddArg(false);
 
  */
