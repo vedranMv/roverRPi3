@@ -21,6 +21,18 @@
 
 #include "tm4c1294_hal.h"
 
+//  Enable integration of this library with task scheduler
+#define __USE_TASK_SCHEDULER__
+
+#if defined(__USE_TASK_SCHEDULER__)
+    #include "taskScheduler.h"
+    //  Unique identifier of this module as registered in task scheduler
+    #define MPU_UID             3
+    //  Definitions of ServiceID for service offered by this module
+    #define MPU_LISTEN          0
+    #define MPU_GET_DATA        1
+#endif
+
 /*      Device addresses        */
 #define AK8963_ADDRESS   0x0C // Magnetometer I2C address
 #define MPU9250_ADDRESS  0x68 // Device address when ADO = 0
@@ -241,6 +253,7 @@ class Orientation
  */
 class MPU9250
 {
+    friend void _MPU_KernelCallback(void);
     public:
         MPU9250();
         ~MPU9250();

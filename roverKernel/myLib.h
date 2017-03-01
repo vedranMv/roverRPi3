@@ -8,8 +8,11 @@
 #ifndef MYLIB_H_
 #define MYLIB_H_
 
-#include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
 
 #define STATUS_OK 					 0
 #define STATUS_ARG_ERR				-1

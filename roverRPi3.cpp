@@ -1,10 +1,3 @@
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <math.h>
-
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
@@ -30,6 +23,7 @@
 #include "roverKernel/radarGP2.h"
 #include "roverKernel/engines.h"
 #include "roverKernel/mpu9250.h"
+#include "roverKernel/myLib.h"
 
 //  Kernel modules under test
 UartHW comm;

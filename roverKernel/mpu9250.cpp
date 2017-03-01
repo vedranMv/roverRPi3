@@ -1,19 +1,15 @@
 /**
- * mpu9250.c
+ * mpu9250.cpp
  *
  *  Created on: 25. 3. 2015.
  *      Author: Vedran
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <math.h>
-
 #include "driverlib/fpu.h"
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 
+#include "roverKernel/tm4c1294_hal.h"
 #include "mpu9250.h"
 #include "myLib.h"
 
@@ -51,7 +47,13 @@ void _MPU_KernelCallback(void)
      */
     switch (__mpu->_mpuKer.serviceID)
     {
+    case MPU_LISTEN
+        {
 
+        }
+        break;
+    default:
+        break;
     }
 }
 #endif
