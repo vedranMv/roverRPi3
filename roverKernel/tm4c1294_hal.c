@@ -656,7 +656,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
 
-    /// Enable I2C communication interface, SCL, SDA lines
+    // Enable I2C communication interface, SCL, SDA lines
     GPIOPinConfigure(GPIO_PN4_I2C2SDA);
     GPIOPinConfigure(GPIO_PN5_I2C2SCL);
     GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
@@ -664,7 +664,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
     I2CMasterEnable(MPU9250_I2C_BASE);
 
-    /// Run I2C bus on 1MHz custom clock
+    // Run I2C bus on 1MHz custom clock
     I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
 
     //  Taken from TivaWare library!
@@ -679,13 +679,13 @@ void HAL_MPU_Init(void((*custHook)(void)))
     while (I2CMasterBusy(MPU9250_I2C_BASE));
     I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);
 
-    ///  Configure interrupt pin to have weak pull down, 10mA strength
+    //  Configure interrupt pin to have weak pull down, 10mA strength
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
     GPIOPadConfigSet(GPIO_PORTA_BASE, GPIO_PIN_5, GPIO_STRENGTH_10MA, GPIO_PIN_TYPE_STD_WPD);
     GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
-    ///  Set up an interrupt, and interrupt handler
+    //  Set up an interrupt, and interrupt handler
     if (custHook != 0)
     {
         GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
@@ -733,6 +733,34 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     I2CMasterDataPut(MPU9250_I2C_BASE, data);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+}
+
+/**
+ * Send a byte-array of data through I2C bus(blocking)
+ * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
+ * @param regAddress address of register in I2C device to write into
+ * @param data buffer of data to send
+ * @param length of data to send
+ */
+void HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress, uint8_t *data, uint16_t length)
+{
+    uint16_t i;
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+
+    for (i = 0; i < (length-1); i++)
+    {
+        I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
+        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
+        while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        while(I2CMasterBusy(MPU9250_I2C_BASE));
+    }
+
+    I2CMasterDataPut(MPU9250_I2C_BASE, data[length-1]);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
 }
 

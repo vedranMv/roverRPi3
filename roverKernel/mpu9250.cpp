@@ -4,12 +4,13 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran
  */
+#include <stdbool.h>
+#include <stdint.h>
 
-#include "driverlib/fpu.h"
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 
-#include "roverKernel/tm4c1294_hal.h"
+#include "tm4c1294_hal.h"
 #include "mpu9250.h"
 #include "myLib.h"
 
@@ -47,7 +48,7 @@ void _MPU_KernelCallback(void)
      */
     switch (__mpu->_mpuKer.serviceID)
     {
-    case MPU_LISTEN
+    case MPU_LISTEN:
         {
 
         }

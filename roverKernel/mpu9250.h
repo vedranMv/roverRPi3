@@ -23,6 +23,8 @@
 
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
+//  Compile with support for internal digital motion processor(DMP)
+#define __MPU_USE_DMP__
 
 #if defined(__USE_TASK_SCHEDULER__)
     #include "taskScheduler.h"
@@ -270,6 +272,10 @@ class MPU9250
         void    ReadData();
         void    GetData(float* gyro, float *acc, float *mag, bool clrFlag = true);
 
+//  DMP functionality
+#ifdef __MPU_USE_DMP__
+        void LoadDMP();
+#endif
         void    AddHook(void((*custHook)(float*,float*)));
 
         Orientation*    IMU() { return &_ort; }

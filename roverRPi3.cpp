@@ -1,3 +1,10 @@
+#include <string.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
+#include "roverKernel/myLib.h"
+
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"
@@ -23,7 +30,6 @@
 #include "roverKernel/radarGP2.h"
 #include "roverKernel/engines.h"
 #include "roverKernel/mpu9250.h"
-#include "roverKernel/myLib.h"
 
 //  Kernel modules under test
 UartHW comm;
@@ -83,6 +89,10 @@ int main(void)
     mpu.InitSW();
     //mpu.AddHook(mpuHook);
     mpu.Listen(true);
+
+    comm.Send("Mag: %d \n", HAL_MPU_ReadByte(AK8963_ADDRESS, WHO_AM_I_AK8963));
+
+    while(1);
 
     while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {
