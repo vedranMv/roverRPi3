@@ -25,6 +25,7 @@
 #include "driverlib/timer.h"
 #include "driverlib/systick.h"
 #include "driverlib/fpu.h"
+#include "driverlib/ssi.h"
 
 #include "tm4c1294_hal.h"
 
@@ -803,13 +804,42 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
  * @param dest pointer to data buffer in which data is saved after reading
  */
 void HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
-                       uint8_t count, uint8_t* dest)
+                       uint16_t length, uint8_t* data)
 {
-    uint8_t i;
+    uint16_t i, dummy;
+
+
+    /*uint8_t i;
     for (i = 0; i < count; i++)
     {
         *(dest + i) = HAL_MPU_ReadByte(I2Caddress, regAddress + i);
+    }*/
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+
+    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    data[0] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+
+    for (i = 1; i <= (length-1); i++)
+    {
+        //I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
+        while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        while(I2CMasterBusy(MPU9250_I2C_BASE));
+        data[i] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
     }
+
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
+    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    dummy = I2CMasterDataGet(MPU9250_I2C_BASE);
+    UNUSED(dummy);
 }
 
 /**

@@ -107,13 +107,13 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_MPU_Init(void((*custHook)(void)));
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
-    extern void       HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress,
+    extern void        HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress,
                                           uint8_t data);
-    extern void HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
-                                   uint8_t *data, uint16_t length);
+    extern void        HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
+                                          uint8_t *data, uint16_t length);
     extern int8_t      HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress);
     extern void        HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
-                                         uint8_t count, uint8_t* dest);
+                                         uint16_t length, uint8_t* data);
     extern void        HAL_MPU_IntEnable(bool enable);
     extern bool        HAL_MPU_IntClear();
 /**     MPU9250(timer) - related API    */

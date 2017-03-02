@@ -94,7 +94,7 @@ int main(void)
 
     while(1);
 
-    while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
+    /*while (GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) == GPIO_PIN_0)
     {
         float roll, pitch, yaw;
         TS_GlobalCheck();
@@ -109,7 +109,7 @@ int main(void)
 
     HAL_ENG_Enable(ED_BOTH, false);
     comm.Send("Done \n");
-    while(1);
+    while(1);*/
 }
 
 /*
