@@ -45,7 +45,7 @@
 #define __USE_TASK_SCHEDULER__
 
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "taskScheduler.h"
+    #include "../taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define ESP_UID         0
     //  Definitions of ServiceID for service offered by this module

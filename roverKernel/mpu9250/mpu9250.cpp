@@ -10,9 +10,9 @@
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 
-#include "tm4c1294_hal.h"
+#include "../HAL/tm4c1294_hal.h"
 #include "mpu9250.h"
-#include "myLib.h"
+#include "../libs/myLib.h"
 
 /*
  * NOTES:

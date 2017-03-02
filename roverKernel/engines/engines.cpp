@@ -11,8 +11,8 @@
 #include <math.h>
 
 #include "engines.h"
-#include "tm4c1294_hal.h"
-#include "myLib.h"
+#include "../HAL/tm4c1294_hal.h"
+#include "../libs/myLib.h"
 
 #include "inc/hw_gpio.h"
 #include "driverlib/gpio.h"

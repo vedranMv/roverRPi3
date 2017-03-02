@@ -11,8 +11,8 @@
 #include <string.h>
 #include <ctype.h>
 
-#include "taskScheduler.h"
-#include "tm4c1294_hal.h"
+#include "../taskScheduler/taskScheduler.h"
+#include "../HAL/tm4c1294_hal.h"
 #include "utils/uartstdio.h"
 
 /**

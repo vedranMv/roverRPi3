@@ -19,15 +19,13 @@
 #ifndef MPU9250_H_
 #define MPU9250_H_
 
-#include "tm4c1294_hal.h"
-
 //  Enable integration of this library with task scheduler
 #define __USE_TASK_SCHEDULER__
 //  Compile with support for internal digital motion processor(DMP)
 #define __MPU_USE_DMP__
 
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "taskScheduler.h"
+    #include "../taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define MPU_UID             3
     //  Definitions of ServiceID for service offered by this module

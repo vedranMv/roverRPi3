@@ -9,7 +9,7 @@
 #ifndef UARTHW_H_
 #define UARTHW_H_
 
-#include "myLib.h"
+#include "../libs/myLib.h"
 
 
 /*		Communication settings	 	*/

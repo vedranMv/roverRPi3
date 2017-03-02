@@ -43,7 +43,7 @@
 #ifndef TASKSCHEDULER_H_
 #define TASKSCHEDULER_H_
 
-#include "myLib.h"
+#include "../libs/myLib.h"
 #include <vector>
 
 //  Enable debug information printed on serial port

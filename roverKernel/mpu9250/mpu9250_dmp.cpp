@@ -8,9 +8,9 @@
  *      https://github.com/jrowberg/i2cdevlib/tree/master/Arduino/MPU9150
  */
 
-#include "tm4c1294_hal.h"
+#include "../HAL/tm4c1294_hal.h"
 #include "mpu9250.h"
-#include "myLib.h"
+#include "../libs/myLib.h"
 
 #define MPU9150_DMP_CODE_SIZE       1962    // dmpMemory[]
 #define MPU9150_DMP_CONFIG_SIZE     232     // dmpConfig[]

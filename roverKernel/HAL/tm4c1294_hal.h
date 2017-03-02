@@ -39,7 +39,7 @@
 #define __HAL_USE_MPU9250__
 #define __HAL_USE_TASKSCH__
 
-#include "myLib.h"
+#include "../libs/myLib.h"
 
 #define HAL_OK                  0
 /**     SysTick peripheral error codes      */

@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <math.h>
-#include "roverKernel/myLib.h"
+#include "roverKernel/libs/myLib.h"
 
 #include "inc/hw_ints.h"
 #include "inc/hw_memmap.h"
@@ -23,13 +23,13 @@
 #include "driverlib/ssi.h"
 
 //  Kernel includes
-#include "roverKernel/tm4c1294_hal.h"
-#include "roverKernel/uartHW.h"
-#include "roverKernel/taskScheduler.h"
-#include "roverKernel/esp8266.h"
-#include "roverKernel/radarGP2.h"
-#include "roverKernel/engines.h"
-#include "roverKernel/mpu9250.h"
+#include "roverKernel/HAL/tm4c1294_hal.h"
+#include "roverKernel/serialPort/uartHW.h"
+#include "roverKernel/taskScheduler/taskScheduler.h"
+#include "roverKernel/esp8266/esp8266.h"
+#include "roverKernel/radar/radarGP2.h"
+#include "roverKernel/engines//engines.h"
+#include "roverKernel/mpu9250/mpu9250.h"
 
 //  Kernel modules under test
 UartHW comm;
