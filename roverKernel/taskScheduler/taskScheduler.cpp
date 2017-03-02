@@ -12,7 +12,7 @@
 #include <ctype.h>
 
 #include "../taskScheduler/taskScheduler.h"
-#include "../HAL/tm4c1294_hal.h"
+#include "../HAL/hal.h"
 #include "utils/uartstdio.h"
 
 /**

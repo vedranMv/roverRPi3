@@ -23,7 +23,7 @@
 #include "driverlib/ssi.h"
 
 //  Kernel includes
-#include "roverKernel/HAL/tm4c1294_hal.h"
+#include "roverKernel/HAL/hal.h"
 #include "roverKernel/serialPort/uartHW.h"
 #include "roverKernel/taskScheduler/taskScheduler.h"
 #include "roverKernel/esp8266/esp8266.h"

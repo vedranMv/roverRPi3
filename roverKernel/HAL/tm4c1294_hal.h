@@ -80,9 +80,9 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ESP_InitWD(void((*intHandler)(void)));
     extern void        HAL_ESP_WDControl(bool enable, uint32_t timeout);
     extern void        HAL_ESP_WDClearInt();
-#endif
-
+#endif  //__HAL_USE_ESP8266__
 /**     Engines - related HW API      */
+#ifdef __HAL_USE_ENGINES__
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(uint32_t engine, bool enable);
     extern uint8_t     HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
@@ -91,7 +91,9 @@ extern void UNUSED (int32_t arg);
     extern uint32_t    HAL_ENG_GetHBridge(uint32_t mask);
     extern void        HAL_ENG_IntClear(uint32_t engine);
     extern void        HAL_ENG_IntEnable(uint32_t engine, bool enable);
+#endif  //__HAL_USE_ENGINES__
 /**     Radar - related HW API        */
+#ifdef __HAL_USE_ESP8266__
     extern void        HAL_RAD_SetVerAngle(float angle);
     extern float       HAL_RAD_GetVerAngle();
     extern void        HAL_RAD_SetHorAngle(float angle);
@@ -99,7 +101,9 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_RAD_Init();
     extern void        HAL_RAD_Enable(bool enable);
     extern uint32_t    HAL_RAD_ADCTrigger();
+#endif
 /**     MPU9250(I2C) - related HW API       */
+#ifdef __HAL_USE_ESP8266__
     extern void        HAL_MPU_Init(void((*custHook)(void)));
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
@@ -117,18 +121,19 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_TIM_Start(uint32_t load);
     extern void        HAL_TIM_Stop();
     extern uint32_t    HAL_TIM_GetValue();
-
+#endif
 /**     TM4C peripheral - related API   */
     extern void        HAL_SetPWM(uint32_t id, uint32_t pwm);
     extern uint32_t    HAL_GetPWM(uint32_t id);
 
 /**     TaskScheduler - related API     */
+#ifdef __HAL_USE_ESP8266__
     extern uint8_t     HAL_TS_InitSysTick(uint32_t periodMs,
                                           void((*custHook)(void)));
     extern uint8_t     HAL_TS_StartSysTick();
     extern uint8_t     HAL_TS_StopSysTick();
     extern uint32_t    HAL_TS_GetTimeStepMS();
-
+#endif
 /**     Test probes     */
     extern void        HAL_ESP_TestProbe();
 

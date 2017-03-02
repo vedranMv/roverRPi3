@@ -16,7 +16,7 @@
 #include "../libs/myLib.h"
 #include "esp8266.h"
 #include "utils/uartstdio.h"
-#include "../HAL/tm4c1294_hal.h"
+#include "../HAL/hal.h"
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
