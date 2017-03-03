@@ -666,9 +666,9 @@ void HAL_MPU_Init(void((*custHook)(void)))
     I2CMasterEnable(MPU9250_I2C_BASE);
 
     // Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
+    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, false);
 
-    //  Taken from TivaWare library!
+    /*//  Taken from TivaWare library!
     //
     // Compute the clock divider that achieves the fastest speed less than or
     // equal to the desired speed.  The numerator is biased to favor a larger
@@ -678,7 +678,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
     ui32TPR = ((120000000 + (2 * 10 * 1000000) - 1) / (2 * 10 * 1000000)) - 1;
     HWREG(MPU9250_I2C_BASE + 0x00C) = ui32TPR;
     while (I2CMasterBusy(MPU9250_I2C_BASE));
-    I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);
+    I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);*/
 
     //  Configure interrupt pin to have weak pull down, 10mA strength
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
@@ -757,7 +757,7 @@ void HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress, uint8_t *data, u
     {
         I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
         I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
-        while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        //while(!I2CMasterBusy(MPU9250_I2C_BASE));
         while(I2CMasterBusy(MPU9250_I2C_BASE));
     }
 
@@ -828,18 +828,18 @@ void HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
 
     for (i = 1; i <= (length-1); i++)
     {
-        //I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+        I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
         I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
-        while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        //while(!I2CMasterBusy(MPU9250_I2C_BASE));
         while(I2CMasterBusy(MPU9250_I2C_BASE));
         data[i] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
     }
 
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    /*while(!I2CMasterBusy(MPU9250_I2C_BASE));
     while(I2CMasterBusy(MPU9250_I2C_BASE));
     dummy = I2CMasterDataGet(MPU9250_I2C_BASE);
-    UNUSED(dummy);
+    UNUSED(dummy);*/
 }
 
 /**
