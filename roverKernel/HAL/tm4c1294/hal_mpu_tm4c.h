@@ -3,6 +3,11 @@
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
+ *
+ ****Hardware dependencies:
+ *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
+ *      GPIO PA5 - Data available interrupt
+ *      Timer 7 - Measure time between two consecutive sensor measurements
  */
 #include "roverKernel/hwconfig.h"
 

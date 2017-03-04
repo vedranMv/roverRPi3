@@ -3,6 +3,11 @@
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
+ *
+ **** Hardware dependencies:
+ *      PWM - Generator 1 & 3
+ *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
+ *      ADC0: AIN3(PE0) - sampling sensor output
  */
 #include "roverKernel/hwconfig.h"
 

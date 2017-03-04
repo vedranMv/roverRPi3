@@ -2,7 +2,7 @@
  * engines.h
  *
  *  Created on: 29. 5. 2016.
- *      Author: Vedran
+ *      Author: Vedran Mikov
  *  @version v2.1
  *  V1.0 - 29.5.2016
  *  +Implemented C code as C++ object, adjusted it to use HAL
@@ -11,33 +11,25 @@
  *  V2.1 - 25.2.2017
  *  +Completed kernel callback function, now supports calls to all functions
  *  offered by the EngineData kernel module
- *
- ****Hardware dependencies:
- * 	PF2/PF3 - PWMOut2/PWMOut3 - Control left/right engine PWM signal (PWM block 0, Generator 1, Outputs 2,3)
- * 		Gen1 generates ~60Hz PWM (31249 passed as argument)	-could be increased to get more power????
- * 		PWMOut2/PWMOut3 run between 5 and 31249
- * 	PL0/PL1/PL2/PL3 - GPIO - H-bridge configuration for engines
- * 		PL1-PL0 -> sets direction of left engine (see direction Macros)
- * 		PL3-PL2 -> sets direction of right engine (see direction Macros)
- * 	PP0/PP1 - GPIO - Optical encoders for each wheel, resolution of 90 slits per rotation
- * 		Interrupt based
- * 		PP0 -> counts left engine
- * 		PP1 -> counts right engine
- *	IMPORTANT: PWM module runs with clock divider of 32, should it be changed to
- *		e.g. 64, all number passed to PWM have to be halved
- *		Interrupts have to be registered through startup_ccs.c file
  */
+#include "roverKernel/hwconfig.h"
 
-#ifndef ENGINES_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined(ENGINES_H_) && defined(__HAL_USE_ENGINES__)
 #define ENGINES_H_
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
-//  Enable integration of this library with task scheduler
-#define __USE_TASK_SCHEDULER__
 
+//  Enable integration of this library with task scheduler but only if task
+//  scheduler is being compiled into this project
+#if defined(__HAL_USE_TASKSCH__)
+#define __USE_TASK_SCHEDULER__
+#endif  /* __HAL_USE_TASKSCH__ */
+
+//  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "../taskScheduler/taskScheduler.h"
+    #include "roverKernel/taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define ENGINES_UID         2
     //  Definitions of ServiceID for service offered by this module

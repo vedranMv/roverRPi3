@@ -1,8 +1,15 @@
-/*
+/**
  * hal_eng_tm4c.h
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
+ *
+ ****Hardware dependencies:
+ *      PWM0 - Generator 1
+ *      PWM Out2(PF2 - left wheel), PWM Out3(PF3 - right wheel)
+ *      GPIO PL0&PL1(left wheel), PL2&PL3(right wheel)
+ *      GPIO PP0(left optical encoder), PP1(right optical encoder) - interrupt
+ *      Interrupts have to be registered through startup_ccs.c file
  */
 #include "roverKernel/hwconfig.h"
 

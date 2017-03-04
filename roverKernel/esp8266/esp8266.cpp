@@ -4,19 +4,18 @@
  *  Created on: 1. 8. 2016.
  *      Author: Vedran Mikov
  */
+#include "esp8266.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
-#include <stdio.h>
-#include "driverlib/uart.h"
+#if defined(__HAL_USE_ESP8266__)       //  Compile only if module is enabled
 
 #include "../libs/myLib.h"
-#include "esp8266.h"
-#include "utils/uartstdio.h"
 #include "../HAL/hal.h"
+
+#include <stdio.h>
+#include <ctype.h>
+#include "driverlib/uart.h"
+#include "utils/uartstdio.h"
+
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
@@ -1007,4 +1006,6 @@ void UART7RxIntHandler(void)
         rxLen = 0;
     }
 }
+
+#endif  /* __HAL_USE_ESP8266__ */
 

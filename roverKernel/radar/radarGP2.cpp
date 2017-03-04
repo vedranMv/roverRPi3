@@ -4,15 +4,12 @@
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
  */
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <math.h>
-#include <string.h>
-
-#include "../libs/myLib.h"
 #include "radarGP2.h"
-#include "../HAL/hal.h"
+
+#if defined(__HAL_USE_RADAR__)       //  Compile only if module is enabled
+#include "roverKernel/libs/myLib.h"
+
+#include "roverKernel/HAL/hal.h"
 #include "utils/uartstdio.h"
 
 //  Global pointer to FIRST created instance of RadarModule
@@ -286,3 +283,5 @@ void RadarModule::SetVerAngle(float angle)
 {
     HAL_RAD_SetVerAngle(angle); //  Direct call to HAL
 }
+
+#endif  /* __HAL_USE_RADAR__ */

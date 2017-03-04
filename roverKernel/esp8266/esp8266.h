@@ -27,23 +27,25 @@
  *  V1.3.1 - 6.2.2017
  *  +Modified to support Task scheduler v2.3
  *  TODO:Add interface to send UDP packet
- *
- ****Hardware dependencies:
- *      UART7, pins PC4(Rx), PC5(Tx)
- *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
- *      Timer 6 - watchdog timer in case UART port hangs(likes to do so)
  */
+#include "../hwconfig.h"
 
-#ifndef ESP8266_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined(ESP8266_H_) && defined(__HAL_USE_ESP8266__)
 #define ESP8266_H_
 
 #include <vector>
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
-//  Enable integration of this library with task scheduler
-#define __USE_TASK_SCHEDULER__
 
+//  Enable integration of this library with task scheduler but only if task
+//  scheduler is being compiled into this project
+#if defined(__HAL_USE_TASKSCH__)
+#define __USE_TASK_SCHEDULER__
+#endif  /* __HAL_USE_TASKSCH__ */
+
+//  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
     #include "../taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler

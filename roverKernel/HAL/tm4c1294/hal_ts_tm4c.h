@@ -3,6 +3,9 @@
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
+ *
+ ****Hardware dependencies:
+ *  SysTick timer & interrupt
  */
 #include "roverKernel/hwconfig.h"
 

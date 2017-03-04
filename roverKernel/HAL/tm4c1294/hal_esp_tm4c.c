@@ -1,4 +1,4 @@
-/*
+/**
  * hal_esp_tm4c.c
  *
  *  Created on: Mar 4, 2017

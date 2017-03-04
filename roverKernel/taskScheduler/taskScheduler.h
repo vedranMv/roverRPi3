@@ -35,15 +35,13 @@
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
- *
- ****Hardware dependencies:
- *  SysTick timer & interrupt
  */
+#include "roverKernel/hwconfig.h"
 
-#ifndef TASKSCHEDULER_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined(TASKSCHEDULER_H_) && defined(__HAL_USE_TASKSCH__)
 #define TASKSCHEDULER_H_
 
-#include "../libs/myLib.h"
 #include <vector>
 
 //  Enable debug information printed on serial port

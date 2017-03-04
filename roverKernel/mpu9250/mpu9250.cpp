@@ -4,15 +4,15 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran
  */
-#include <stdbool.h>
-#include <stdint.h>
+#include "mpu9250.h"
+
+#if defined(__HAL_USE_MPU9250__)       //  Compile only if module is enabled
+
+#include "roverKernel/HAL/hal.h"
+#include "roverKernel/libs/myLib.h"
 
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
-
-#include "../HAL/hal.h"
-#include "mpu9250.h"
-#include "../libs/myLib.h"
 
 
 /*
@@ -535,4 +535,4 @@ void Orientation::Update(float *acc, float *gyro)
     }
 }
 
-
+#endif  /* __HAL_USE_MPU9250__ */

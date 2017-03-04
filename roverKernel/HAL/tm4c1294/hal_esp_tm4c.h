@@ -3,6 +3,11 @@
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
+ *
+ ****Hardware dependencies:
+ *      UART7, pins PC4(Rx), PC5(Tx)
+ *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
+ *      Timer 6 - watchdog timer in case UART port hangs(likes to do so)
  */
 #include "roverKernel/hwconfig.h"
 

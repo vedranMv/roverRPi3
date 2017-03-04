@@ -4,16 +4,16 @@
  *  Created on: 30. 7. 2016.
  *      Author: Vedran
  */
-#include <stdlib.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
+#include "taskScheduler.h"
 
-#include "../taskScheduler/taskScheduler.h"
-#include "../HAL/hal.h"
+#if defined(__HAL_USE_TASKSCH__)   //  Compile only if module is enabled
+
+#include "roverKernel/libs/myLib.h"
+#include "roverKernel/HAL/hal.h"
+
+#include <ctype.h>
 #include "utils/uartstdio.h"
+
 
 /**
  * Callback vector for all available kernel modules
@@ -523,3 +523,5 @@ void TS_GlobalCheck(void)
             }
         }
 }
+
+#endif  /* __HAL_USE_TASKSCH__ */

@@ -15,24 +15,22 @@
  *  +Added hook to use function to execute when a scan is completed
  *  V1.2.1 - 6.2.2017
  *  +Modified to support Task scheduler v2.3
- *
- **** Hardware dependencies:
- *      PWM - Generator 1 & 3
- *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
- *      ADC0: AIN3(PE0) - sampling sensor output
- *	IMPORTANT: PWM module runs with clock divider of 32, should it be changed to
- *		e.g. 64, all number passed to PWM have to be halved (i.e. RADAR_LEFT
- *		will be 26980, RADAR_RIGHT 29870 etc.)
  */
+#include "roverKernel/hwconfig.h"
 
-#ifndef RADARGP2_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined(RADARGP2_H_) && defined(__HAL_USE_RADAR__)
 #define RADARGP2_H_
 
-//  Enable integration of this library with task scheduler
+//  Enable integration of this library with task scheduler but only if task
+//  scheduler is being compiled into this project
+#if defined(__HAL_USE_TASKSCH__)
 #define __USE_TASK_SCHEDULER__
+#endif  /* __HAL_USE_TASKSCH__ */
 
+//  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "../taskScheduler/taskScheduler.h"
+    #include "roverKernel/taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define RADAR_UID       1
     //  Definitions of ServiceID for service offered by this module

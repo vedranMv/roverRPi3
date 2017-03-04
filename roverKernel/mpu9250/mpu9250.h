@@ -9,23 +9,25 @@
  *  V1.1 - 25.6.2016
  *  +New class Orientation added in order to provide single interface for position data
  *  V1.2 - 25.2.2017
- *  +Integration
- ****Hardware dependencies:
- *  Timer 7 - measuring dT, time step used in integration
- *  GPIO A5 - Data Ready interrupt pin
- *  I2C 2   - Data transportation
+ *  +Integration with task scheduler
  */
+#include "roverKernel/hwconfig.h"
 
-#ifndef MPU9250_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined( MPU9250_H_) && defined(__HAL_USE_MPU9250__)
 #define MPU9250_H_
 
-//  Enable integration of this library with task scheduler
+//  Enable integration of this library with task scheduler but only if task
+//  scheduler is being compiled into this project
+#if defined(__HAL_USE_TASKSCH__)
 #define __USE_TASK_SCHEDULER__
+#endif  /* __HAL_USE_TASKSCH__ */
 //  Compile with support for internal digital motion processor(DMP)
 #define __MPU_USE_DMP__
 
+//  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "../taskScheduler/taskScheduler.h"
+    #include "roverKernel/taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define MPU_UID             3
     //  Definitions of ServiceID for service offered by this module

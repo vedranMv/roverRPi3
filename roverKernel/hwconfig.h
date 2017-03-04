@@ -19,16 +19,17 @@
 #define __BOARD_TM4C1294NCPDT__
 
 /*
- * Deprecated - used in single-file HAL hal_tm4c1294.h
+ * Compile all libraries in debug mode, allowing them to print debug data to
+ * serial port. This enabled debug session for ALL libraries. Individual
+ * libraries can be debugged by setting this flag only in their headers.
  */
-//#define _HAL_USE_ESP8266__
-//#define _HAL_USE_ENGINES__
-//#define _HAL_USE_RADAR__
-//#define _HAL_USE_MPU9250__
-//#define _HAL_USE_TASKSCH__
+//#define __DEBUG_SESSION__
 
-
-//  Define kernel modules for which is necessary to compile HAL interface
+/*
+ * Define kernel modules for which is necessary to compile HAL interface
+ * In order to enable compilation of a module uncomment that module from
+ * the following list.
+ */
 #define __HAL_USE_ESP8266__
 #define __HAL_USE_ENGINES__
 #define __HAL_USE_RADAR__

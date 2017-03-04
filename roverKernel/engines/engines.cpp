@@ -4,20 +4,13 @@
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
  */
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <math.h>
-
 #include "engines.h"
-#include "../HAL/hal.h"
-#include "../libs/myLib.h"
 
-#include "inc/hw_gpio.h"
-#include "driverlib/gpio.h"
-#include "inc/hw_memmap.h"
-#include "utils/uartstdio.h"
+#if defined(__HAL_USE_ENGINES__)       //  Compile only if module is enabled
+
+#include "roverKernel/HAL/hal.h"
+#include "roverKernel/libs/myLib.h"
+
 
 //  Global pointer to FIRST created instance of EngineData
 volatile EngineData* __ed;
@@ -157,7 +150,6 @@ void EngineData::SetVehSpec(
 void PP0ISR(void)
 {
     HAL_ENG_IntClear(ED_LEFT);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_2));
 
     if (__ed->wheelCounter[ED_LEFT] > 0)
             __ed->wheelCounter[ED_LEFT]--;
@@ -184,7 +176,6 @@ void PP0ISR(void)
 void PP1ISR(void)
 {
     HAL_ENG_IntClear(ED_RIGHT);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_3, ~GPIOPinRead(GPIO_PORTN_BASE, GPIO_PIN_3));
 
     if (__ed->wheelCounter[ED_RIGHT] > 0)
             __ed->wheelCounter[ED_RIGHT]--;
@@ -370,3 +361,4 @@ bool EngineData::_DirValid(uint8_t dir)
 	return false;
 }
 
+#endif  /* __HAL_USE_ENGINES__ */
