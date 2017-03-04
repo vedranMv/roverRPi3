@@ -32,14 +32,10 @@
 #ifndef TM4C1294_HAL_H_
 #define TM4C1294_HAL_H_
 
-//  Define kernel modules for which is necessary to compile HAL interface
-#define __HAL_USE_ESP8266__
-#define __HAL_USE_ENGINES__
-#define __HAL_USE_RADAR__
-#define __HAL_USE_MPU9250__
-#define __HAL_USE_TASKSCH__
 
 #include "../libs/myLib.h"
+#include "../hwconfig.h"
+
 
 #define HAL_OK                  0
 /**     SysTick peripheral error codes      */
@@ -109,10 +105,10 @@ extern void UNUSED (int32_t arg);
                                          uint8_t data);
     extern void        HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress,
                                           uint8_t data);
-    extern void        HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
-                                          uint8_t *data, uint16_t length);
+    extern uint8_t     HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
+                                          uint16_t length, uint8_t *data);
     extern int8_t      HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress);
-    extern void        HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
+    extern uint8_t     HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
                                          uint16_t length, uint8_t* data);
     extern void        HAL_MPU_IntEnable(bool enable);
     extern bool        HAL_MPU_IntClear();

@@ -643,6 +643,11 @@ uint32_t HAL_RAD_ADCTrigger()
  ******************************************************************************
  ******************************************************************************/
 #ifdef __HAL_USE_MPU9250__
+/*//  Routine to be executed in pin interrupt
+void HAL_MPU_ISR(void);
+//  Function pointer of user-defined ISR
+void((*userHook)(void));*/
+
 /**
  * Initializes I2C 2 bus for communication with MPU (SDA - PN4, SCL - PN5)
  *      Bus frequency 1MHz, connection timeout: 100ms
@@ -650,9 +655,10 @@ uint32_t HAL_RAD_ADCTrigger()
  *      when it has data available for reading
  *      -PA5 is push-pull pin with weak pull down and 10mA strength
  */
+
 void HAL_MPU_Init(void((*custHook)(void)))
 {
-    uint32_t ui32TPR;
+    //uint32_t ui32TPR;
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
@@ -666,7 +672,8 @@ void HAL_MPU_Init(void((*custHook)(void)))
     I2CMasterEnable(MPU9250_I2C_BASE);
 
     // Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, false);
+    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
+    //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
     /*//  Taken from TivaWare library!
     //
@@ -680,21 +687,25 @@ void HAL_MPU_Init(void((*custHook)(void)))
     while (I2CMasterBusy(MPU9250_I2C_BASE));
     I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);*/
 
-    //  Configure interrupt pin to have weak pull down, 10mA strength
+    //  Configure interrupt pin to receive output
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
-    GPIOPadConfigSet(GPIO_PORTA_BASE, GPIO_PIN_5, GPIO_STRENGTH_10MA, GPIO_PIN_TYPE_STD_WPD);
     GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
     //  Set up an interrupt, and interrupt handler
     if (custHook != 0)
     {
         GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
+        //  GPIOInterRegister internally calls IntEnable() function causing
+        //  interrupt to trigger. Prevent this by first disabling interrupt
+        //  with GPIOIntDis
+        //userHook = custHook;
+        GPIOIntDisable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
         GPIOIntRegister(GPIO_PORTA_BASE, custHook);
-        GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
-        IntDisable(INT_GPIOA);
-    }
 
+        IntDisable(INT_GPIOA);
+        GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
+    }
 
     HAL_TIM_Init();
 }
@@ -709,13 +720,12 @@ void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     I2CMasterDataPut(MPU9250_I2C_BASE, data);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
-
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 }
 
@@ -730,7 +740,7 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     I2CMasterDataPut(MPU9250_I2C_BASE, data);
@@ -744,25 +754,29 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
  * @param data buffer of data to send
  * @param length of data to send
  */
-void HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress, uint8_t *data, uint16_t length)
+uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t length, uint8_t *data)
 {
     uint16_t i;
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     for (i = 0; i < (length-1); i++)
     {
         I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
         I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
-        //while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        HAL_DelayUS(4);
         while(I2CMasterBusy(MPU9250_I2C_BASE));
     }
 
     I2CMasterDataPut(MPU9250_I2C_BASE, data[length-1]);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    HAL_DelayUS(4);
+    while(I2CMasterBusy(MPU9250_I2C_BASE));
+
+    return 0;
 }
 
 /**
@@ -779,19 +793,14 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
     data = I2CMasterDataGet(MPU9250_I2C_BASE);
-
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
-    dummy = I2CMasterDataGet(MPU9250_I2C_BASE);
 
     return (data & 0xFF);
 }
@@ -803,43 +812,42 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
  * @param count number of bytes to red
  * @param dest pointer to data buffer in which data is saved after reading
  */
-void HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
+uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
                        uint16_t length, uint8_t* data)
 {
-    uint16_t i, dummy;
+    uint16_t i;
 
-
-    /*uint8_t i;
-    for (i = 0; i < count; i++)
-    {
-        *(dest + i) = HAL_MPU_ReadByte(I2Caddress, regAddress + i);
-    }*/
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
     I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
     I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
 
     I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
-    while(!I2CMasterBusy(MPU9250_I2C_BASE));
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
-    data[0] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
-
-    for (i = 1; i <= (length-1); i++)
+    if (length == 1)
+        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
+    else
     {
-        I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
-        //while(!I2CMasterBusy(MPU9250_I2C_BASE));
+        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+        HAL_DelayUS(4);
         while(I2CMasterBusy(MPU9250_I2C_BASE));
-        data[i] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+        data[0] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+
+        for (i = 1; i < (length-1); i++)
+        {
+            I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
+            HAL_DelayUS(4);
+            while(I2CMasterBusy(MPU9250_I2C_BASE));
+            data[i] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+        }
+        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
     }
 
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
-    /*while(!I2CMasterBusy(MPU9250_I2C_BASE));
+    HAL_DelayUS(4);
     while(I2CMasterBusy(MPU9250_I2C_BASE));
-    dummy = I2CMasterDataGet(MPU9250_I2C_BASE);
-    UNUSED(dummy);*/
+    data[length-1] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+
+    return 0;
 }
 
 /**
@@ -876,6 +884,13 @@ bool HAL_MPU_IntClear()
     if ( (intStat & (GPIO_INT_PIN_5)) != GPIO_INT_PIN_5) return false;
     else return true;
 }
+/*
+void HAL_MPU_ISR(void)
+{
+    HAL_MPU_IntClear();
+    if (userHook != 0)
+        userHook();
+}*/
 
 /**
  * Initialize timer used to precisely measure time interval between two sensor

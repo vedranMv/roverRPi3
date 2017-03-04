@@ -1,5 +1,5 @@
 /**
- * mpu9250.h
+ * MPU9250.h
  *
  *  Created on: 25. 3. 2015.
  *      Author: Vedran

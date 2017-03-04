@@ -90,8 +90,8 @@ int8_t UartHW::InitHW()
      * Enable Interrupt on received data
      */
     UARTFIFOLevelSet(UART0_BASE, UART_FIFO_TX1_8, UART_FIFO_RX1_8);
-   	UARTIntRegister(UART0_BASE,UART0RxIntHandler);
    	UARTIntEnable(UART0_BASE, UART_INT_RX | UART_INT_RT);
+   	UARTIntRegister(UART0_BASE,UART0RxIntHandler);
    	IntEnable(INT_UART0);
 
     IntMasterEnable();
