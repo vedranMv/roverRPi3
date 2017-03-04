@@ -5,7 +5,7 @@
  *      Author: Vedran
  *
  *  Task scheduler library
- *  @version 2.4.1
+ *  @version 2.4.2
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -32,6 +32,9 @@
  *  V2.4.1 - 25.2.2017
  *  +TaskScheduler class now offers adding single arguments of basic data types
  *  (char, float...) through common template member-function AddArg(T arg)
+ *  V2.4.2 - 4.3.2017
+ *  +Instead of starting SysTick in constructor, class now has InitHW() func.
+ *  to start SysTick at any point.
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
@@ -43,108 +46,15 @@
 #define TASKSCHEDULER_H_
 
 #include <vector>
+#include "linkedList.h"
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
 
 /**
- * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
- */
-class TaskEntry
-{
-    // Functions & classes needing direct access to all members
-	friend class TaskScheduler;
-	friend void TSSyncCallback(void);
-    friend void TS_GlobalCheck(void);
-    friend class LinkedList;
-	public:
-		TaskEntry();
-		TaskEntry(const TaskEntry& arg);
-		TaskEntry(const volatile TaskEntry& arg);
-		TaskEntry(uint8_t uid, uint8_t task, uint32_t time,
-		          int32_t period = 0, int32_t repeats = 0);
-		~TaskEntry();
-
-		void        AddArg(void* arg, uint16_t argLen) volatile;
-
-		         TaskEntry& operator= (const TaskEntry& arg);
-        volatile TaskEntry& operator= (const volatile TaskEntry& arg);
-        volatile TaskEntry& operator= (volatile TaskEntry& arg) volatile;
-
-	protected:
-		//  Unique identifier for library to request service from
-		volatile uint8_t    _libuid;
-		//  Service ID to execute
-		volatile uint8_t    _task;
-		//  Number of arguments provided when doing service call
-		volatile uint16_t    _argN;
-		//  Time at which to exec. service (in ms from start-up of task scheduler)
-		volatile uint32_t   _timestamp;
-		//  Arguments used when calling service - array that is dynamically
-		//  allocated in AddArg function depending on the number of arguments
-		volatile uint8_t    *_args;
-		//  Period at which to execute this task (0 for non-periodic tasks)
-		int32_t             _period;
-		//  Number of times to repeat the task. When positive, defines how
-		//  many repeats of that task remain, when negative, task
-		//  will be repeated indefinitely. When == 0, task is killed.
-		int32_t             _repeats;
-};
-
-/**
- * Node of data (of type TaskEntry) used in linked list
- * All member functions & constructors are private as this class shouldn't be
- * used outside the TaskScheduler object
- */
-class _llnode
-{
-    friend class LinkedList;
-    friend class TaskScheduler;
-
-    private:
-        _llnode();
-        _llnode(volatile TaskEntry  &arg,
-                volatile _llnode    *pre = 0,
-                volatile _llnode    *nex = 0);
-
-        volatile _llnode     *_prev,
-                             *_next;
-        volatile TaskEntry   data;
-};
-
-/**
- * Linked list of TaskEntry object
- * Linked list data container of sorted TaskEntry objects based on their
- * time stamp. Used only in TaskScheduler class to keep all pending task
- * requests ergo everything is private.
- */
-class LinkedList
-{
-    friend class TaskScheduler;
-    public:
-        ~LinkedList();
-    private:
-        LinkedList();
-
-        volatile _llnode*       AddSort(TaskEntry &arg) volatile;
-        bool                    Empty() volatile;
-        void                    Drop() volatile;
-        TaskEntry               PopFront() volatile;
-        volatile TaskEntry&     PeekFront() volatile;
-
-    private:
-        //  Volatile pointers as they might change inside ISRs
-        volatile _llnode     * volatile head,
-                             * volatile tail;
-        const volatile TaskEntry   nullNode;
-        volatile uint32_t    size;
-
-};
-
-/**
  * Task scheduler class implementation
- * @note Task and it arguments are added separately. First add new task and then
- * use some of the 'Add*Arg' function to add argument(s) for that task
+ * @note Task and its arguments are added separately. First add new task and then
+ * use some of the 'AddArg(s)' function to add argument(s) for that task
  */
 class TaskScheduler
 {
@@ -155,13 +65,13 @@ class TaskScheduler
 		TaskScheduler();
 		~TaskScheduler();
 
-		void 				 Reset() volatile;
-		bool				 IsEmpty() volatile;
-		void                 SyncTask(uint8_t libuid, uint8_t comm, int64_t time,
-		                              bool periodic = false, int32_t rep = 0) volatile;
-		void                 SyncTask(TaskEntry te) volatile;
-
-		void                 AddArgs(void* arg, uint8_t argLen) volatile;
+		void InitHW() volatile;
+		void Reset() volatile;
+		bool IsEmpty() volatile;
+		void SyncTask(uint8_t libuid, uint8_t comm, int64_t time,
+		              bool periodic = false, int32_t rep = 0) volatile;
+		void SyncTask(TaskEntry te) volatile;
+		void AddArgs(void* arg, uint8_t argLen) volatile;
 
 		/**
 		 ****Template member function needs to be defined in the header file
