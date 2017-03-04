@@ -8,6 +8,8 @@
  *  tied to hardware as it doesn't work with registers of MCU but rather uses
  *  a TivaWare library provided by TI.
  *
+ *  @note THIS IS DEPRECATED VERSION
+ *  New HAL in roverKernel/HAL/tm4c1294/
  **************Hardware dependencies
  *  ESP8266:
  *      UART7, pins PC4(Rx), PC5(Tx)
@@ -55,14 +57,17 @@ extern "C"
 
 /// Global clock variable
 extern uint32_t g_ui32SysClock;
-
-extern void HAL_DelayUS(uint32_t us);
-extern void HAL_BOARD_CLOCK_Init();
-extern void UNUSED (int32_t arg);
-
+#ifdef __HAL_USE_COMMON__
+    extern void     HAL_DelayUS(uint32_t us);
+    extern void     HAL_BOARD_CLOCK_Init();
+    extern void     UNUSED (int32_t arg);
+/**     TM4C peripheral - related API   */
+    extern void     HAL_SetPWM(uint32_t id, uint32_t pwm);
+    extern uint32_t HAL_GetPWM(uint32_t id);
+#endif
 
 /**     ESP8266 - related HW API      */
-#ifdef __HAL_USE_ESP8266__
+#ifdef _HAL_USE_ESP8266__
     extern uint32_t    HAL_ESP_InitPort(uint32_t baud);
     extern void        HAL_ESP_RegisterIntHandler(void((*intHandler)(void)));
     extern void        HAL_ESP_HWEnable(bool enable);
@@ -78,7 +83,7 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ESP_WDClearInt();
 #endif  //__HAL_USE_ESP8266__
 /**     Engines - related HW API      */
-#ifdef __HAL_USE_ENGINES__
+#ifdef _HAL_USE_ENGINES__
     extern void        HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax);
     extern void        HAL_ENG_Enable(uint32_t engine, bool enable);
     extern uint8_t     HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm);
@@ -89,7 +94,7 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_ENG_IntEnable(uint32_t engine, bool enable);
 #endif  //__HAL_USE_ENGINES__
 /**     Radar - related HW API        */
-#ifdef __HAL_USE_ESP8266__
+#ifdef _HAL_USE_RADAR__
     extern void        HAL_RAD_SetVerAngle(float angle);
     extern float       HAL_RAD_GetVerAngle();
     extern void        HAL_RAD_SetHorAngle(float angle);
@@ -99,7 +104,7 @@ extern void UNUSED (int32_t arg);
     extern uint32_t    HAL_RAD_ADCTrigger();
 #endif
 /**     MPU9250(I2C) - related HW API       */
-#ifdef __HAL_USE_ESP8266__
+#ifdef _HAL_USE_MPU9250__
     extern void        HAL_MPU_Init(void((*custHook)(void)));
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
@@ -118,20 +123,17 @@ extern void UNUSED (int32_t arg);
     extern void        HAL_TIM_Stop();
     extern uint32_t    HAL_TIM_GetValue();
 #endif
-/**     TM4C peripheral - related API   */
-    extern void        HAL_SetPWM(uint32_t id, uint32_t pwm);
-    extern uint32_t    HAL_GetPWM(uint32_t id);
 
 /**     TaskScheduler - related API     */
-#ifdef __HAL_USE_ESP8266__
+#ifdef _HAL_USE_TASKSCH__
     extern uint8_t     HAL_TS_InitSysTick(uint32_t periodMs,
                                           void((*custHook)(void)));
     extern uint8_t     HAL_TS_StartSysTick();
     extern uint8_t     HAL_TS_StopSysTick();
     extern uint32_t    HAL_TS_GetTimeStepMS();
-#endif
 /**     Test probes     */
     extern void        HAL_ESP_TestProbe();
+#endif
 
 #ifdef __cplusplus
 }

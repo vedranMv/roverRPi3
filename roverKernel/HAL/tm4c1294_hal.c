@@ -56,6 +56,7 @@ uint32_t g_ui32SysClock;
 /**     MPU9250 - related macros        */
 #define MPU9250_I2C_BASE I2C2_BASE
 
+#ifdef __HAL_USE_COMMON__
 ///-----------------------------------------------------------------------------
 ///                                                                    [PRIVATE]
 ///-----------------------------------------------------------------------------
@@ -109,10 +110,37 @@ void HAL_DelayUS(uint32_t us)   //1000
 
 /******************************************************************************
  ******************************************************************************
+ ************           TM4C peripheral - related API              ************
+ ******************************************************************************
+ ******************************************************************************/
+
+/**
+ * Set desired PWM duty cycle on specific output channel
+ * @param id is channel ID of PWM channel affected
+ * @param pwm value of PWM pulse (duty cycle) to set
+ */
+void HAL_SetPWM(uint32_t id, uint32_t pwm)
+{
+    PWMPulseWidthSet(PWM0_BASE, id, pwm);
+}
+/**
+ * Get current PWM duty cycle on specific output channel
+ * @param id is channel ID of PWM channel affected
+ * @return PWM duty cycle at channel id
+ */
+uint32_t HAL_GetPWM(uint32_t id)
+{
+    return PWMPulseWidthGet(PWM0_BASE, id);
+}
+
+#endif
+
+/******************************************************************************
+ ******************************************************************************
  ************               ESP8266 - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-#ifdef __HAL_USE_ESP8266__
+#ifdef _HAL_USE_ESP8266__
 /**
  * Initialize UART port communicating with ESP8266 chip - 8 data bits, no parity,
  * 1 stop bit, no flow control
@@ -332,7 +360,7 @@ void HAL_ESP_TestProbe()
  ************               Engines - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-#ifdef __HAL_USE_ENGINES__
+#ifdef _HAL_USE_ENGINES__
 /**
  * Initialize hardware used to run engines
  * @param pwmMin pwm value used to stop the motors
@@ -510,7 +538,7 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
  ************               Radar - related API                    ************
  ******************************************************************************
  ******************************************************************************/
-#ifdef __HAL_USE_RADAR__
+#ifdef _HAL_USE_RADAR__
 /**
  * Initialize hardware used for IR radar peripheral
  */
@@ -642,7 +670,7 @@ uint32_t HAL_RAD_ADCTrigger()
  ************               MPU9250 - related API                  ************
  ******************************************************************************
  ******************************************************************************/
-#ifdef __HAL_USE_MPU9250__
+#ifdef _HAL_USE_MPU9250__
 /*//  Routine to be executed in pin interrupt
 void HAL_MPU_ISR(void);
 //  Function pointer of user-defined ISR
@@ -935,37 +963,13 @@ uint32_t HAL_TIM_GetValue()
 }
 #endif  //  __HAL_USE_MPU9250__
 
-/******************************************************************************
- ******************************************************************************
- ************           TM4C peripheral - related API              ************
- ******************************************************************************
- ******************************************************************************/
-
-/**
- * Set desired PWM duty cycle on specific output channel
- * @param id is channel ID of PWM channel affected
- * @param pwm value of PWM pulse (duty cycle) to set
- */
-void HAL_SetPWM(uint32_t id, uint32_t pwm)
-{
-    PWMPulseWidthSet(PWM0_BASE, id, pwm);
-}
-/**
- * Get current PWM duty cycle on specific output channel
- * @param id is channel ID of PWM channel affected
- * @return PWM duty cycle at channel id
- */
-uint32_t HAL_GetPWM(uint32_t id)
-{
-    return PWMPulseWidthGet(PWM0_BASE, id);
-}
 
 /******************************************************************************
  ******************************************************************************
  ************            TaskScheduler - related API               ************
  ******************************************************************************
  ******************************************************************************/
-#ifdef __HAL_USE_TASKSCH__
+#ifdef _HAL_USE_TASKSCH__
 /**
  * Setup SysTick interrupt and period
  * @param periodMs time in milliseconds how often to trigger an interrupt

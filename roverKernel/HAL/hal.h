@@ -17,10 +17,17 @@
 
 #ifdef __BOARD_TM4C1294NCPDT__
 
-#include "tm4c1294_hal.h"
+    #include "tm4c1294_hal.h"
+    #include "tm4c1294/hal_common_tm4c.h"
+    #include "tm4c1294/hal_mpu_tm4c.h"
+    #include "tm4c1294/hal_esp_tm4c.h"
+    #include "tm4c1294/hal_radar_tm4c.h"
+    #include "tm4c1294/hal_ts_tm4c.h"
+    #include "tm4c1294/hal_eng_tm4c.h"
 
 #elif __BOARD_ATMEGA328P__
-#include "atmega328p_hal.h"
+//TODO: Arduino support
+    #include "atmega328p_hal.h"
 #endif
 
 #endif  /* __HAL_H__ */
