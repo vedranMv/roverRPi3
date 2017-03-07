@@ -3,7 +3,7 @@
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran Mikov
- *  @version v2.1
+ *  @version v2.1.1
  *  V1.0 - 29.5.2016
  *  +Implemented C code as C++ object, adjusted it to use HAL
  *  V2.0 - 7.2.2017
@@ -11,6 +11,8 @@
  *  V2.1 - 25.2.2017
  *  +Completed kernel callback function, now supports calls to all functions
  *  offered by the EngineData kernel module
+ *  V2.1.1 - 7.3.2016
+ *  +Changed EngineData class into a singleton
  */
 #include "roverKernel/hwconfig.h"
 
@@ -59,8 +61,10 @@ class EngineData
     friend void ControlLoop(void);
     friend void _ENG_KernelCallback(void);
 	public:
-		EngineData();
-		EngineData(float wheelD, float wheelS, float vehSiz, float encRes);
+        static EngineData& GetI();
+        static EngineData* GetP();
+        ~EngineData();
+
 		void SetVehSpec(float wheelD, float wheelS, float vehSiz, float encRes);
 
 		int8_t 	InitHW();
@@ -73,6 +77,11 @@ class EngineData
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
 
 	protected:
+        EngineData();
+        EngineData(float wheelD, float wheelS, float vehSiz, float encRes);
+        EngineData(EngineData &arg) {}           //  No definition - forbid this
+        void operator=(EngineData const &arg) {} //  No definition - forbid this
+
 		bool _DirValid(uint8_t dir);
 		uint32_t _cmpsToEncT(float &ticks);
 
@@ -89,8 +98,6 @@ class EngineData
 #endif
 };
 
-//  Global pointer to FIRST created instance of EngineData
-extern volatile EngineData* __ed;
 
 extern "C"
 {

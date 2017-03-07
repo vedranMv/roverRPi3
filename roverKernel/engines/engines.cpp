@@ -12,9 +12,6 @@
 #include "roverKernel/libs/myLib.h"
 
 
-//  Global pointer to FIRST created instance of EngineData
-volatile EngineData* __ed;
-
 #if defined(__USE_TASK_SCHEDULER__)
 /**
  * Callback routine to invoke service offered by this module from task scheduler
@@ -23,6 +20,7 @@ volatile EngineData* __ed;
  */
 void _ENG_KernelCallback(void)
 {
+    EngineData *__ed = EngineData::GetP();
     //  Check for null-pointer
     if (__ed->_edKer.argN == 0)
         return;
@@ -104,25 +102,42 @@ void _ENG_KernelCallback(void)
     }
 }
 
-
 #endif
 
+///-----------------------------------------------------------------------------
+///         Functions for returning static instance                     [PUBLIC]
+///-----------------------------------------------------------------------------
 
-EngineData::EngineData()
+/**
+ * Return reference to an instance of singleton
+ * @return reference to an internal static instance
+ */
+EngineData& EngineData::GetI()
 {
-	__ed = this;
-}
-EngineData::EngineData(
-	float wheelD,
-	float wheelS,
-	float vehSiz,
-	float encRes)
-	: _wheelDia(wheelD), _wheelSpacing(wheelS), _vehicleSize(vehSiz),
-	  _encRes(encRes)
-{
-	__ed = this;
+    static EngineData inst;
+    return inst;
 }
 
+/**
+ * Return pointer to and instance of singleton
+ * @return pointer to and internal static instance
+ */
+EngineData* EngineData::GetP()
+{
+    return &(EngineData::GetI());
+}
+
+///-----------------------------------------------------------------------------
+///         Other member functions                                      [PUBLIC]
+///-----------------------------------------------------------------------------
+
+/**
+ * Set vehicle parameters needed to calculate motor parameters
+ * @param wheelD
+ * @param wheelS
+ * @param vehSiz
+ * @param encRes
+ */
 void EngineData::SetVehSpec(
 	float wheelD,
 	float wheelS,
@@ -138,60 +153,10 @@ void EngineData::SetVehSpec(
 	wheelCounter[1] = 0;
 }
 
-
 /**
- * ISR for left engine
- * 		Function called every time an encoder gives a pulse for a rotating
- * 		wheel. Decreases internal counter for corresponding wheel and slows down
- * 		rotation by 50% before stopping to minimize position overshoot on halt
- * 	TODO: Implement a stack of distances for each wheel so the vehicle can
- * 		perform more complex maneuvers
+ * Invoke initialization of hardware used by engines, makes direct call to HAL
+ * @return
  */
-void PP0ISR(void)
-{
-    HAL_ENG_IntClear(ED_LEFT);
-
-    if (__ed->wheelCounter[ED_LEFT] > 0)
-            __ed->wheelCounter[ED_LEFT]--;
-
-    /*if (__ed->wheelCounter[ED_LEFT] == 1)
-    {
-        HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
-    }
-    else*/ if (__ed->wheelCounter[ED_LEFT] == 0)
-    {
-        HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
-        HAL_ENG_Enable(ED_LEFT, false);
-    }
-}
-
-/**
- * ISR for right engine
- * 		Function called every time an encoder gives a pulse for a rotating
- * 		wheel. Decreases internal counter for corresponding wheel and slows down
- * 		rotation by 50% before stopping to minimize position overshoot on halt
- * 	TODO: Implement a stack of distances for each wheel so the vehicle can
- * 		perform more complex maneuvers
- */
-void PP1ISR(void)
-{
-    HAL_ENG_IntClear(ED_RIGHT);
-
-    if (__ed->wheelCounter[ED_RIGHT] > 0)
-            __ed->wheelCounter[ED_RIGHT]--;
-
-    /*if (__ed->wheelCounter[ED_RIGHT] == 3)
-    {
-        HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
-    }
-    else*/ if (__ed->wheelCounter[ED_RIGHT] == 1)
-    {
-        HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
-        HAL_ENG_Enable(ED_RIGHT, false);
-    }
-}
-
-
 int8_t EngineData::InitHW()
 {
     HAL_ENG_Init(ENGINE_STOP, ENGINE_FULL);
@@ -208,10 +173,14 @@ int8_t EngineData::InitHW()
 	return STATUS_OK;
 }
 
+///-----------------------------------------------------------------------------
+///         Functions to start the motors                               [PUBLIC]
+///-----------------------------------------------------------------------------
+
 /**
  * Move vehicle in desired direction
- * 		@param direction - selects the direction of movement
- * 		@param arg - distance in centimeters(forward/backward) or angle in �(left/right)
+ * @param direction - selects the direction of movement
+ * @param arg - distance in centimeters(forward/backward) or angle in �(left/right)
  * 	TODO: Configure startup_ccs.c to support ISR for counters
  */
 int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
@@ -221,11 +190,11 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	if (!_DirValid(dir)) return STATUS_ARG_ERR;
 
 	HAL_ENG_Enable(ED_BOTH, true);
- 	/**
+
+ 	/*
  	 * Configure PWM generators, H-bridges and set conditions to be evaluated
  	 * during movement
  	 */
-
 	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
  	if (dir == DIRECTION_LEFT)
  		wheelDistance = ((float)arg * _wheelSpacing * _encRes) / (360.0  * _wheelDia);
@@ -239,20 +208,17 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 
  	wheelCounter[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
 
-
 #if defined(__DEBUG_SESSION__)
 	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
 #endif
-	HAL_ENG_SetHBridge(ED_BOTH, dir);       //configure H-bridge
-	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set left engine speed
-	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
-
-	//HAL_ENG_IntEnable(ED_RIGHT, true);
+	HAL_ENG_SetHBridge(ED_BOTH, dir);       //  Configure H-bridge
+	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//  Set left engine speed
+	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//  Set right engine speed
 
 	while ( blocking && IsDriving() );
 	if (blocking) HAL_ENG_Enable(ED_BOTH, false);
 
-	return STATUS_OK;	//Successful execution
+	return STATUS_OK;	//  Successful execution
 }
 
 int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
@@ -280,14 +246,14 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 	if (HAL_ENG_GetHBridge(ED_BOTH) != dir)
 	    HAL_ENG_SetHBridge(ED_BOTH, dir);
 
-	return STATUS_OK;	//Successful execution
+	return STATUS_OK;	//  Successful execution
 }
 
 /**
- * Move vehicle over a circular path
- * 		@param distance - distance ALONG THE CIRCUMFERENCE of arc that's necessary to travel
- * 		@param angle - angle in �(left/right) that's needed to travel along the arc
- * 		@param smallRadius - radius that's going to be traveled by the inner wheel (smaller comparing to outter wheel)
+ *  Move vehicle over a circular path
+ * 	@param distance - distance ALONG THE CIRCUMFERENCE of arc that's necessary to travel
+ * 	@param angle - angle in �(left/right) that's needed to travel along the arc
+ * 	@param smallRadius - radius that's going to be traveled by the inner wheel (smaller comparing to outter wheel)
  * 	Function can be called by only two of the arguments(leaving third 0) as arc parameters can be calculated based on:
  * 		-angle and distance
  * 		-angle and small radius
@@ -298,11 +264,12 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 {
 	float speedFactor = 1;
 
- 	//One of those parameters is needed to be non-zero to calculate valid path
+ 	//  One of those parameters is needed to be non-zero to calculate valid path
  	if ( (distance == 0.0f) && (smallRadius == 0.0f)) return STATUS_ARG_ERR;
  	HAL_ENG_Enable(ED_BOTH, true);
 
-	if (angle > 90)//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
+ 	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
+	if (angle > 90)
  	{
  		//distance = distance - wheelSafety[ED_LEFT][0] * _wheelDia * PI_CONST/_encRes;
  		angle-= 90;
@@ -310,10 +277,12 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  		wheelCounter[ED_LEFT] = lroundf((smallRadius * (angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
  		wheelCounter[ED_RIGHT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
 
+ 		//  Speed difference between the engines
  		speedFactor = (float)wheelCounter[ED_LEFT]/((float)wheelCounter[ED_RIGHT]);
 
- 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//set right engine speed
- 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL * speedFactor * 0.9);	//set left engine speed
+ 		//  Set right & left engine speed
+ 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);
+ 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL * speedFactor * 0.9);
  	}
  	else
  	{
@@ -323,22 +292,20 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  		wheelCounter[ED_RIGHT] = lroundf((smallRadius * (angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
  		wheelCounter[ED_LEFT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
 
+ 		//  Speed difference between the engines
+ 		speedFactor = (float)wheelCounter[ED_RIGHT]/((float)wheelCounter[ED_LEFT]);
 
- 		speedFactor = (float)wheelCounter[ED_RIGHT]/((float)wheelCounter[ED_LEFT]);	//Speed difference between the engines
-
- 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//set right engine speed
- 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL * speedFactor *0.9);	//set left engine speed
+ 		//  Set right & left engine speed
+ 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);
+ 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL * speedFactor *0.9);
  	}
 
 	HAL_ENG_SetHBridge(ED_BOTH, DIRECTION_FORWARD);
 
-    HAL_ENG_IntEnable(ED_LEFT, true);
-    HAL_ENG_IntEnable(ED_RIGHT, true);
-
 	while ( IsDriving() );
 	HAL_ENG_Enable(ED_BOTH, true);
 
-	return STATUS_OK;	//Successful execution
+	return STATUS_OK;	//  Successful execution
 }
 
 /**
@@ -359,6 +326,72 @@ bool EngineData::_DirValid(uint8_t dir)
 			|| (dir == DIRECTION_LEFT) || (dir == DIRECTION_RIGHT))
 		return true;
 	return false;
+}
+
+///-----------------------------------------------------------------------------
+///         Class constructor and destructor                         [PROTECTED]
+///-----------------------------------------------------------------------------
+
+EngineData::EngineData() {}
+EngineData::~EngineData() {}
+
+
+///-----------------------------------------------------------------------------
+///         Declaration of ISR functions for optical encoders          [PRIVATE]
+///-----------------------------------------------------------------------------
+
+/**
+ * ISR for left engine
+ *      Function called every time an encoder gives a pulse for a rotating
+ *      wheel. Decreases internal counter for corresponding wheel and slows down
+ *      rotation by 50% before stopping to minimize position overshoot on halt
+ *  TODO: Implement a stack of distances for each wheel so the vehicle can
+ *      perform more complex maneuvers
+ */
+void PP0ISR(void)
+{
+    EngineData *__ed = EngineData::GetP();
+    HAL_ENG_IntClear(ED_LEFT);
+
+    if (__ed->wheelCounter[ED_LEFT] > 0)
+            __ed->wheelCounter[ED_LEFT]--;
+
+    /*if (__ed->wheelCounter[ED_LEFT] == 1)
+    {
+        HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
+    }
+    else*/ if (__ed->wheelCounter[ED_LEFT] == 0)
+    {
+        HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
+        HAL_ENG_Enable(ED_LEFT, false);
+    }
+}
+
+/**
+ * ISR for right engine
+ *      Function called every time an encoder gives a pulse for a rotating
+ *      wheel. Decreases internal counter for corresponding wheel and slows down
+ *      rotation by 50% before stopping to minimize position overshoot on halt
+ *  TODO: Implement a stack of distances for each wheel so the vehicle can
+ *      perform more complex maneuvers
+ */
+void PP1ISR(void)
+{
+    EngineData *__ed = EngineData::GetP();
+    HAL_ENG_IntClear(ED_RIGHT);
+
+    if (__ed->wheelCounter[ED_RIGHT] > 0)
+            __ed->wheelCounter[ED_RIGHT]--;
+
+    /*if (__ed->wheelCounter[ED_RIGHT] == 3)
+    {
+        HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
+    }
+    else*/ if (__ed->wheelCounter[ED_RIGHT] == 1)
+    {
+        HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
+        HAL_ENG_Enable(ED_RIGHT, false);
+    }
 }
 
 #endif  /* __HAL_USE_ENGINES__ */
