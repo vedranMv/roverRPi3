@@ -6,7 +6,7 @@
  *
  *  IR-sensor based radar (on 2D gimbal)
  *  (library Infrared Proximity Sensor, Sharp GP2Y0A21YK)
- *  @version 1.2.1
+ *  @version 1.2.2
  *  v1.1
  *  +Packed sensor functions and data into a C++ object
  *  V1.2

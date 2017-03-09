@@ -109,7 +109,7 @@ void _ENG_KernelCallback(void)
 ///-----------------------------------------------------------------------------
 
 /**
- * Return reference to an instance of singleton
+ * Return reference to a singleton
  * @return reference to an internal static instance
  */
 EngineData& EngineData::GetI()
@@ -119,8 +119,8 @@ EngineData& EngineData::GetI()
 }
 
 /**
- * Return pointer to and instance of singleton
- * @return pointer to and internal static instance
+ * Return pointer to a singleton
+ * @return pointer to an internal static instance
  */
 EngineData* EngineData::GetP()
 {
@@ -133,10 +133,10 @@ EngineData* EngineData::GetP()
 
 /**
  * Set vehicle parameters needed to calculate motor parameters
- * @param wheelD
- * @param wheelS
- * @param vehSiz
- * @param encRes
+ * @param wheelD diameter of the motorized wheels
+ * @param wheelS distance(spacing) between motorized wheels
+ * @param vehSiz length of the vehicle (perpendicular to wheelS)
+ * @param encRes encoder resolution (ppr - points per rotation)
  */
 void EngineData::SetVehSpec(
 	float wheelD,
@@ -187,7 +187,8 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 {
 	float wheelDistance ; //centimeters
 
-	if (!_DirValid(dir)) return STATUS_ARG_ERR;
+	if (!_DirValid(dir))
+	    return STATUS_ARG_ERR;
 
 	HAL_ENG_Enable(ED_BOTH, true);
 
@@ -223,7 +224,8 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 
 int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 {
-	if (!_DirValid(dir)) return STATUS_ARG_ERR;
+	if (!_DirValid(dir))
+        return STATUS_ARG_ERR;
 	HAL_ENG_Enable(ED_BOTH, true);
 
 	//	Set to non-zero number to indicate that motors are running
@@ -265,7 +267,8 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 	float speedFactor = 1;
 
  	//  One of those parameters is needed to be non-zero to calculate valid path
- 	if ( (distance == 0.0f) && (smallRadius == 0.0f)) return STATUS_ARG_ERR;
+ 	if ( (distance == 0.0f) && (smallRadius == 0.0f))
+ 	        return STATUS_ARG_ERR;
  	HAL_ENG_Enable(ED_BOTH, true);
 
  	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
@@ -338,15 +341,13 @@ EngineData::~EngineData() {}
 
 ///-----------------------------------------------------------------------------
 ///         Declaration of ISR functions for optical encoders          [PRIVATE]
+///* Function called every time an encoder gives a pulse for a rotating wheel
+///* Decreases internal counter for corresponding wheel and at counter=1 stop
+///* rotation and let the vehicle stop by its own weight
 ///-----------------------------------------------------------------------------
 
 /**
  * ISR for left engine
- *      Function called every time an encoder gives a pulse for a rotating
- *      wheel. Decreases internal counter for corresponding wheel and slows down
- *      rotation by 50% before stopping to minimize position overshoot on halt
- *  TODO: Implement a stack of distances for each wheel so the vehicle can
- *      perform more complex maneuvers
  */
 void PP0ISR(void)
 {
@@ -369,11 +370,6 @@ void PP0ISR(void)
 
 /**
  * ISR for right engine
- *      Function called every time an encoder gives a pulse for a rotating
- *      wheel. Decreases internal counter for corresponding wheel and slows down
- *      rotation by 50% before stopping to minimize position overshoot on halt
- *  TODO: Implement a stack of distances for each wheel so the vehicle can
- *      perform more complex maneuvers
  */
 void PP1ISR(void)
 {

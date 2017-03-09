@@ -47,11 +47,12 @@
 #define ENGINE_FULL_ARG 	18750
 
 /**     Movement direction definitions for H-bridge - Direction macros  */
-#define DIRECTION_FORWARD 	0x0A	//move forward H-bridge configuration  1010
-#define DIRECTION_BACKWARD 	0x05	//move backward H-bridge configuration 0101
-#define DIRECTION_LEFT 		0x09	//turn left H-bridge configuration 1001
-#define DIRECTION_RIGHT 	0x06	//turn right H-bridge configuration 0110
+#define DIRECTION_FORWARD 	0x0A	//  Move forward H-bridge configuration  1010
+#define DIRECTION_BACKWARD 	0x05	//  Move backward H-bridge configuration 0101
+#define DIRECTION_LEFT 		0x09	//  Turn left H-bridge configuration 1001
+#define DIRECTION_RIGHT 	0x06	//  Turn right H-bridge configuration 0110
 
+/**     Motor selectors (based on the side, viewed from the back of the vehicle) */
 #define ED_LEFT		0
 #define ED_RIGHT 	1
 #define ED_BOTH     2
@@ -63,7 +64,6 @@ class EngineData
 	public:
         static EngineData& GetI();
         static EngineData* GetP();
-        ~EngineData();
 
 		void SetVehSpec(float wheelD, float wheelS, float vehSiz, float encRes);
 
@@ -74,10 +74,13 @@ class EngineData
 		bool 	IsDriving() volatile;
 		void 	SetSafetySeq(uint8_t seq, uint32_t right, uint32_t left);
 
+		//  Number of encoder counts each wheel has traveled
+		//  (+ for forward direction, - for backward)
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
 
 	protected:
         EngineData();
+        ~EngineData();
         EngineData(float wheelD, float wheelS, float vehSiz, float encRes);
         EngineData(EngineData &arg) {}           //  No definition - forbid this
         void operator=(EngineData const &arg) {} //  No definition - forbid this
