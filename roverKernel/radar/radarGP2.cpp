@@ -12,11 +12,9 @@
 #include "roverKernel/HAL/hal.h"
 #include "utils/uartstdio.h"
 
-//  Global pointer to FIRST created instance of RadarModule
-RadarModule* __rD;
-
 void _RADAR_KernelCallback(void)
 {
+    RadarModule* __rD = RadarModule::GetP();
     //  Check for null-pointer
     if (__rD->_radKer.args == 0)
         return;
@@ -86,25 +84,27 @@ void _RADAR_KernelCallback(void)
 
 }
 
-/*******************************************************************************
- *******************************************************************************
- *********            RadarModule class member functions                *********
- *******************************************************************************
- ******************************************************************************/
-
 ///-----------------------------------------------------------------------------
-///                      Class constructor & destructor                 [PUBLIC]
+///         Functions for returning static instance                     [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-RadarModule::RadarModule() : _scanComplete(false), _scanData(0), _fineScan(false)
+/**
+ * Return reference to a singleton
+ * @return reference to an internal static instance
+ */
+RadarModule& RadarModule::GetI()
 {
-    if (__rD == 0)
-        __rD = this;
+    static RadarModule singletonInstance;
+    return singletonInstance;
 }
 
-RadarModule::~RadarModule()
+/**
+ * Return pointer to a singleton
+ * @return pointer to a internal static instance
+ */
+RadarModule* RadarModule::GetP()
 {
-	__rD = 0;
+    return &(RadarModule::GetI());
 }
 
 ///-----------------------------------------------------------------------------
@@ -155,8 +155,8 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	float angle = 0,
 	      step = 0.125f;
 	uint32_t dist, 		    //  Distance in cm, value returned from ADC module
-			 angleAvg = 0,	//Temp. variable to calculate average of 8 readings
-			 angleCount = 0;//counts number of measurements
+			 angleAvg = 0,	//  Temp. variable to calculate average of 8 readings
+			 angleCount = 0;//  Counts number of measurements
 
 	//  Enable PWM for radar
 	HAL_RAD_Enable(true);
@@ -230,6 +230,7 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	if (!fine) *length = angleCount / 8;
 	else *length = angleCount;
 
+	//  Set the flag to indicate scan is completed
 	_scanComplete = true;
 }
 
@@ -241,7 +242,6 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 void RadarModule::Scan(bool fine)
 {
     uint16_t scanLen = 0;
-    //uint8_t data[1280];
 
     //  If there's memory already occupied, it's assumed that's from old scan
     //  and can be safely deleted -> new memory will be occupied for this scan
@@ -259,6 +259,8 @@ void RadarModule::Scan(bool fine)
     //  Call user's function to process data from the scan
     custHook(_scanData, &scanLen);
 
+    //  After hooked function has processed data clear the flag
+    _scanComplete = false;
     /*
      * Delete function on [_scanData] is not called here as this data might be
      * used again before the next scan. Rather, data buffered is cleared at the
@@ -266,6 +268,33 @@ void RadarModule::Scan(bool fine)
      */
 }
 
+/**
+ * Check if the current scan is completed
+ * @note Function clears the flag after it has returned true!
+ * @return whether or not the current scan is completed
+ */
+bool RadarModule::ScanReady()
+{
+    bool retVal = _scanComplete;
+    _scanComplete = false;
+
+    return retVal;
+}
+
+/**
+ * Read whatever data is in the internal buffer (left from last completed scan)
+ * @param buffer[out] buffer to which scan data is written into
+ * @param bufferLen[out] length of the buffer above
+ */
+void RadarModule::ReadBuffer(uint8_t *buffer, uint16_t *bufferLen)
+{
+    if (_fineScan)
+        *bufferLen = 1280;
+    else
+        *bufferLen = 160;
+
+    memcpy((void*)buffer, (void*)_scanData, *bufferLen);
+}
 /**
  * Set horizontal angle of radar to a specified value (0� right, 160� left)
  * @param angle
@@ -283,5 +312,15 @@ void RadarModule::SetVerAngle(float angle)
 {
     HAL_RAD_SetVerAngle(angle); //  Direct call to HAL
 }
+
+///-----------------------------------------------------------------------------
+///                      Class constructor & destructor              [PROTECTED]
+///-----------------------------------------------------------------------------
+
+RadarModule::RadarModule() : _scanComplete(false), _scanData(0), _fineScan(false)
+{}
+
+RadarModule::~RadarModule()
+{}
 
 #endif  /* __HAL_USE_RADAR__ */
