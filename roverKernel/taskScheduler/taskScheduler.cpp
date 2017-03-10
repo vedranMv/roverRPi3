@@ -33,32 +33,48 @@ void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid)
     __kernelVector[uid] = arg;
 }
 
-//  Global pointer to FIRST instance of TaskScheduler object
-volatile TaskScheduler* __taskSch;
+//  Function prototype to an interrupt handler (declared at the bottom)
+void _TSSyncCallback();
 
 ///-----------------------------------------------------------------------------
-///                      Class constructor & destructor                [PUBLIC]
+///         Functions for returning static instance                     [PUBLIC]
 ///-----------------------------------------------------------------------------
-TaskScheduler::TaskScheduler() : _lastIndex(0)
+
+/**
+ * Return reference to a singleton
+ * @return reference to an internal static instance
+ */
+ volatile TaskScheduler& TaskScheduler::GetI()
 {
-	if (__taskSch == 0) __taskSch = this;
+    static volatile TaskScheduler singletonInstance;
+    return singletonInstance;
 }
 
-TaskScheduler::~TaskScheduler()
+/**
+ * Return pointer to a singleton
+ * @return pointer to a internal static instance
+ */
+volatile TaskScheduler* TaskScheduler::GetP()
 {
-    HAL_TS_StopSysTick();
-	__taskSch = 0;
+    return &(TaskScheduler::GetI());
 }
+
+///-----------------------------------------------------------------------------
+///                      Class member function definitions              [PUBLIC]
+///-----------------------------------------------------------------------------
+
 
 /**
  * Used to initialize hardware used by task scheduler (systick and interrupt)
  * In older version used to be called directly from constructor which would
  * require board clock to be configured at the time of initialization.
+ * @param timeStepMS internal time step (in ms) by which internal time is
+ * increased every systick (also a period of systick)
  */
-void TaskScheduler::InitHW() volatile
+void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
 {
-
-    HAL_TS_InitSysTick(100, TSSyncCallback);
+    //  Initialize & start systick => keeps internal time reference
+    HAL_TS_InitSysTick(timeStepMS, _TSSyncCallback);
     HAL_TS_StartSysTick();
 }
 
@@ -162,7 +178,7 @@ void TaskScheduler::AddArgs(void* arg, uint8_t argLen) volatile
  */
  TaskEntry TaskScheduler::PopFront() volatile
 {
-     TaskEntry retVal;
+    TaskEntry retVal;
     retVal = _taskLog.PopFront();
     _lastIndex = 0;
     return retVal;
@@ -175,6 +191,16 @@ void TaskScheduler::AddArgs(void* arg, uint8_t argLen) volatile
 volatile TaskEntry& TaskScheduler::PeekFront() volatile
 {
     return _taskLog.head->data;
+}
+
+///-----------------------------------------------------------------------------
+///                      Class constructor & destructor              [PROTECTED]
+///-----------------------------------------------------------------------------
+TaskScheduler::TaskScheduler() : _lastIndex(0) {}
+
+TaskScheduler::~TaskScheduler()
+{
+    HAL_TS_StopSysTick();
 }
 
 /*******************************************************************************
@@ -191,7 +217,7 @@ volatile uint64_t msSinceStartup = 0;
  * Used to keep internal track of time either as number of milliseconds passed
  * from start-up of task scheduler or acquired UTC time
  */
-void TSSyncCallback(void)
+void _TSSyncCallback(void)
 {
     msSinceStartup += HAL_TS_GetTimeStepMS();
 }
@@ -205,6 +231,9 @@ void TSSyncCallback(void)
  */
 void TS_GlobalCheck(void)
 {
+    //  Grab a pointer to singleton
+    volatile TaskScheduler* __taskSch = TaskScheduler::GetP();
+
     //  Check if there task scheduled to execute
     if (!__taskSch->IsEmpty())
         //  Check if the first task had to be executed already

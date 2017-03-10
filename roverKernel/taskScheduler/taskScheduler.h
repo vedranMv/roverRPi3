@@ -5,7 +5,7 @@
  *      Author: Vedran
  *
  *  Task scheduler library
- *  @version 2.4.2
+ *  @version 2.4.3
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -35,7 +35,10 @@
  *  V2.4.2 - 4.3.2017
  *  +Instead of starting SysTick in constructor, class now has InitHW() func.
  *  to start SysTick at any point.
+ *  V2.4.3 - 9.3.2017
+ *  +Changed TaskScheduler class into a singleton
  *  TODO:
+ *  Add a way to pass task outcome to the task caller(!)
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  */
@@ -55,22 +58,29 @@
  * Task scheduler class implementation
  * @note Task and its arguments are added separately. First add new task and then
  * use some of the 'AddArg(s)' function to add argument(s) for that task
+ * Task scheduler allows to schedule tasks for execution at a specific point in
+ * time, it's NOT a task scheduler you'd find in an operating system and it
+ * doesn't perform actual context switching. Rather it runs-to-completion a
+ * single task at the time. Scheduling in this case refers to ability to provide
+ * a starting time/period/repeats for a task.
  */
 class TaskScheduler
 {
-    // Functions & classes needing direct access to all members
-    friend void TSSyncCallback(void);
+    //  Functions & classes needing direct access to all members
+    friend void _TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
 	public:
-		TaskScheduler();
-		~TaskScheduler();
+        volatile static TaskScheduler& GetI();
+        volatile static TaskScheduler* GetP();
 
-		void InitHW() volatile;
+		void InitHW(uint32_t timeSteMS = 100) volatile;
 		void Reset() volatile;
 		bool IsEmpty() volatile;
+		//  Adding new task
 		void SyncTask(uint8_t libuid, uint8_t comm, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
 		void SyncTask(TaskEntry te) volatile;
+		//  Add arguments for the last task added
 		void AddArgs(void* arg, uint8_t argLen) volatile;
 
 		/**
@@ -87,22 +97,24 @@ class TaskScheduler
 		    if (_lastIndex != 0)
 		        _lastIndex->data.AddArg((void*)&arg, sizeof(arg));
 		}
-
+		//  View/get first elements of the task list
         TaskEntry            PopFront() volatile;
 		volatile TaskEntry&  PeekFront() volatile;
 
 	private:
+        TaskScheduler();
+        ~TaskScheduler();
+        TaskScheduler(TaskScheduler &arg) {}        //  No definition - forbid this
+        void operator=(TaskScheduler const &arg) {} //  No definition - forbid this
+
+
 		//  Queue of tasks to be executed
 		volatile LinkedList	_taskLog;
 		//  Pointer to last added item (need to be able to append arguments)
-		//  ->Reset to zero after calling PopFront() function
+		//  ->Is being reset to zero after calling PopFront() function
 		volatile _llnode    * volatile _lastIndex;
 };
 
-//  Global pointer to first instance of TaskScheduler object
-extern volatile TaskScheduler* __taskSch;
-
-extern void TSSyncCallback(void);
 extern void TS_GlobalCheck(void);
 
 /**
@@ -113,8 +125,6 @@ extern void TS_GlobalCheck(void);
  * someone requests a service from kernel module; b) ServiceID of service to be
  * executed; c)Memory space used for arguments for callback function; d) Return
  * variable of the service execution
- * @note IMPORTANT! 1st byte of args ALWAYS contains number of following data
- *  bytes, remember to use +1 offset in memory when doing memcpy on args array
  */
 struct _kernelEntry
 {
