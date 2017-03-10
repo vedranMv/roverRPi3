@@ -42,6 +42,13 @@
 
 #endif
 
+/**
+ * Class object representing IR radar module
+ * Provides a high-level interface to a radar module. Supports repositioning the
+ * radar's gimbal and performing a scan. A user is able to provide a function to
+ * be called once a scan is complete by calling Scan(), or the scan can be
+ * requested and buffers read manually using Scan(uint8_t*, uint16_t*, bool)
+ */
 class RadarModule
 {
     friend void _RADAR_KernelCallback(void);

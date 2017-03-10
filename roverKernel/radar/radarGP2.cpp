@@ -14,7 +14,7 @@
 
 void _RADAR_KernelCallback(void)
 {
-    RadarModule* __rD = RadarModule::GetP();
+    RadarModule *__rD = RadarModule::GetP();
     //  Check for null-pointer
     if (__rD->_radKer.args == 0)
         return;
@@ -256,8 +256,10 @@ void RadarModule::Scan(bool fine)
 
     //  Initiate scan
     Scan(_scanData, &scanLen, fine);
+
     //  Call user's function to process data from the scan
-    custHook(_scanData, &scanLen);
+    if (custHook != 0)
+        custHook(_scanData, &scanLen);
 
     //  After hooked function has processed data clear the flag
     _scanComplete = false;

@@ -89,10 +89,10 @@ class EngineData
 		uint32_t _cmpsToEncT(float &ticks);
 
 		//  Mechanical properties of platform
-		float _wheelDia; 	//in cm
-		float _wheelSpacing; //in cm
+		float _wheelDia;        //in cm
+		float _wheelSpacing;    //in cm
 		float _vehicleSize; 	//in cm
-		float _encRes;	//Encoder resolution in points (# of points/rotation)
+		float _encRes;	//  Encoder resolution in points (# of points/rotation)
 
         //  Interface with task scheduler - provides memory space and function
         //  to call in order for task scheduler to request service from this module
