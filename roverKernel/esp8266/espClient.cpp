@@ -49,14 +49,20 @@ void _espClient::operator= (const _espClient &arg)
 /**
  * Send data to a client over open TCP socket
  * @param buffer NULL-TERMINATED(!) data to send
+ * @param bufferLen[optional] len of the buffer, is not provided looks for first
+ * occurrence of \0 in buffer and takes that as length
  * @return status of send process (binary or of ESP_* flags received while sending)
  */
-uint32_t _espClient::SendTCP(char *buffer)
+uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
 {
-    uint16_t bufLen = 0;
+    uint16_t bufLen = bufferLen;
 
-    while (buffer[bufLen++] != '\0');   //Find length of string
-    bufLen--;
+    //  If buffer length is not provided find it by looking for \0 char in string
+    if (bufferLen == 0)
+    {
+        while (buffer[bufLen++] != '\0');   //  Find \0
+        bufLen--;
+    }
     //  Initiate transmission from
     snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen);
     if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV))
@@ -102,8 +108,8 @@ bool _espClient::Receive(char *buffer, uint16_t *bufferLen)
         if (!KeepAlive)
         {
 #if defined(__USE_TASK_SCHEDULER__)
-            __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
-            __taskSch->AddArgs(&_id, 1);
+            TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
+            TaskScheduler::GetP()->AddArgs(&_id, 1);
 #else
             Close();
 #endif
@@ -141,8 +147,8 @@ void _espClient::Done()
     if (!KeepAlive)
     {
 #if defined(__USE_TASK_SCHEDULER__)
-        __taskSch->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
-        __taskSch->AddArgs(&_id, 1);
+        TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_CLOSETCP, 0);
+        TaskScheduler::GetP()->AddArgs(&_id, 1);
 #else
         Close();
 #endif

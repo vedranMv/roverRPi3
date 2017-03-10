@@ -32,7 +32,7 @@ class _espClient
 
         void        operator= (const _espClient &arg);
 
-        uint32_t    SendTCP(char *buffer);
+        uint32_t    SendTCP(char *buffer, uint16_t bufferLen = 0);
         bool        Receive(char *buffer, uint16_t *bufferLen);
         bool        Ready();
         void        Done();

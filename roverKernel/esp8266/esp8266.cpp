@@ -16,6 +16,8 @@
 #include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 
+//  Function prototype to an interrupt handler (declared at the bottom)
+void UART7RxIntHandler(void);
 
 /*      Lookup table for statuses returned by ESP8266       */
 /*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
@@ -26,10 +28,7 @@
 //  Dummy instance used for return value when no available client
 _espClient dummy;
 
-//  Pointer to first created instance of ESP8266
-ESP8266* __esp;
-
-//  Buffer used to assemble commands
+//  Buffer used to assemble commands (shared between all functions )
 char _commBuf[512];
 
 
@@ -42,6 +41,9 @@ char _commBuf[512];
  */
 void _ESP_KernelCallback(void)
 {
+    //  Grab a pointer to singleton
+    ESP8266 *__esp = ESP8266::GetP();
+
     //  Check for null-pointer
     if (__esp->_espKer.argN == 0)
         return;
@@ -164,28 +166,35 @@ void _ESP_KernelCallback(void)
  */
 void ESPWDISR()
 {
-    __esp->flowControl = ESP_STATUS_ERROR;
+    ESP8266::GetP()->flowControl = ESP_STATUS_ERROR;
     HAL_ESP_WDClearInt();
 }
 
 ///-----------------------------------------------------------------------------
-///                      Class constructor & destructor                [PUBLIC]
+///         Functions for returning static instance                     [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS), _tcpServPort(0),
-                     _ipAddress(0), _servOpen(false)
+/**
+ * Return reference to a singleton
+ * @return reference to an internal static instance
+ */
+ESP8266& ESP8266::GetI()
 {
-    if (__esp == 0) __esp = this;
+    static ESP8266 singletonInstance;
+    return singletonInstance;
 }
 
-ESP8266::~ESP8266()
+/**
+ * Return pointer to a singleton
+ * @return pointer to a internal static instance
+ */
+ESP8266* ESP8266::GetP()
 {
-    Enable(false);
-    __esp = 0;
+    return &(ESP8266::GetI());
 }
 
 ///-----------------------------------------------------------------------------
-///         Public functions used for configuring ESP8266               [PUBLIC]
+///         Functions for configuring ESP8266                           [PUBLIC]
 ///-----------------------------------------------------------------------------
 
 /**
@@ -263,7 +272,6 @@ void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
 uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 {
     int8_t retVal = ESP_NO_STATUS;
-    //char command[100];
 
     //  Set ESP in client mode
     retVal = _SendRAW("AT+CWMODE_CUR=1\0");
@@ -297,17 +305,6 @@ bool ESP8266::IsConnected()
 }
 
 /**
- * Get IP address assigned to device when connected to AP
- * @return IP address of ESP in integer form
- */
-uint32_t ESP8266::MyIP()
-{
-    if (_ipAddress == 0) _SendRAW("AT+CIPSTA\?\0");
-
-    return _ipAddress;
-}
-
-/**
  * Disconnect from WiFi Access point
  * @return
  */
@@ -318,6 +315,17 @@ uint32_t ESP8266::DisconnectAP()
     _ipAddress = 0;
 
     return _SendRAW("AT+CWQAP\0");
+}
+
+/**
+ * Get IP address assigned to device when connected to AP
+ * @return IP address of ESP in integer form
+ */
+uint32_t ESP8266::MyIP()
+{
+    if (_ipAddress == 0) _SendRAW("AT+CIPSTA\?\0");
+
+    return _ipAddress;
 }
 
 ///-----------------------------------------------------------------------------
@@ -349,27 +357,6 @@ uint32_t ESP8266::StartTCPServer(uint16_t port)
 }
 
 /**
- * Configure listening for incoming data when running server mode or waiting for
- * response on an opened TCP socket
- * @param enable set true for initiating listening, false otherwise
- */
-void ESP8266::TCPListen(bool enable)
-{
-    HAL_ESP_IntEnable(enable);
-    _servOpen = enable;
-}
-
-/**
- * Check if TCP server is running
- * @return true: server is running,
- *        false: not
- */
-bool ESP8266::ServerOpened()
-{
-    return _servOpen;
-}
-
-/**
  * Stop TCP server running on ESP
  * @return error code depending on the outcome
  */
@@ -384,6 +371,27 @@ uint32_t ESP8266::StopTCPServer()
     _servOpen = false;
     _tcpServPort = 0;
     return retVal;
+}
+
+/**
+ * Check if TCP server is running
+ * @return true: server is running,
+ *        false: not
+ */
+bool ESP8266::ServerOpened()
+{
+    return _servOpen;
+}
+
+/**
+ * Configure listening for incoming data when running server mode or waiting for
+ * response on an opened TCP socket
+ * @param enable set true for initiating listening, false otherwise
+ */
+void ESP8266::TCPListen(bool enable)
+{
+    HAL_ESP_IntEnable(enable);
+    _servOpen = enable;
 }
 
 ///-----------------------------------------------------------------------------
@@ -401,6 +409,7 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
 {
     uint32_t retVal;
     uint8_t sockID;
+
     //  Find free socket number (0-4 supported)
     for (sockID = 0; sockID < 4; sockID++)
     {
@@ -469,6 +478,7 @@ _espClient* ESP8266::GetClientByIndex(uint16_t index)
 _espClient* ESP8266::GetClientBySockID(uint16_t id)
 {
     uint16_t index = _IDtoIndex(id);
+
     return GetClientByIndex(index);
 }
 
@@ -485,6 +495,10 @@ uint32_t ESP8266::Send2(char* arg)
 
     return _clients[_IDtoIndex(0)].SendTCP(arg);
 }
+
+///-----------------------------------------------------------------------------
+///                      Miscellaneous functions                        [PUBLIC]
+///-----------------------------------------------------------------------------
 
 /**
  * ESP reply message parser
@@ -604,6 +618,24 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 
     return retVal;
 }
+
+///-----------------------------------------------------------------------------
+///                      Class constructor & destructor              [PROTECTED]
+///-----------------------------------------------------------------------------
+
+ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS), _tcpServPort(0),
+                     _ipAddress(0), _servOpen(false)
+{
+}
+
+ESP8266::~ESP8266()
+{
+    Enable(false);
+}
+
+///-----------------------------------------------------------------------------
+///                      Miscellaneous functions                     [PROTECTED]
+///-----------------------------------------------------------------------------
 
 /**
  * Check whether the [flag]s are set in the [status] message
@@ -744,12 +776,15 @@ uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
     return 444U;
 }
 
+///-----------------------------------------------------------------------------
+/// Interrupt service routine for handling incoming data on UART (Tx)  [PRIVATE]
+///-----------------------------------------------------------------------------
 
-/**
- * Interrupt service routine for handling incoming data on UART (Tx)
- */
 void UART7RxIntHandler(void)
 {
+    //  Grab a pointer to singleton
+    ESP8266 *__esp = ESP8266::GetP();
+
     static char rxBuffer[1024] ;
     static uint16_t rxLen = 0;
 
@@ -813,7 +848,7 @@ void UART7RxIntHandler(void)
                 //  If using task scheduler, schedule receiving outside this ISR
                     volatile TaskEntry tE(ESP_UID, ESP_T_RECVSOCK, 0);
                     tE.AddArg(&__esp->GetClientByIndex(i)->_id, 1);
-                    __taskSch->SyncTask(tE);
+                    TaskScheduler::GetP()->SyncTask(tE);
 #else
                     //  If no task scheduler do everything in here
                     char resp[128];

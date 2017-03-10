@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.3.1
+ *  @version 1.3.2
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -26,6 +26,8 @@
  *  +Integration of library with task scheduler
  *  V1.3.1 - 6.2.2017
  *  +Modified to support Task scheduler v2.3
+ *  V1.3.2
+ *  +Changed ESP8266 class into a singleton
  *  TODO:Add interface to send UDP packet
  */
 #include "roverKernel/hwconfig.h"
@@ -36,7 +38,8 @@
 
 //  Define class prototype
 class ESP8266;
-//  Shared buffer for ESP library to assemble text requests in
+//  Shared buffer for ESP library to assemble text requests in (declared extern
+//  because it's shared with espClient library
 extern char _commBuf[512];
 
 //  Include client library
@@ -65,7 +68,6 @@ extern char _commBuf[512];
 
 #endif
 
-
 /*		Communication settings	 	*/
 #define ESP_DEF_BAUD			1000000
 
@@ -91,48 +93,59 @@ extern char _commBuf[512];
 
 /**
  * ESP8266 class definition
+ * Object provides a high-level interface to the ESP chip. Allows basic AP func.,
+ * setting up a TCP server and managing open sockets. Socket creation/deletion
+ * handled internally by interpreting status messages received from ESP. Class
+ * _espClient provides direct interface to opened TCP sockets which can be accessed
+ * from ESP8266::_clients vector
  */
 class ESP8266
 {
-        /// Functions & classes needing direct access to all members
-        friend class    _espClient;
-        friend void     UART7RxIntHandler(void);
-        friend void     _ESP_KernelCallback(void);
+    /// Functions & classes needing direct access to all members
+    friend class    _espClient;
+    friend void     UART7RxIntHandler(void);
+    friend void     _ESP_KernelCallback(void);
 	public:
-		ESP8266();
-		~ESP8266();
-
+        //  Functions for returning static instance
+        static ESP8266& GetI();
+        static ESP8266* GetP();
+        //  Functions for configuring ESP8266
 		uint32_t    InitHW(int32_t baud = ESP_DEF_BAUD);
+        void        Enable(bool enable);
+        bool        IsEnabled();
+        void        AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)));
+		//  Functions used with access points
 		uint32_t    ConnectAP(char* APname, char* APpass);
 		bool        IsConnected();
-		uint32_t    MyIP();
 		uint32_t    DisconnectAP();
-
+		uint32_t    MyIP();
+		//  Functions related to TCP server
 		uint32_t    StartTCPServer(uint16_t port);
+		uint32_t    StopTCPServer();
+		bool        ServerOpened();
+		void        TCPListen(bool enable);
+		//  Functions to interface opened TCP sockets (clients)
 		_espClient* GetClientByIndex(uint16_t index);
 		_espClient* GetClientBySockID(uint16_t id);
-		void        TCPListen(bool enable);
-		bool        ServerOpened();
-		uint32_t    StopTCPServer();
-
+		//  Functions related to TCP clients
 		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive=true);
 		bool        ValidSocket(uint16_t id);
-
-		void 		Enable(bool enable);
-		bool		IsEnabled();
-
 		uint32_t    Send2(char* arg);
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
-
-		void		AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)));
+		//  Miscellaneous functions
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
 
 		//  Hook to user routine called when data from socket is received
 		void	((*custHook)(uint8_t, uint8_t*, uint16_t*));
-		//  Status variable for error codes returned by ESP - bi
+		//  Status variable for error codes returned by ESP
 		volatile uint32_t	flowControl;
 
 	protected:
+        ESP8266();
+        ~ESP8266();
+        ESP8266(ESP8266 &arg) {}                //  No definition - forbid this
+        void operator=(ESP8266 const &arg) {}   //  No definition - forbid this
+
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
 		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
 		                     uint32_t timeout = 1000);
@@ -144,16 +157,13 @@ class ESP8266
 		//  IP address in decimal and string format
 		uint32_t    _ipAddress;
 		char        _ipStr[16];
-
 		//  TCP server port
 		uint16_t    _tcpServPort;
 		//  Specifies whether the TCP server is currently running
 		bool        _servOpen;
-
 		//  Vector clients currently connected to ESP (when in TCP-server mode)
 		//  or connections initiated by the ESP
 		espCli      _clients;
-
 		//  Interface with task scheduler - provides memory space and function
 		//  to call in order for task scheduler to request service from this module
 #if defined(__USE_TASK_SCHEDULER__)
@@ -161,11 +171,5 @@ class ESP8266
 #endif
 };
 
-//  Global pointer to FIRST created instance of ESP module
-extern ESP8266* __esp;
-/*
- *  UART interrupt handle - used to receive incoming data from ESP
- */
-extern void UART7RxIntHandler(void);
 
 #endif /* ESP8266_H_ */
