@@ -1,36 +1,37 @@
-/*
+/**
  *	uartHW.h
  *
  *  Created on: 30. 7. 2016.
- *      Author: Vedran
+ *      Author: Vedran Mikov
  *
  */
-
 #ifndef UARTHW_H_
 #define UARTHW_H_
-
-#include "../libs/myLib.h"
-
 
 /*		Communication settings	 	*/
 #define COMM_BAUD	115200
 #define TX_BUF_LEN	512
 
-
-class UartHW
+/**
+ * Interface to a UART-to-USB port, used for debugging
+ */
+class SerialPort
 {
 	public:
-		UartHW();
-		~UartHW();
+        static SerialPort& GetI();
+        static SerialPort* GetP();
 
 		int8_t	InitHW();
 		void	Send(const char* arg, ...);
 		void	AddHook(void((*custHook)(uint8_t*, uint16_t*)));
 
-		void	((*custHook)(uint8_t*, uint16_t*));  ///< Hook to user routine
+		void	((*custHook)(uint8_t*, uint16_t*));  // Hook to user routine
+	protected:
+		SerialPort();
+        ~SerialPort();
+
 };
 
-extern UartHW* __uHW;
 /*
  * Function for receiving and processing incomming data - no need to call them
  */

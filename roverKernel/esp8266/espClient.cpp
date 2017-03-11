@@ -49,8 +49,8 @@ void _espClient::operator= (const _espClient &arg)
 /**
  * Send data to a client over open TCP socket
  * @param buffer NULL-TERMINATED(!) data to send
- * @param bufferLen[optional] len of the buffer, is not provided looks for first
- * occurrence of \0 in buffer and takes that as length
+ * @param bufferLen[optional] len of the buffer, is not provided function looks
+ * for first occurrence of \0 in buffer and takes that as length
  * @return status of send process (binary or of ESP_* flags received while sending)
  */
 uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)

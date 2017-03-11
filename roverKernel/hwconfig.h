@@ -33,7 +33,7 @@
 #define __HAL_USE_ESP8266__
 #define __HAL_USE_ENGINES__
 #define __HAL_USE_RADAR__
-#define __HAL_USE_MPU9250__
+//#define __HAL_USE_MPU9250__
 #define __HAL_USE_TASKSCH__
 
 //  Define sensor for sensor library

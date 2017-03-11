@@ -2,7 +2,7 @@
  * MPU9250.h
  *
  *  Created on: 25. 3. 2015.
- *      Author: Vedran
+ *      Author: Vedran Mikov
  *  @version V1.2
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
@@ -10,6 +10,8 @@
  *  +New class Orientation added in order to provide single interface for position data
  *  V1.2 - 25.2.2017
  *  +Integration with task scheduler
+ *  V1.2.1 - 11.3.2017
+ *  +Changed MPU9250 class into a singleton
  */
 #include "roverKernel/hwconfig.h"
 
@@ -257,8 +259,8 @@ class MPU9250
 {
     friend void _MPU_KernelCallback(void);
     public:
-        MPU9250();
-        ~MPU9250();
+        static MPU9250& GetI();
+        static MPU9250* GetP();
 
         int8_t  InitHW();
         int8_t  InitSW();
@@ -285,6 +287,11 @@ class MPU9250
         //  is float[3] array for acceleration, 2nd is float[3] for gyroscope
         void((*userHook)(float*,float*));
     protected:
+        MPU9250();
+        ~MPU9250();
+        MPU9250(MPU9250 &arg) {}              //  No definition - forbid this
+        void operator=(MPU9250 const &arg) {} //  No definition - forbid this
+
         void    _GetRawGyro();
         void    _GetRawAcc();
         void    _GetRawMag();
@@ -304,8 +311,5 @@ class MPU9250
         _kernelEntry _mpuKer;
 #endif
 };
-
-
-extern void dataISR(void);
 
 #endif /* MPU9250_H_ */

@@ -15,6 +15,9 @@
 #include "utils/uartstdio.h"
 
 
+//  Function prototype to an interrupt handler (declared at the bottom)
+void dataISR(void);
+
 /*
  * NOTES:
  * 	?? X & Y axis are read from registers with opposite signs, as -X and -Y
@@ -26,8 +29,6 @@
 //  Constants used for calculating/converting
 const float GRAVITY_CONST = 9.80665f;	//	m/s^2
 
-//  Pointer to the first created instance of MPU9250
-MPU9250 *__mpu;
 
 #if defined(__USE_TASK_SCHEDULER__)
 
@@ -38,6 +39,7 @@ MPU9250 *__mpu;
  */
 void _MPU_KernelCallback(void)
 {
+    MPU9250* __mpu = MPU9250::GetP();
     //  Check for null-pointer
     if (__mpu->_mpuKer.argN == 0)
         return;
@@ -67,23 +69,26 @@ void _MPU_KernelCallback(void)
  ******************************************************************************/
 
 ///-----------------------------------------------------------------------------
-///                      Class constructor & destructor                [PUBLIC]
+///         Functions for returning static instance                     [PUBLIC]
 ///-----------------------------------------------------------------------------
 
-MPU9250::MPU9250() : dT(0), _dataFlag(false), userHook(0)
+/**
+ * Return reference to a singleton
+ * @return reference to an internal static instance
+ */
+MPU9250& MPU9250::GetI()
 {
-    memset((void*)(&_rawData[0][0]), 0, sizeof(_rawData));
-    memset(_off, 0, sizeof(_off));
-    memset(_range, 0, sizeof(_range));
-
-    //  Ensure that only first instance of this class is saved in global pointer
-    if (__mpu == 0)
-        __mpu = this;
+    static MPU9250 singletonInstance;
+    return singletonInstance;
 }
 
-MPU9250::~MPU9250()
+/**
+ * Return pointer to a singleton
+ * @return pointer to a internal static instance
+ */
+MPU9250* MPU9250::GetP()
 {
-    __mpu = 0;
+    return &(MPU9250::GetI());
 }
 
 ///-----------------------------------------------------------------------------
@@ -411,7 +416,22 @@ void MPU9250::AddHook(void((*custHook)(float*,float*)))
 }
 
 ///-----------------------------------------------------------------------------
-///         Public functions for reading raw data from MPU9250          [PUBLIC]
+///                      Class constructor & destructor              [PROTECTED]
+///-----------------------------------------------------------------------------
+
+MPU9250::MPU9250() : dT(0), _dataFlag(false), userHook(0)
+{
+    memset((void*)(&_rawData[0][0]), 0, sizeof(_rawData));
+    memset(_off, 0, sizeof(_off));
+    memset(_range, 0, sizeof(_range));
+
+}
+
+MPU9250::~MPU9250()
+{}
+
+///-----------------------------------------------------------------------------
+///         Functions for reading raw data from MPU9250              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
 void MPU9250::_GetRawAcc()
@@ -453,12 +473,11 @@ void MPU9250::_GetRawMag()
         HAL_MPU_ReadBytes(AK8963_ADDRESS, AK8963_XOUT_L + 2 * i, 2, regData);
         temp = (int16_t)(((uint16_t)regData[1] << 8) | regData[0]);
         _rawData[MPU_SENS_MAG][i] = (float)(temp - _off[MPU_SENS_MAG][i]) * _range[MPU_SENS_MAG];
-
     }
 }
 
 ///-----------------------------------------------------------------------------
-///         ISR executed whenever MPU toggles a data-ready pin          [EXTERN]
+///         ISR executed whenever MPU toggles a data-ready pin         [PRIVATE]
 ///-----------------------------------------------------------------------------
 
 
@@ -472,6 +491,7 @@ void MPU9250::_GetRawMag()
  */
 void dataISR(void)
 {
+    MPU9250& __mpu = MPU9250::GetI();
     uint8_t intStatus;
 
     //  IntClear returns true if the interrupt was caused by the correct pin
@@ -479,7 +499,7 @@ void dataISR(void)
 
     //  Stop timer and get time reference from least measurement
     HAL_TIM_Stop();
-    __mpu->dT = (float)HAL_TIM_GetValue()/(float)g_ui32SysClock;
+    __mpu.dT = (float)HAL_TIM_GetValue()/(float)g_ui32SysClock;
     HAL_TIM_Start(0);
 
     //  Read MPU interrupt status to see what caused an interrupt
@@ -489,11 +509,11 @@ void dataISR(void)
     {
         float acc[3], gyro[3];
 
-        __mpu->ReadData();
-        __mpu->GetData(acc, gyro, 0, false);
-        if (__mpu->userHook != 0)
-            __mpu->userHook(acc, gyro);
-        __mpu->IMU()->Update(acc, gyro);
+        __mpu.ReadData();
+        __mpu.GetData(acc, gyro, 0, false);
+        if (__mpu.userHook != 0)
+            __mpu.userHook(acc, gyro);
+        __mpu.IMU()->Update(acc, gyro);
     }
 }
 
@@ -504,6 +524,7 @@ void dataISR(void)
  */
 void Orientation::Update(float *acc, float *gyro)
 {
+    MPU9250* __mpu = MPU9250::GetP();
     static bool firstEntry = true;
     float __R, __P, __Y,
           accR, accP;
@@ -527,11 +548,6 @@ void Orientation::Update(float *acc, float *gyro)
         _roll = (__R + _roll) * 0.93 + (accR * 0.07);
         _pitch = (__P + _pitch) * 0.93 + (accP * 0.07);
         if (fabs(gyro[MPU_X_AXIS]) > 0.8) _yaw += __Y;
-
-       /* _roll += __R;
-        _pitch += __P;
-        _yaw += __Y;*/
-
     }
 }
 

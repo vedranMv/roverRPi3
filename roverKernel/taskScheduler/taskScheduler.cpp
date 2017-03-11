@@ -6,6 +6,9 @@
  */
 #include "taskScheduler.h"
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
 #if defined(__HAL_USE_TASKSCH__)   //  Compile only if module is enabled
 
 #include "roverKernel/libs/myLib.h"
@@ -161,7 +164,7 @@ void TaskScheduler::SyncTask(TaskEntry te) volatile
  * @param arg byte array of data to append (regardless of data type)
  * @param argLen size of byte array [arg]
  */
-void TaskScheduler::AddArgs(void* arg, uint8_t argLen) volatile
+void TaskScheduler::AddArgs(void* arg, uint16_t argLen) volatile
 {
     if (_lastIndex != 0)
         _lastIndex->data.AddArg(arg, argLen);

@@ -40,7 +40,7 @@
 class ESP8266;
 //  Shared buffer for ESP library to assemble text requests in (declared extern
 //  because it's shared with espClient library
-extern char _commBuf[512];
+extern char _commBuf[2048];
 
 //  Include client library
 #include "espClient.h"
@@ -125,18 +125,17 @@ class ESP8266
 		bool        ServerOpened();
 		void        TCPListen(bool enable);
 		//  Functions to interface opened TCP sockets (clients)
-		_espClient* GetClientByIndex(uint16_t index);
-		_espClient* GetClientBySockID(uint16_t id);
-		//  Functions related to TCP clients
-		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive=true);
-		bool        ValidSocket(uint16_t id);
+		_espClient* GetClientByIndex(uint8_t index);
+		_espClient* GetClientBySockID(uint8_t id);
+		//  Functions related to TCP clients(sockets)
+		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port,
+		                        bool keepAlive=true, uint8_t sockID = 9);
+		bool        ValidSocket(uint8_t id);
 		uint32_t    Send2(char* arg);
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
 		//  Miscellaneous functions
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
 
-		//  Hook to user routine called when data from socket is received
-		void	((*custHook)(uint8_t, uint8_t*, uint16_t*));
 		//  Status variable for error codes returned by ESP
 		volatile uint32_t	flowControl;
 
@@ -152,8 +151,10 @@ class ESP8266
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);
-		uint16_t    _IDtoIndex(uint16_t sockID);
+		uint8_t     _IDtoIndex(uint8_t sockID);
 
+        //  Hook to user routine called when data from socket is received
+        void    ((*custHook)(uint8_t, uint8_t*, uint16_t*));
 		//  IP address in decimal and string format
 		uint32_t    _ipAddress;
 		char        _ipStr[16];

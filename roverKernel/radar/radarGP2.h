@@ -60,7 +60,7 @@ class RadarModule
 		void AddHook(void((*funPoint)(uint8_t*, uint16_t*)));
 
 		void Scan(uint8_t *data, uint16_t *length, bool fine);
-		void Scan(bool fine);
+		void Scan(bool fine, bool hook = false);
 		bool ScanReady();
 		void ReadBuffer(uint8_t *buffer, uint16_t *bufferLen);
 

@@ -27,9 +27,6 @@
 #include "driverlib/timer.h"
 
 
-/**     ESP8266 - related macros        */
-#define ESP8266_UART_BASE UART7_BASE
-
 /**
  * Initialize UART port communicating with ESP8266 chip - 8 data bits, no parity,
  * 1 stop bit, no flow control
@@ -140,19 +137,19 @@ int32_t HAL_ESP_ClearInt()
  * @return true: port is currently busy
  *        false: port is free for starting communication
  */
-bool HAL_ESP_UARTBusy()
+/*extern inline bool HAL_ESP_UARTBusy()
 {
     return UARTBusy(ESP8266_UART_BASE);
-}
+}*/
 
 /**
  * Send single char over UART
  * @param arg character to send
  */
-void HAL_ESP_SendChar(char arg)
+/*void HAL_ESP_SendChar(char arg)
 {
     UARTCharPut(ESP8266_UART_BASE, arg);
-}
+}*/
 
 /**
  * Check if there are any characters available in UART RX buffer

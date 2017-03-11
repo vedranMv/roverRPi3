@@ -13,6 +13,11 @@
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_TS_TM4C_H_) && defined(__HAL_USE_TASKSCH__)
 #define ROVERKERNEL_HAL_TM4C1294_HAL_TS_TM4C_H_
 
+/**     SysTick peripheral error codes      */
+#define HAL_SYSTICK_PEROOR      1   /// Period value for SysTick is out of range
+#define HAL_SYSTICK_SET_ERR     2   /// SysTick has already been configured
+#define HAL_SYSTICK_NOTSET_ERR  3   /// SysTick hasn't been configured yet
+
 #ifdef __cplusplus
 extern "C"
 {

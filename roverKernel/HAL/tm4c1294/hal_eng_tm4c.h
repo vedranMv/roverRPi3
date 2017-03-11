@@ -17,6 +17,11 @@
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_ENG_TM4C_H_) && defined(__HAL_USE_ENGINES__)
 #define ROVERKERNEL_HAL_TM4C1294_HAL_ENG_TM4C_H_
 
+/**     Engines error codes                 */
+#define HAL_ENG_PWMOOR          4   /// PWM value out of range
+#define HAL_ENG_EOOR            5   /// Engine ID out of range
+#define HAL_ENG_ILLM            6   /// Illegal mask for H-bridge configuration
+
 #ifdef __cplusplus
 extern "C"
 {

@@ -37,7 +37,8 @@ void _RADAR_KernelCallback(void)
         {
             //  Double negation to convert any integer into boolean
             bool fine = !(!__rD->_radKer.args[0]);
-            __rD->Scan(fine);
+
+            __rD->Scan(fine, true);
         }
         break;
         /*
@@ -239,7 +240,7 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
  * @param fine specifies whether a fine scan (1280 points) is requested or
  * a coarse scan (160 points)
  */
-void RadarModule::Scan(bool fine)
+void RadarModule::Scan(bool fine, bool hook)
 {
     uint16_t scanLen = 0;
 
@@ -258,7 +259,7 @@ void RadarModule::Scan(bool fine)
     Scan(_scanData, &scanLen, fine);
 
     //  Call user's function to process data from the scan
-    if (custHook != 0)
+    if ((custHook != 0) && hook)
         custHook(_scanData, &scanLen);
 
     //  After hooked function has processed data clear the flag

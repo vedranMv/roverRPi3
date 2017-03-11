@@ -1,15 +1,10 @@
-/*
- * rpiDriver.c
+/**
+ * uartHW.c
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
  */
-
-#include <stdbool.h>
-#include <stdint.h>
-#include <math.h>
-#include <string.h>
-#include <ctype.h>
+#include "roverKernel/libs/myLib.h"
 
 #include "inc/hw_memmap.h"
 #include "inc/hw_ints.h"
@@ -24,18 +19,33 @@
 
 #include "uartHW.h"
 
-UartHW* __uHW;
+///-----------------------------------------------------------------------------
+///         Functions for returning static instance                     [PUBLIC]
+///-----------------------------------------------------------------------------
 
-UartHW::UartHW()
+/**
+ * Return reference to a singleton
+ * @return reference to an internal static instance
+ */
+SerialPort& SerialPort::GetI()
 {
-	__uHW = this;
-}
-UartHW::~UartHW()
-{
-	__uHW = 0;
+    static SerialPort singletonInstance;
+    return singletonInstance;
 }
 
-void UartHW::Send(const char* arg, ...)
+/**
+ * Return pointer to a singleton
+ * @return pointer to a internal static instance
+ */
+SerialPort* SerialPort::GetP()
+{
+    return &(SerialPort::GetI());
+}
+
+SerialPort::SerialPort() {}
+SerialPort::~SerialPort() {}
+
+void SerialPort::Send(const char* arg, ...)
 {
     va_list vaArgP;
 
@@ -49,18 +59,16 @@ void UartHW::Send(const char* arg, ...)
     va_end(vaArgP);
 }
 
-
-
 /**
  * Initialize UART port used in communication with Raspberry Pi
  */
-int8_t UartHW::InitHW()
+int8_t SerialPort::InitHW()
 {
 	uint32_t refClock, refClockHz;
 
 	/*
 	 * Check desired communication speed and adjust clock settings used to
-	 * 		derrive desired baud rate
+	 * 		Derive desired baud rate
 	 */
 	if (COMM_BAUD > 2000000)
 	{
@@ -99,7 +107,7 @@ int8_t UartHW::InitHW()
 	return STATUS_OK;
 }
 
-void UartHW::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
+void SerialPort::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
 {
 	custHook = funPoint;
 }
@@ -124,7 +132,8 @@ void UART0RxIntHandler(void)
 		UARTCharPut(UART0_BASE, txBuffer[ txBufLen-1 ]);
 	}
 
-	__uHW->custHook(txBuffer, &txBufLen);
+	if (SerialPort::GetP()->custHook != 0)
+	    SerialPort::GetP()->custHook(txBuffer, &txBufLen);
 }
 
 

@@ -45,14 +45,13 @@
 #include "roverKernel/hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
-#if !defined(TASKSCHEDULER_H_) && defined(__HAL_USE_TASKSCH__)
-#define TASKSCHEDULER_H_
+#if !defined(ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_) \
+    && defined(__HAL_USE_TASKSCH__)
+#define ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_
 
 #include <vector>
 #include "linkedList.h"
 
-//  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
 
 /**
  * Task scheduler class implementation
@@ -63,6 +62,9 @@
  * doesn't perform actual context switching. Rather it runs-to-completion a
  * single task at the time. Scheduling in this case refers to ability to provide
  * a starting time/period/repeats for a task.
+ ***Class implemented with volatile functions as adding tasks is permitted from
+ *  within interrupts. And in future task execution might be implemented from
+ *  periodic timer interrupt as well.
  */
 class TaskScheduler
 {
@@ -81,7 +83,7 @@ class TaskScheduler
 		              bool periodic = false, int32_t rep = 0) volatile;
 		void SyncTask(TaskEntry te) volatile;
 		//  Add arguments for the last task added
-		void AddArgs(void* arg, uint8_t argLen) volatile;
+		void AddArgs(void* arg, uint16_t argLen) volatile;
 
 		/**
 		 ****Template member function needs to be defined in the header file
@@ -110,12 +112,20 @@ class TaskScheduler
 
 		//  Queue of tasks to be executed
 		volatile LinkedList	_taskLog;
-		//  Pointer to last added item (need to be able to append arguments)
-		//  ->Is being reset to zero after calling PopFront() function
+		/*
+		 *  Pointer to last added item (need to be able to append arguments)
+		 *  ->Is being reset to zero after calling PopFront() function
+		 *  volatile pointer (because it can change from within interrupt) to a
+		 *  a volatile object (object can be removed from within interrupt)
+		 */
 		volatile _llnode    * volatile _lastIndex;
 };
 
 extern void TS_GlobalCheck(void);
+extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
+
+//  Internal time since TaskScheduler startup (in ms)
+extern volatile uint64_t msSinceStartup;
 
 /**
  * Callback entry into the Task scheduler from individual kernel module
@@ -134,10 +144,5 @@ struct _kernelEntry
     uint16_t argN;                  // Length of *args array
     int32_t  retVal;                // (Optional) Return variable of service exec
 };
-
-extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
-
-//  Internal time since TaskScheduler startup (in ms)
-extern volatile uint64_t msSinceStartup;
 
 #endif /* TASKSCHEDULER_H_ */

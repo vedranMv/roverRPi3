@@ -10,15 +10,6 @@
 #define ROVERKERNEL_HAL_TM4C1294_HAL_COMMON_TM4C_H_
 
 #define HAL_OK                  0
-/**     SysTick peripheral error codes      */
-#define HAL_SYSTICK_PEROOR      1   /// Period value for SysTick is out of range
-#define HAL_SYSTICK_SET_ERR     2   /// SysTick has already been configured
-#define HAL_SYSTICK_NOTSET_ERR  3   /// SysTick hasn't been configured yet
-/**     Engines error codes                 */
-#define HAL_ENG_PWMOOR          4   /// PWM value out of range
-#define HAL_ENG_EOOR            5   /// Engine ID out of range
-#define HAL_ENG_ILLM            6   /// Illegal mask for H-bridge configuration
-
 
 #ifdef __cplusplus
 extern "C"

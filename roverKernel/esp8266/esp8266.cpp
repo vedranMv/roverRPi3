@@ -29,7 +29,8 @@ void UART7RxIntHandler(void);
 _espClient dummy;
 
 //  Buffer used to assemble commands (shared between all functions )
-char _commBuf[512];
+//  2048 is max allowed length for a continuous stream ESP can handle
+char _commBuf[2048];
 
 
 #if defined(__USE_TASK_SCHEDULER__)
@@ -80,29 +81,32 @@ void _ESP_KernelCallback(void)
         break;
     /*
      * Connect to TCP client on given IP address and port
-     * args[] = KeepAlive(1B)|IPaddress(7B-15B)|port(2B)|
+     * args[] = KeepAlive(1B)|IPaddress(7B-15B)|port(2B)|socketID(1B)
      * retVal ESP library error code (if > 5); or socket ID (if <=5)
      */
     case ESP_T_CONNTCP:
         {
             char ipAddr[15] = {0};
             uint16_t port;
+            uint8_t sockID;
             //  IP address starts on 2nd data byte and its a string of length
-            //  equal to total length of data - 3bytes(used for port & KA)
+            //  equal to total length of data - 4bytes(port,KA,socketID)
             memcpy( (void*)ipAddr,
                     (void*)(__esp->_espKer.args + 1),
-                    __esp->_espKer.argN - 3);
-            //  Port is last two bytes
+                    __esp->_espKer.argN - 4);
+            //  Port is 3rd and 2nd byte from the back
             memcpy( (void*)&port,
-                    (void*)(__esp->_espKer.args + (__esp->_espKer.argN-2)),
+                    (void*)(__esp->_espKer.args + (__esp->_espKer.argN-3)),
                     2);
+            //  socketID is last byte
+            sockID =  __esp->_espKer.args[__esp->_espKer.argN-1];
             //  If IP address is valid process request
             if (__esp->_IPtoInt(ipAddr) == 0)
                 return;
             //  1st data byte is keep alive flag
             //  Double negation to convert any integer !=0 into boolean
             bool KA = !(!__esp->_espKer.args[0]);
-            __esp->_espKer.retVal = __esp->OpenTCPSock(ipAddr, port, KA);
+            __esp->_espKer.retVal = __esp->OpenTCPSock(ipAddr, port, KA, sockID);
         }
         break;
     /*
@@ -402,22 +406,29 @@ void ESP8266::TCPListen(bool enable)
  * Open TCP socket to a client at specific IP and port, keep alive interval 7.2s
  * @param ipAddr string containing IP address of server(null-terminated)
  * @param port TCP socket port of server
+ * @param keepAlive[optional] whether to maintain the socket open or drop after
+ * first transfer
+ * @param sockID[optional] desired socket ID to assign to this connection, if
+ * not specified smallest free ID is used
  * @return On success socket ID of TCP client in _client vector,
  *         On failure ESP_STATUS_ERROR error code
  */
-uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
+uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
+                              bool keepAlive, uint8_t sockID)
 {
     uint32_t retVal;
-    uint8_t sockID;
 
-    //  Find free socket number (0-4 supported)
-    for (sockID = 0; sockID < 4; sockID++)
-    {
-        bool used = false;
-        for (uint8_t j = 0; j < _clients.size(); j++)
-            if (_clients[j]._id == sockID) used = true;
-        if (!used) break;
-    }
+    //  Check if socket with this ID already exists, if not create it, if yes
+    //  fined first free socket ID and use it instead
+    if (GetClientBySockID(sockID) != 0)
+        //  Find free socket number (0-4 supported)
+        for (sockID = 0; sockID < 4; sockID++)
+        {
+            bool used = false;
+            for (uint8_t j = 0; j < _clients.size(); j++)
+                if (_clients[j]._id == sockID) used = true;
+            if (!used) break;
+        }
 
     //  Assemble command: Open TCP socket to specified IP and port, set
     //  keep alive interval to 7200ms
@@ -442,18 +453,19 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port, bool keepAlive)
  * @param id ID of the socket to check
  * @return alive status of particular socket
  */
-bool ESP8266::ValidSocket(uint16_t id)
+bool ESP8266::ValidSocket(uint8_t id)
 {
-    return GetClientBySockID(id)->_alive;
+
+    return (GetClientBySockID(id) != 0);
 }
 
 /**
  * Get pointer to client object based on specified [index] in _client vector
  * @param index desired index of client to get
  * @return pointer to ESP client object under given index (if it exists, if not
- *          dummy returned)
+ *          NULL pointer(0) returned)
  */
-_espClient* ESP8266::GetClientByIndex(uint16_t index)
+_espClient* ESP8266::GetClientByIndex(uint8_t index)
 {
     if (_clients.size() > index)
     {
@@ -462,26 +474,25 @@ _espClient* ESP8266::GetClientByIndex(uint16_t index)
         else
         {
             _clients.erase(_clients.begin() + index);
-            return &dummy;
+            return 0;
         }
     }
     else
-        return &dummy;
+        return 0;
 }
 
 /**
  * Get pointer to client object having specified socket [id]
  * @param id socket id as returned by ESP on opened socket
  * @return pointer to ESP client object under given id (if it exists, if not
- *          dummy returned)
+ *          NULL pointer(0) returned)
  */
-_espClient* ESP8266::GetClientBySockID(uint16_t id)
+_espClient* ESP8266::GetClientBySockID(uint8_t id)
 {
-    uint16_t index = _IDtoIndex(id);
+    uint8_t index = _IDtoIndex(id);
 
     return GetClientByIndex(index);
 }
-
 
 /**
  * Send a message to TCP client on socket ID 0 (if exists) -not used
@@ -713,7 +724,7 @@ void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
     UARTprintf("SendingRAWport: %s \n", buffer);
 #endif
 
-    for (int i = 0; i < bufLen; i++)
+    for (uint16_t i = 0; i < bufLen; i++)
     {
         while(HAL_ESP_UARTBusy());
         HAL_ESP_SendChar(buffer[i]);
@@ -764,16 +775,16 @@ uint32_t ESP8266::_IPtoInt(char *ipAddr)
  * Get client index in _clients vector based on its socket ID
  * @param sockID socket ID
  * @return index in _client vector if socket exists
- *         444U if no client matches socket ID
+ *         222 if no client matches socket ID
  */
-uint16_t ESP8266::_IDtoIndex(uint16_t sockID)
+uint8_t ESP8266::_IDtoIndex(uint8_t sockID)
 {
     uint8_t it;
     for (it = 0; it < _clients.size(); it++)
         if (_clients[it]._id == sockID) return it;
     //  If not found, return any number bigger than 5 as it's maximum number of
     //  clients ESP can have simultaneously
-    return 444U;
+    return 222;
 }
 
 ///-----------------------------------------------------------------------------
