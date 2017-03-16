@@ -21,7 +21,9 @@
  */
 void ESPDataReceived(uint8_t sockID, uint8_t *buf, uint16_t *len)
 {
-    switch(sockID)
+    //  Add 2700 to socket id because TCP port number is the same as socket ID
+    //  offset by 2700
+    switch((uint16_t)sockID + 2700)
     {
     case P_TELEMETRY:
         {

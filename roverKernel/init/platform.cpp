@@ -51,6 +51,8 @@ void Platform::InitHW()
         esp->InitHW();
         esp->AddHook(ESPDataReceived);
         esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
+        telemetry.BindToScoketID(0);
+        commands.BindToScoketID(1);
 #endif
 #ifdef __HAL_USE_ENGINES__
         eng = EngineData::GetP();
@@ -72,5 +74,8 @@ void Platform::InitHW()
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
-Platform::Platform() {}
-Platform::~Platform() {}
+Platform::Platform()
+    : telemetry(TCP_SERVER_IP, P_TELEMETRY), commands(TCP_SERVER_IP, P_COMMANDS)
+{}
+Platform::~Platform()
+{}

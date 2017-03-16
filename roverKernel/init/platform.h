@@ -16,23 +16,26 @@
 #include "roverKernel/taskScheduler/taskScheduler.h"
 #include "roverKernel/serialPort/uartHW.h"
 
-/**     Socket definitions for different data streams   */
+#include "roverKernel/network/dataStream.h"
+
+/**     TCP port definitions for standard data streams   */
 /*
  * Telemetry data stream
  * Telemetry includes bidirectional stream starting from rover to server containing
  * sensor data, time reference, health report etc. On received frame from rover
  * server replies with "ACK\r\n"
- * Server expects telemetry stream on TCP port 2701
+ * Server expects telemetry stream on TCP port 2700
  */
-#define P_TELEMETRY     0
+#define P_TELEMETRY     2700
 /*
  * Commands data stream
  * This stream brings commands from server to rover. On received frame from
  * server rover replies "ACK\r\n"
- * Server expects commands stream on TCP port 2702
+ * Server expects commands stream on TCP port 2701
  */
-#define P_COMMANDS      1
+#define P_COMMANDS      2701
 
+#define TCP_SERVER_IP   (uint8_t*)"192.168.0.11\0"
 
 class Platform
 {
@@ -47,6 +50,9 @@ class Platform
 #endif
 #ifdef __HAL_USE_ESP8266__
         ESP8266* esp;
+        DataStream telemetry;
+        DataStream commands;
+
 #endif
 #ifdef __HAL_USE_ENGINES__
         EngineData* eng;
