@@ -205,12 +205,11 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
  	//steps_to_do = distance * (circumfirance_of_wheel / 6_calibarting_points)
  	else wheelDistance = ((float)arg * _encRes)/(PI_CONST * _wheelDia);
 
- 	wheelCounter[ED_LEFT] = lroundf(wheelDistance);
-
- 	wheelCounter[ED_RIGHT] = wheelCounter[ED_LEFT];	//set counter for right engine
+ 	wheelSetPoint[ED_LEFT] += lroundf(wheelDistance);
+ 	wheelSetPoint[ED_RIGHT] += lroundf(wheelDistance);
 
 #if defined(__DEBUG_SESSION__)
-	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
+	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelSetPoint[ED_LEFT], wheelSetPoint[ED_RIGHT]);
 #endif
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //  Configure H-bridge
 	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//  Set left engine speed
@@ -229,8 +228,8 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 	HAL_ENG_Enable(ED_BOTH, true);
 
 	//	Set to non-zero number to indicate that motors are running
-	wheelCounter[ED_LEFT] = 1;
-	wheelCounter[ED_RIGHT] = 1;
+	wheelSetPoint[ED_LEFT] = 1;
+	wheelSetPoint[ED_RIGHT] = 1;
 
 
 	if (percLeft >= 100)
@@ -271,17 +270,20 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  	        return STATUS_ARG_ERR;
  	HAL_ENG_Enable(ED_BOTH, true);
 
+ 	wheelSetPoint[0] = wheelCounter[0];
+ 	wheelSetPoint[1] = wheelCounter[1];
+
  	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
 	if (angle > 90)
  	{
  		//distance = distance - wheelSafety[ED_LEFT][0] * _wheelDia * PI_CONST/_encRes;
  		angle-= 90;
  		if (smallRadius == 0.0) smallRadius = (distance/sin(angle*PI_CONST/180) - _wheelSpacing/2);
- 		wheelCounter[ED_LEFT] = lroundf((smallRadius * (angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
- 		wheelCounter[ED_RIGHT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
+ 		wheelSetPoint[ED_LEFT] += lroundf((smallRadius * (angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
+ 		wheelSetPoint[ED_RIGHT] += lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180) * _encRes/(PI_CONST*_wheelDia));
 
  		//  Speed difference between the engines
- 		speedFactor = (float)wheelCounter[ED_LEFT]/((float)wheelCounter[ED_RIGHT]);
+ 		speedFactor = (float)wheelSetPoint[ED_LEFT]/((float)wheelSetPoint[ED_RIGHT]);
 
  		//  Set right & left engine speed
  		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);
@@ -292,11 +294,11 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  		//distance = distance - wheelSafety[ED_RIGHT][0] * _wheelDia * PI_CONST/_encRes;
  		angle = 90 - angle;
  		if (smallRadius == 0.0) smallRadius = (distance/sin(angle*PI_CONST/180) - _wheelSpacing/2);
- 		wheelCounter[ED_RIGHT] = lroundf((smallRadius * (angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
- 		wheelCounter[ED_LEFT] = lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
+ 		wheelSetPoint[ED_RIGHT] += lroundf((smallRadius * (angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
+ 		wheelSetPoint[ED_LEFT] += lroundf(((smallRadius + _wheelSpacing)*(angle*PI_CONST)/180)*_encRes/(PI_CONST*_wheelDia));
 
  		//  Speed difference between the engines
- 		speedFactor = (float)wheelCounter[ED_RIGHT]/((float)wheelCounter[ED_LEFT]);
+ 		speedFactor = (float)wheelSetPoint[ED_RIGHT]/((float)wheelSetPoint[ED_LEFT]);
 
  		//  Set right & left engine speed
  		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);
@@ -317,7 +319,8 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  */
 bool EngineData::IsDriving() volatile
 {
-	return (wheelCounter[ED_LEFT] > 0) || (wheelCounter[ED_RIGHT] > 0);
+	return (wheelSetPoint[ED_LEFT] != wheelCounter[ED_LEFT]) ||
+	        (wheelSetPoint[ED_RIGHT] != wheelCounter[ED_RIGHT]);
 }
 
 /**
@@ -354,14 +357,17 @@ void PP0ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_LEFT);
 
-    if (__ed->wheelCounter[ED_LEFT] > 0)
+    //if (__ed->wheelCounter[ED_LEFT] > 0)
+    if (HAL_ENG_GetHBridge(ED_LEFT) == 0x01)    //0b00000001
             __ed->wheelCounter[ED_LEFT]--;
+    else if (HAL_ENG_GetHBridge(ED_LEFT) == 0x02)   //0b00000010
+        __ed->wheelCounter[ED_LEFT]++;
 
     /*if (__ed->wheelCounter[ED_LEFT] == 1)
     {
         HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
     }
-    else*/ if (__ed->wheelCounter[ED_LEFT] == 0)
+    else*/ if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
     {
         HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
         HAL_ENG_Enable(ED_LEFT, false);
@@ -376,14 +382,19 @@ void PP1ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_RIGHT);
 
-    if (__ed->wheelCounter[ED_RIGHT] > 0)
+    //if (__ed->wheelCounter[ED_RIGHT] > 0)
+    //        __ed->wheelCounter[ED_RIGHT]--;
+    if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x04)    //0b00000100
             __ed->wheelCounter[ED_RIGHT]--;
+    else if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x08)   //0b00001000
+        __ed->wheelCounter[ED_RIGHT]++;
+
 
     /*if (__ed->wheelCounter[ED_RIGHT] == 3)
     {
         HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
     }
-    else*/ if (__ed->wheelCounter[ED_RIGHT] == 1)
+    else*/ if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)
     {
         HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
         HAL_ENG_Enable(ED_RIGHT, false);

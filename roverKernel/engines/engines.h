@@ -3,7 +3,7 @@
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran Mikov
- *  @version v2.1.1
+ *  @version v2.1.2
  *  V1.0 - 29.5.2016
  *  +Implemented C code as C++ object, adjusted it to use HAL
  *  V2.0 - 7.2.2017
@@ -11,8 +11,10 @@
  *  V2.1 - 25.2.2017
  *  +Completed kernel callback function, now supports calls to all functions
  *  offered by the EngineData kernel module
- *  V2.1.1 - 7.3.2016
+ *  V2.1.1 - 7.3.2017
  *  +Changed EngineData class into a singleton
+ *  V2.1.2 - 21.3.2017
+ *  +Total distance traveled by each wheel separated(counter) from set point
  */
 #include "roverKernel/hwconfig.h"
 
@@ -77,6 +79,8 @@ class EngineData
 		//  Number of encoder counts each wheel has traveled
 		//  (+ for forward direction, - for backward)
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
+		//  Desired position for each wheel
+		volatile int32_t wheelSetPoint[2];  //  In encoder ticks
 
 	protected:
         EngineData();
