@@ -37,27 +37,22 @@
     //  Unique identifier of this module as registered in task scheduler
     #define ENGINES_UID         2
     //  Definitions of ServiceID for service offered by this module
-    #define ENG_MOVE_ENG        0
-    #define ENG_MOVE_ARC        1
-    #define ENG_MOVE_PERC       2
+    #define ENG_T_MOVE_ENG        0
+    #define ENG_T_MOVE_ARC        1
+    #define ENG_T_MOVE_PERC       2
 
 #endif
 
 /**     PWM arguments for different motor speed */
-#define ENGINE_STOP 		1		//PWM argument for stopping engine
-#define ENGINE_FULL 		15000	//PWM argument for engine full-speed
+#define ENG_SPEED_STOP 		1		//PWM argument for stopping engine
+#define ENG_SPEED_FULL 		15000	//PWM argument for engine full-speed
 #define ENGINE_FULL_ARG 	18750
 
 /**     Movement direction definitions for H-bridge - Direction macros  */
-#define DIRECTION_FORWARD 	0x0A	//  Move forward H-bridge configuration  1010
-#define DIRECTION_BACKWARD 	0x05	//  Move backward H-bridge configuration 0101
-#define DIRECTION_LEFT 		0x09	//  Turn left H-bridge configuration 1001
-#define DIRECTION_RIGHT 	0x06	//  Turn right H-bridge configuration 0110
-
-/**     Motor selectors (based on the side, viewed from the back of the vehicle) */
-#define ED_LEFT		0
-#define ED_RIGHT 	1
-#define ED_BOTH     2
+#define ENG_DIR_FW 	0x0A	//  Move forward H-bridge configuration  1010
+#define ENG_DIR_BW 	0x05	//  Move backward H-bridge configuration 0101
+#define ENG_DIR_L 	0x09	//  Turn left H-bridge configuration     1001
+#define ENG_DIR_R 	0x06	//  Turn right H-bridge configuration    0110
 
 class EngineData
 {

@@ -11,6 +11,15 @@
 #include "roverKernel/HAL/hal.h"
 #include "roverKernel/libs/myLib.h"
 
+#ifdef __DEBUG_SESSION__
+#include "utils/uartstdio.h"
+#endif
+
+/**     Motor selectors (based on the side, viewed from the back of the vehicle) */
+#define ED_LEFT     0
+#define ED_RIGHT    1
+#define ED_BOTH     2
+
 
 #if defined(__USE_TASK_SCHEDULER__)
 /**
@@ -36,7 +45,7 @@ void _ENG_KernelCallback(void)
      * Move vehicle in a single direction given by arguments
      * args[] = direction(uint8_t)|length-or-angle(4B float)|blocking(1B)
      */
-    case ENG_MOVE_ENG:
+    case ENG_T_MOVE_ENG:
         {
             uint8_t dir, temp;
             float arg;
@@ -60,7 +69,7 @@ void _ENG_KernelCallback(void)
      * Move vehicle following an arch
      * args[] = distance(4B float)|angle(4B float)|small-radius(4B float)
      */
-    case ENG_MOVE_ARC:
+    case ENG_T_MOVE_ARC:
         {
             float dist, angl, smallRad;
 
@@ -80,7 +89,7 @@ void _ENG_KernelCallback(void)
      * Move each wheel at given percentage of full speed
      * args[] = direction(uint8_t)|leftPercent(4B float)|rightPercent(4B float)
      */
-    case ENG_MOVE_PERC:
+    case ENG_T_MOVE_PERC:
         {
             uint8_t dir;
             float percLeft, percRight;
@@ -159,7 +168,7 @@ void EngineData::SetVehSpec(
  */
 int8_t EngineData::InitHW()
 {
-    HAL_ENG_Init(ENGINE_STOP, ENGINE_FULL);
+    HAL_ENG_Init(ENG_SPEED_STOP, ENG_SPEED_FULL);
 
     //  Listen for encoder input
     HAL_ENG_IntEnable(ED_LEFT, true);
@@ -197,26 +206,42 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
  	 * during movement
  	 */
 	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
- 	if (dir == DIRECTION_LEFT)
+ 	if (dir == ENG_DIR_L)
  		wheelDistance = ((float)arg * _wheelSpacing * _encRes) / (360.0  * _wheelDia);
  	//steps_to_do = angle * PI * 2 * wheel_distance / ( 2 * 180 * circumfirance_of_wheel / 6_calibarting_points)
- 	else if (dir == DIRECTION_RIGHT)
+ 	else if (dir == ENG_DIR_R)
  		wheelDistance = ((float)arg * _wheelSpacing * _encRes) / (360.0  * _wheelDia);
  	//steps_to_do = distance * (circumfirance_of_wheel / 6_calibarting_points)
  	else wheelDistance = ((float)arg * _encRes)/(PI_CONST * _wheelDia);
 
- 	wheelSetPoint[ED_LEFT] += lroundf(wheelDistance);
- 	wheelSetPoint[ED_RIGHT] += lroundf(wheelDistance);
+ 	if ((dir & 0x03) == 0x01 )
+ 	    wheelSetPoint[ED_LEFT] -= lroundf(wheelDistance);
+ 	else if ((dir & 0x03) == 0x02 )
+ 	   wheelSetPoint[ED_LEFT] += lroundf(wheelDistance);
+
+    if ((dir & 0x0C) == 0x04 )
+        wheelSetPoint[ED_RIGHT] -= lroundf(wheelDistance);
+    else if ((dir & 0x0C) == 0x08 )
+       wheelSetPoint[ED_RIGHT] += lroundf(wheelDistance);
+
 
 #if defined(__DEBUG_SESSION__)
 	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelSetPoint[ED_LEFT], wheelSetPoint[ED_RIGHT]);
 #endif
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //  Configure H-bridge
-	HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);	//  Set left engine speed
-	HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);	//  Set right engine speed
+	HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);	//  Set left engine speed
+	HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL);	//  Set right engine speed
 
-	while ( blocking && IsDriving() );
+
+    HAL_DelayUS(1000000);
+
+	while ( blocking && IsDriving() )
+	    HAL_DelayUS(700000);
 	if (blocking) HAL_ENG_Enable(ED_BOTH, false);
+
+#if defined(__DEBUG_SESSION__)
+    UARTprintf("Drove LEFT: %d   RIGHT: %d  \n", wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
+#endif
 
 	return STATUS_OK;	//  Successful execution
 }
@@ -233,16 +258,16 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 
 
 	if (percLeft >= 100)
-	    HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);
+	    HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);
 	if (percLeft <= 0 )
-	    HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
-	else HAL_ENG_SetPWM(ED_LEFT, (percLeft*0.75/100 + 0.25) * ENGINE_FULL);
+	    HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_STOP);
+	else HAL_ENG_SetPWM(ED_LEFT, (percLeft*0.75/100 + 0.25) * ENG_SPEED_FULL);
 
 	if (percRight >= 100)
-	    HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);
+	    HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL);
 	if (percRight <= 0 )
-	    HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
-	else HAL_ENG_SetPWM(ED_RIGHT, (percRight*0.75/100 + 0.25) * ENGINE_FULL);
+	    HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_STOP);
+	else HAL_ENG_SetPWM(ED_RIGHT, (percRight*0.75/100 + 0.25) * ENG_SPEED_FULL);
 
 	if (HAL_ENG_GetHBridge(ED_BOTH) != dir)
 	    HAL_ENG_SetHBridge(ED_BOTH, dir);
@@ -286,8 +311,8 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  		speedFactor = (float)wheelSetPoint[ED_LEFT]/((float)wheelSetPoint[ED_RIGHT]);
 
  		//  Set right & left engine speed
- 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL);
- 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL * speedFactor * 0.9);
+ 		HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL);
+ 		HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL * speedFactor * 0.9);
  	}
  	else
  	{
@@ -301,13 +326,15 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  		speedFactor = (float)wheelSetPoint[ED_RIGHT]/((float)wheelSetPoint[ED_LEFT]);
 
  		//  Set right & left engine speed
- 		HAL_ENG_SetPWM(ED_LEFT, ENGINE_FULL);
- 		HAL_ENG_SetPWM(ED_RIGHT, ENGINE_FULL * speedFactor *0.9);
+ 		HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);
+ 		HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL * speedFactor *0.9);
  	}
 
-	HAL_ENG_SetHBridge(ED_BOTH, DIRECTION_FORWARD);
+	HAL_ENG_SetHBridge(ED_BOTH, ENG_DIR_FW);
 
-	while ( IsDriving() );
+	while ( IsDriving() )
+	    HAL_DelayUS(700000);
+
 	HAL_ENG_Enable(ED_BOTH, true);
 
 	return STATUS_OK;	//  Successful execution
@@ -319,8 +346,16 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
  */
 bool EngineData::IsDriving() volatile
 {
-	return (wheelSetPoint[ED_LEFT] != wheelCounter[ED_LEFT]) ||
-	        (wheelSetPoint[ED_RIGHT] != wheelCounter[ED_RIGHT]);
+    static int32_t ref[0];
+    bool retVal = false;
+
+    if ((wheelCounter[ED_LEFT] != ref[ED_LEFT]) || (wheelCounter[ED_RIGHT] != ref[ED_RIGHT]))
+        retVal = true;
+
+    ref[ED_LEFT] = wheelCounter[ED_LEFT];
+    ref[ED_RIGHT] = wheelCounter[ED_RIGHT];
+
+    return retVal;
 }
 
 /**
@@ -328,8 +363,8 @@ bool EngineData::IsDriving() volatile
  */
 bool EngineData::_DirValid(uint8_t dir)
 {
-	if ((dir == DIRECTION_BACKWARD) || (dir == DIRECTION_FORWARD)
-			|| (dir == DIRECTION_LEFT) || (dir == DIRECTION_RIGHT))
+	if ((dir == ENG_DIR_BW) || (dir == ENG_DIR_FW) ||
+	    (dir == ENG_DIR_L) || (dir == ENG_DIR_R))
 		return true;
 	return false;
 }
@@ -369,7 +404,7 @@ void PP0ISR(void)
     }
     else*/ if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
     {
-        HAL_ENG_SetPWM(ED_LEFT, ENGINE_STOP);
+        HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_STOP);
         HAL_ENG_Enable(ED_LEFT, false);
     }
 }
@@ -396,7 +431,7 @@ void PP1ISR(void)
     }
     else*/ if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)
     {
-        HAL_ENG_SetPWM(ED_RIGHT, ENGINE_STOP);
+        HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_STOP);
         HAL_ENG_Enable(ED_RIGHT, false);
     }
 }
