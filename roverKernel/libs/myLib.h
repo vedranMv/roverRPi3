@@ -34,6 +34,9 @@ float   stof (uint8_t *nums, uint8_t strLen);
 int32_t stoi (uint8_t *nums, uint8_t strLen);
 int32_t stoiv (volatile uint8_t *nums, volatile uint8_t strLen);
 
+/*      Functions to convert number to string           */
+void    itoa (int32_t num, uint8_t *str);
+
 #ifdef __cplusplus
 }
 #endif

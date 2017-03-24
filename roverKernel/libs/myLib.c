@@ -163,4 +163,35 @@ int32_t stoiv (volatile uint8_t *nums, volatile uint8_t strLen)
 
     return retVal;
 }
+/**
+ * Convert any integer number to string
+ * @param num input number to convert
+ * @param str char array to store convert integer to
+ */
+void itoa (int32_t num, uint8_t *str)
+{
+    uint8_t it = 0;
+
+    if (num < 0)
+    {
+        str[it++]= '-';
+        num = labs(num);
+    }
+
+    uint8_t digits = 1;
+
+    //  Find length of the string
+    while ( (num / ((int32_t)powf(10.0f, (float)digits))) > 0)
+        digits++;
+
+    //  We'll start adding digits from the right to the left of the number,
+    //  adjust iterator accordingly
+    it += (digits -1);
+    //  Convert digits to string (48 is ASCII offset for digit)
+    while ((digits--) > 0)
+    {
+        str[it--] = (uint8_t)(48 + num % 10);
+        num /=10;
+    }
+}
 
