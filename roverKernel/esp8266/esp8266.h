@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.3.2
+ *  @version 1.3.3
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -20,7 +20,7 @@
  *  scheduler
  *  V1.2.1 - 26.1.2017
  *  +Implemented watchdog(WD) timer with variable timeout to handle any blockage
- *      in communication (ESP sometimes not consistent with sending msg terminator)
+ *  in communication (ESP sometimes not consistent with sending msg terminator)
  *  +Establish a connection to TCP server (uses existing _espClient class)
  *  V1.3 - 31.1.2017
  *  +Integration of library with task scheduler
@@ -28,6 +28,10 @@
  *  +Modified to support Task scheduler v2.3
  *  V1.3.2
  *  +Changed ESP8266 class into a singleton
+ *  V1.3.3
+ *  +All snprintf functions are replaced with a series of strcat. This is because
+ *  *printf function occupy over 1.3kB of stack greatly limiting maximum stack
+ *  depth("number of functions called from functions") eventually crashing program
  *  TODO:Add interface to send UDP packet
  */
 #include "roverKernel/hwconfig.h"
@@ -40,7 +44,7 @@
 class ESP8266;
 //  Shared buffer for ESP library to assemble text requests in (declared extern
 //  because it's shared with espClient library
-extern char _commBuf[2048];
+extern char _commBuf[1024];
 
 //  Include client library
 #include "espClient.h"
@@ -113,7 +117,7 @@ class ESP8266
 		uint32_t    InitHW(int32_t baud = ESP_DEF_BAUD);
         void        Enable(bool enable);
         bool        IsEnabled();
-        void        AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)));
+        void        AddHook(void((*funPoint)(const uint8_t, const uint8_t*, const uint16_t)));
 		//  Functions used with access points
 		uint32_t    ConnectAP(char* APname, char* APpass);
 		bool        IsConnected();
@@ -154,7 +158,7 @@ class ESP8266
 		uint8_t     _IDtoIndex(uint8_t sockID);
 
         //  Hook to user routine called when data from socket is received
-        void    ((*custHook)(uint8_t, uint8_t*, uint16_t*));
+        void    ((*custHook)(const uint8_t, const uint8_t*, const uint16_t));
 		//  IP address in decimal and string format
 		uint32_t    _ipAddress;
 		char        _ipStr[16];

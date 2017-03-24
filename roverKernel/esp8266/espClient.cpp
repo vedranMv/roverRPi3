@@ -56,6 +56,7 @@ void _espClient::operator= (const _espClient &arg)
 uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
 {
     uint16_t bufLen = bufferLen;
+    uint8_t numStr[6] = {0};
 
     //  If buffer length is not provided find it by looking for \0 char in string
     if (bufferLen == 0)
@@ -64,7 +65,17 @@ uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
         bufLen--;
     }
     //  Initiate transmission from
-    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSEND=%d,%d\0",_id, bufLen);
+    //sprintf(_commBuf, "AT+CIPSEND=%d,%d\0",_id, bufLen);
+
+    memset(_commBuf, 0, sizeof(_commBuf));
+    strcat(_commBuf, "AT+CIPSEND=");
+    itoa(_id, numStr);
+    strcat(_commBuf, (char*)numStr);
+    strcat(_commBuf, ",");
+    memset(numStr, 0, sizeof(numStr));
+    itoa(bufLen, numStr);
+    strcat(_commBuf, (char*)numStr);
+
     if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV))
     {
         _parent->flowControl = ESP_NO_STATUS;
@@ -162,7 +173,14 @@ void _espClient::Done()
  */
 uint32_t _espClient::Close()
 {
-    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPCLOSE=%d\0", _id);
+    uint8_t strNum[6] = {0};
+    //snprintf(_commBuf, sizeof(_commBuf), "AT+CIPCLOSE=%d\0", _id);
+
+    memset(_commBuf, 0, sizeof(_commBuf));
+    strcat(_commBuf, "AT+CIPCLOSE=");
+    itoa(_id, strNum);
+    strcat(_commBuf, (char*)strNum);
+
     _alive = false;
     return _parent->_SendRAW(_commBuf);
 }

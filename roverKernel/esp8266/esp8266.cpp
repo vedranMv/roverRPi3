@@ -30,7 +30,7 @@ _espClient dummy;
 
 //  Buffer used to assemble commands (shared between all functions )
 //  2048 is max allowed length for a continuous stream ESP can handle
-char _commBuf[2048];
+char _commBuf[1024];
 
 
 #if defined(__USE_TASK_SCHEDULER__)
@@ -138,7 +138,7 @@ void _ESP_KernelCallback(void)
             cli = __esp->GetClientBySockID(__esp->_espKer.args[0]);
             __esp->custHook(__esp->_espKer.args[0],
                             (uint8_t*)(cli->RespBody),
-                            (uint16_t*)(&(cli->RespLen)));
+                            (uint16_t)((cli->RespLen)));
         }
         break;
     /*
@@ -258,7 +258,7 @@ bool ESP8266::IsEnabled()
  * with socket ID through which response came in
  * @param funPoint pointer to void function with 3 arguments
  */
-void ESP8266::AddHook(void((*funPoint)(uint8_t, uint8_t*, uint16_t*)))
+void ESP8266::AddHook(void((*funPoint)(const uint8_t, const uint8_t*, const uint16_t)))
 {
     custHook = funPoint;
 }
@@ -282,7 +282,14 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Assemble command & send it
-    snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
+    //snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
+    memset((void*)_commBuf, 0, sizeof(_commBuf));
+    strcat(_commBuf, "AT+CWJAP_CUR=\"");
+    strcat(_commBuf, APname);
+    strcat(_commBuf, "\",\"");
+    strcat(_commBuf, APpass);
+    strcat(_commBuf, "\"\0");
+
     //  Use standard send function but increase timeout to 6s as acquiring IP
     //  address might take time
     retVal = _SendRAW(_commBuf, 0, 16000);
@@ -344,9 +351,15 @@ uint32_t ESP8266::MyIP()
 uint32_t ESP8266::StartTCPServer(uint16_t port)
 {
     int8_t retVal = ESP_STATUS_OK;
+    uint8_t portStr[6] = {0};
 
     //  Start TCP server, in case of error return
-    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSERVER=1,%d\0", port);
+    //snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSERVER=1,%d\0", port);
+    memset(_commBuf, 0, sizeof(_commBuf));
+    strcat(_commBuf, "AT+CIPSERVER=1,");
+    itoa(port, portStr);
+    strcat(_commBuf, (char*)portStr);
+
     retVal = _SendRAW(_commBuf);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
@@ -417,6 +430,7 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
                               bool keepAlive, uint8_t sockID)
 {
     uint32_t retVal;
+    uint8_t strNum[6] = {0};
 
     //  Check if socket with this ID already exists, if not create it, if yes
     //  fined first free socket ID and use it instead
@@ -432,8 +446,19 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
 
     //  Assemble command: Open TCP socket to specified IP and port, set
     //  keep alive interval to 7200ms
-    snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,7200",
-             sockID, ipAddr, port);
+    //sprintf(_commBuf, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,7200",
+    //         sockID, ipAddr, port);
+    memset(_commBuf, 0, sizeof(_commBuf));
+    strcat(_commBuf, "AT+CIPSTART=");
+    itoa(sockID, strNum);
+    strcat(_commBuf, (char*)strNum);
+    strcat(_commBuf, ",\"TCP\",\"");
+    strcat(_commBuf, ipAddr);
+    strcat(_commBuf, "\",");
+    memset(strNum, 0, sizeof(strNum));
+    itoa(port, strNum);
+    strcat(_commBuf, (char*)strNum);
+    strcat(_commBuf, ",7200\0");
 
     //  Execute command and check outcome
     retVal = _SendRAW(_commBuf);
@@ -807,7 +832,7 @@ void UART7RxIntHandler(void)
     {
         char temp = HAL_ESP_GetChar();
         //  Save only characters in valid range (ASCI > 30 or \n, \r)
-        if ((temp > 30) || (temp == '\n') || (temp == '\r'))
+        //if ((temp > 30) || (temp == '\n') || (temp == '\r'))
             rxBuffer[rxLen++] = temp;
         //  Keep in mind buffer size
         rxLen %= 1024;
