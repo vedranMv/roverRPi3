@@ -21,7 +21,6 @@
 #include "driverlib/pin_map.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/interrupt.h"
-#include "driverlib/uart.h"
 #include "utils/uartstdio.h"
 #include "driverlib/systick.h"
 #include "driverlib/timer.h"
@@ -77,7 +76,6 @@ void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
     UARTDisable(ESP8266_UART_BASE);
     //  Enable Interrupt on received data
     UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8, UART_FIFO_RX1_8 );
-    ///UARTFIFODisable(ESP8266_UART_BASE);
     UARTIntRegister(ESP8266_UART_BASE, intHandler);
     UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
     IntDisable(INT_UART7);
@@ -133,54 +131,19 @@ int32_t HAL_ESP_ClearInt()
 }
 
 /**
- * Check if UART port is busy at the moment
- * @return true: port is currently busy
- *        false: port is free for starting communication
- */
-/*extern inline bool HAL_ESP_UARTBusy()
-{
-    return UARTBusy(ESP8266_UART_BASE);
-}*/
-
-/**
- * Send single char over UART
- * @param arg character to send
- */
-/*void HAL_ESP_SendChar(char arg)
-{
-    UARTCharPut(ESP8266_UART_BASE, arg);
-}*/
-
-/**
- * Check if there are any characters available in UART RX buffer
- * @return true: there are characters in RX buffer
- *        false: no characters in RX buffer
- */
-bool HAL_ESP_CharAvail()
-{
-    return UARTCharsAvail(ESP8266_UART_BASE);
-}
-
-/**
- * Get single character from UART RX buffer
- * @return first character in RX buffer
- */
-char  HAL_ESP_GetChar()
-{
-    return UARTCharGetNonBlocking(ESP8266_UART_BASE);
-}
-
-/**
  * Watchdog timer for ESP module - used to reset protocol if communication hangs
  * for too long.
  */
+void((*g_intHandler)(void));
 void HAL_ESP_InitWD(void((*intHandler)(void)))
 {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
+    SysCtlPeripheralReset(SYSCTL_PERIPH_TIMER6);
     TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
     TimerIntRegister(TIMER6_BASE, TIMER_A, intHandler);
     TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
     IntEnable(INT_TIMER6A);
+    g_intHandler = intHandler;
 }
 
 /**
@@ -198,6 +161,7 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
     {
         if (ms != 0)
         {
+            HAL_ESP_InitWD(g_intHandler);
             TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(ms));
             LTM = ms;
         }
@@ -229,15 +193,46 @@ void HAL_ESP_WDClearInt()
     IntPendSet(INT_UART7);
 }
 
-/*
- * Test probe that can be put where necessary to evaluate timings on the
- * oscilloscope
- * @note Pin PC7 is initialized in ESP hardware initialization. If ESP is not
- * initialize calling this function will trigger FaultISR
- */
-void HAL_ESP_TestProbe()
-{
-    GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, ~GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_7));
-}
+///-----------------------------------------------------------------------------
+///         Deprecated functions, replaced by macro definitions in header file
+///-----------------------------------------------------------------------------
+
+///**
+// * Check if UART port is busy at the moment
+// * @return true: port is currently busy
+// *        false: port is free for starting communication
+// */
+//extern inline bool HAL_ESP_UARTBusy()
+//{
+//    return UARTBusy(ESP8266_UART_BASE);
+//}
+//
+///**
+// * Send single char over UART
+// * @param arg character to send
+// */
+//void HAL_ESP_SendChar(char arg)
+//{
+//    UARTCharPut(ESP8266_UART_BASE, arg);
+//}
+//
+///**
+// * Check if there are any characters available in UART RX buffer
+// * @return true: there are characters in RX buffer
+// *        false: no characters in RX buffer
+// */
+//bool HAL_ESP_CharAvail()
+//{
+//    return UARTCharsAvail(ESP8266_UART_BASE);
+//}
+//
+///**
+// * Get single character from UART RX buffer
+// * @return first character in RX buffer
+// */
+//char  HAL_ESP_GetChar()
+//{
+//    return UARTCharGetNonBlocking(ESP8266_UART_BASE);
+//}
 
 #endif  /* __HAL_USE_ESP8266__ */

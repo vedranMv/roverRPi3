@@ -15,11 +15,21 @@
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_ESP_TM4C_H_) && defined(__HAL_USE_ESP8266__)
 #define ROVERKERNEL_HAL_TM4C1294_HAL_ESP_TM4C_H_
 
+//  This include is needed to provide definitions for macros below
+#include "driverlib/uart.h"
+
 /**     ESP8266 - related macros        */
 #define ESP8266_UART_BASE       0x40013000
 
+/*
+ * To prevent unnecessary stack layers (calling function from function) some
+ * simpler functions are implemented using just macro definitions
+ */
 #define HAL_ESP_UARTBusy()      UARTBusy(ESP8266_UART_BASE)
 #define HAL_ESP_SendChar(x)     UARTCharPut(ESP8266_UART_BASE, x)
+#define HAL_ESP_CharAvail()     UARTCharsAvail(ESP8266_UART_BASE)
+#define HAL_ESP_GetChar()       UARTCharGetNonBlocking(ESP8266_UART_BASE)
+
 
 #ifdef __cplusplus
 extern "C"
@@ -32,10 +42,8 @@ extern void        HAL_ESP_HWEnable(bool enable);
 extern bool        HAL_ESP_IsHWEnabled();
 extern void        HAL_ESP_IntEnable(bool enable);
 extern int32_t     HAL_ESP_ClearInt();
-//inline bool        HAL_ESP_UARTBusy();
-//extern void        HAL_ESP_SendChar(char arg);
-extern bool        HAL_ESP_CharAvail();
-extern char        HAL_ESP_GetChar();
+//extern bool        HAL_ESP_CharAvail();
+//extern char        HAL_ESP_GetChar();
 extern void        HAL_ESP_InitWD(void((*intHandler)(void)));
 extern void        HAL_ESP_WDControl(bool enable, uint32_t timeout);
 extern void        HAL_ESP_WDClearInt();
