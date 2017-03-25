@@ -2,7 +2,7 @@
  *	taskScheduler.h
  *
  *  Created on: 30.7. 2016.
- *      Author: Vedran
+ *      Author: Vedran Mikov
  *
  *  Task scheduler library
  *  @version 2.4.3
@@ -37,8 +37,11 @@
  *  to start SysTick at any point.
  *  V2.4.3 - 9.3.2017
  *  +Changed TaskScheduler class into a singleton
+ *  V2.5 - 25.3.2017
+ *  +Implemented a member function to delete already scheduled tasks from list
  *  TODO:
  *  Add a way to pass task outcome to the task caller(!)
+ *  Implement deletion of periodic tasks
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  */
@@ -51,6 +54,11 @@
 
 #include <vector>
 #include "linkedList.h"
+
+//  Pass to 'repeats' argument for indefinite number of repeats
+#define T_PERIODIC  (-1)
+//  Pass to 'time'  for execution as-soon-as-possible
+#define T_ASAP      (0)
 
 
 /**
@@ -79,11 +87,13 @@ class TaskScheduler
 		void Reset() volatile;
 		bool IsEmpty() volatile;
 		//  Adding new task
-		void SyncTask(uint8_t libuid, uint8_t comm, int64_t time,
+		void SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
 		void SyncTask(TaskEntry te) volatile;
 		//  Add arguments for the last task added
 		void AddArgs(void* arg, uint16_t argLen) volatile;
+		void RemoveTask(uint8_t libUID, uint8_t taskID,
+		                void* arg, uint16_t argLen) volatile;
 
 		/**
 		 ****Template member function needs to be defined in the header file

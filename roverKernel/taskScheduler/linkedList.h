@@ -45,6 +45,7 @@ class LinkedList
         LinkedList();
 
         volatile _llnode*       AddSort(TaskEntry &arg) volatile;
+        bool                    RemoveEntry(TaskEntry &arg) volatile;
         bool                    Empty() volatile;
         void                    Drop() volatile;
         TaskEntry               PopFront() volatile;

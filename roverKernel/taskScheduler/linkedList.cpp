@@ -5,7 +5,7 @@
  *      Author: Vedran
  */
 #include "linkedList.h"
-
+#include "roverKernel/serialPort/uartHW.h"
 
 /*******************************************************************************
   *********         Linked list node - member functions                *********
@@ -86,6 +86,63 @@ volatile _llnode* LinkedList::AddSort(TaskEntry &arg) volatile
         node->_prev = tmp;
         return tmp;
     }
+}
+
+/**
+ * Find and delete from linked list a task passed as an argument
+ * @note task in arg has valid libUID, taskID and arguments
+ * @param arg
+ * @return true if task was found and deleted, false otherwise
+ */
+bool LinkedList::RemoveEntry(TaskEntry &arg) volatile
+{
+    volatile _llnode *node = head;           //  Define starting node
+
+    while (node != tail)
+    {
+        //  Check for matching libUID
+        if (node->data._libuid != arg._libuid)
+        {
+            node = node->_next;
+            continue;
+        }
+        //  Check for matching taskID
+        if (node->data._task != arg._task)
+        {
+            node = node->_next;
+            continue;
+        }
+        //  Check for matching length of arguments
+        if (node->data._argN != arg._argN)
+        {
+            node = node->_next;
+            continue;
+        }
+        //  Check if arguments match
+        for (uint16_t i = 0; i < arg._argN; i++)
+            if (node->data._args[i] != arg._args[i])
+            {
+                node = node->_next;
+                continue;
+            }
+        //  If we got to here we have a match, remove node but link _prev and
+        //  _next if they exists
+        if (node->_prev != 0)
+            node->_prev->_next = node->_next;
+        if (node->_next != 0)
+            node->_next->_prev = node->_prev;
+        //  Check if the node was head or tail and update those
+        if (head == node)
+            head = node->_next;
+        if (tail == node)
+            tail == node->_prev;
+        delete node;
+        //  Node has been found and deleted, return true
+        return true;
+    }
+
+    //  Node wasn't found in the list, return false
+    return false;
 }
 
 /**

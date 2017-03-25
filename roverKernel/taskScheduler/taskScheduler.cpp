@@ -15,7 +15,9 @@
 #include "roverKernel/HAL/hal.h"
 
 #include <ctype.h>
-#include "utils/uartstdio.h"
+#ifdef __DEBUG_SESSION__
+#include "roverKernel/serialPort/uartHW.h"
+#endif
 
 
 /**
@@ -108,15 +110,15 @@ bool TaskScheduler::IsEmpty() volatile
  * need to be executed sooner appear at the beginning of the list. If new task
  * has the same execution time as the task already in the list, it's placed
  * behind the existing task.
- * @param libuid UID of library to call
- * @param comm task ID within the library to execute
+ * @param libUID UID of library to call
+ * @param taskID task ID within the library to execute
  * @param time time-stamp at which to execute the task. If >0 its absolute time
  * in ms since startup of task scheduler. If <=0 its relative time from NOW
  * @param rep repeat counter. Number of times to repeat the periodic task before
  * killing it. Set to a negative number for indefinite repeat. When scheduled,
  * task WILL BE repeated at least once.
  */
-void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
+void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
                              int64_t time, bool periodic, int32_t rep) volatile
 {
     int32_t period = (int32_t)time;
@@ -137,7 +139,7 @@ void TaskScheduler::SyncTask(uint8_t libuid, uint8_t comm,
 
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
-    TaskEntry teTemp(libuid, comm, time, (periodic?period:0), rep);
+    TaskEntry teTemp(libUID, taskID, time, (periodic?period:0), rep);
     _lastIndex = _taskLog.AddSort(teTemp);
 }
 
@@ -169,6 +171,22 @@ void TaskScheduler::AddArgs(void* arg, uint16_t argLen) volatile
     if (_lastIndex != 0)
         _lastIndex->data.AddArg(arg, argLen);
 }
+
+/**
+ * Find and delete the task in task list matching these arguments
+ * @param libUID
+ * @param taskID
+ * @param arg
+ * @param argLen
+ */
+void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
+                               void* arg, uint16_t argLen) volatile
+{
+    TaskEntry delT(libUID, taskID, 0);
+    delT.AddArg(arg, argLen);
+    _taskLog.RemoveEntry(delT);
+}
+
 
 /**
  * Return first element from task queue
