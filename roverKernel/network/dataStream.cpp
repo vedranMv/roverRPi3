@@ -104,7 +104,9 @@ DataStream::~DataStream()
 {
     if (_keepAlive)
     {
-        //TODO: Delete task from task scheduler
+        //  Delete periodic task attempting to reconnect to server
+        uint32_t arg = (uint32_t)this;
+        TaskScheduler::GetP()->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, sizeof(uint32_t));
     }
     //  Close the socket before deleting data stream
     _socket->Close();

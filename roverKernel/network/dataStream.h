@@ -20,6 +20,7 @@
  *  V1.2 - 24.3.2017
  *  +On first call to BindToSocketID() object registers periodic health-check of
  *  connection to server. Attempts to reestablish lost connection.
+ *  +Destructor removes periodic task checking for connection health
  */
 #include "roverKernel/hwconfig.h"
 
