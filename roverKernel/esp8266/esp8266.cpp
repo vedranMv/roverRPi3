@@ -13,20 +13,12 @@
 
 #include <stdio.h>
 #include <ctype.h>
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
+#ifdef __DEBUG_SESSION__
+#include "roverKernel/serialPort/uartHW.h"
+#endif
 
 //  Function prototype to an interrupt handler (declared at the bottom)
 void UART7RxIntHandler(void);
-
-/*      Lookup table for statuses returned by ESP8266       */
-/*const char status_table[][20]={ {"OK"}, {"BUSY"}, {"ERROR"}, {"NONBLOCKING"},
-                                {"CONNECTED"}, {"DISCONNECTED"}, {"READY"},
-                                {"SOCK_OPEN"}, {"SOCK_CLOSED"}, {"RECEIVE"},
-                                {"FAILED"}, {"SEND OK"}, {"SUCCESS"}};*/
-
-//  Dummy instance used for return value when no available client
-_espClient dummy;
 
 //  Buffer used to assemble commands (shared between all functions )
 //  2048 is max allowed length for a continuous stream ESP can handle
@@ -282,7 +274,6 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     //  Assemble command & send it
-    //snprintf(_commBuf, sizeof(_commBuf), "AT+CWJAP_CUR=\"%s\",\"%s\"\0", APname, APpass);
     memset((void*)_commBuf, 0, sizeof(_commBuf));
     strcat(_commBuf, "AT+CWJAP_CUR=\"");
     strcat(_commBuf, APname);
@@ -354,7 +345,6 @@ uint32_t ESP8266::StartTCPServer(uint16_t port)
     uint8_t portStr[6] = {0};
 
     //  Start TCP server, in case of error return
-    //snprintf(_commBuf, sizeof(_commBuf), "AT+CIPSERVER=1,%d\0", port);
     memset(_commBuf, 0, sizeof(_commBuf));
     strcat(_commBuf, "AT+CIPSERVER=1,");
     itoa(port, portStr);
@@ -434,20 +424,19 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
 
     //  Check if socket with this ID already exists, if not create it, if yes
     //  fined first free socket ID and use it instead
-    if (GetClientBySockID(sockID) != 0)
-        //  Find free socket number (0-4 supported)
-        for (sockID = 0; sockID < 4; sockID++)
-        {
-            bool used = false;
-            for (uint8_t j = 0; j < _clients.size(); j++)
-                if (_clients[j]._id == sockID) used = true;
-            if (!used) break;
-        }
+    if (GetClientBySockID(sockID) != 0 || (sockID >= ESP_MAX_CLI))
+    {
+        //  Find free socket number (0-(ESP_MAX_CLI-1) supported)
+        for (sockID = 0; sockID <= ESP_MAX_CLI; sockID++)
+            if (_clients[sockID] == 0)
+                break;
+        //  If loop hit ESP_MAX_CLI there are no free sockets, return error code
+        if (sockID >= ESP_MAX_CLI)
+            return ESP_STATUS_ERROR;
+    }
 
     //  Assemble command: Open TCP socket to specified IP and port, set
     //  keep alive interval to 7200ms
-    //sprintf(_commBuf, "AT+CIPSTART=%d,\"TCP\",\"%s\",%d,7200",
-    //         sockID, ipAddr, port);
     memset(_commBuf, 0, sizeof(_commBuf));
     strcat(_commBuf, "AT+CIPSTART=");
     itoa(sockID, strNum);
@@ -462,7 +451,7 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
 
     //  Execute command and check outcome
     retVal = _SendRAW(_commBuf);
-    if (_InStatus(retVal, ESP_STATUS_OK))
+    if (_InStatus(retVal, ESP_STATUS_OK) && !_InStatus(retVal, ESP_STATUS_ERROR))
     {
         //  If success, start listening for potential incoming data from server
         TCPListen(true);
@@ -480,7 +469,6 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
  */
 bool ESP8266::ValidSocket(uint8_t id)
 {
-
     return (GetClientBySockID(id) != 0);
 }
 
@@ -492,16 +480,8 @@ bool ESP8266::ValidSocket(uint8_t id)
  */
 _espClient* ESP8266::GetClientByIndex(uint8_t index)
 {
-    if (_clients.size() > index)
-    {
-        if (_clients[index]._alive)
-            return &_clients[index];
-        else
-        {
-            _clients.erase(_clients.begin() + index);
-            return 0;
-        }
-    }
+    if (ESP_MAX_CLI > index)
+        return const_cast<_espClient*>(_clients[index]);
     else
         return 0;
 }
@@ -514,22 +494,7 @@ _espClient* ESP8266::GetClientByIndex(uint8_t index)
  */
 _espClient* ESP8266::GetClientBySockID(uint8_t id)
 {
-    uint8_t index = _IDtoIndex(id);
-
-    return GetClientByIndex(index);
-}
-
-/**
- * Send a message to TCP client on socket ID 0 (if exists) -not used
- * @param arg string message to send
- * @return error code, depending on the outcome
- */
-uint32_t ESP8266::Send2(char* arg)
-{
-    //  Check if client exists then try and send request from it
-    if (!_clients[_IDtoIndex(0)]._alive) return ESP_STATUS_FAIL;
-
-    return _clients[_IDtoIndex(0)].SendTCP(arg);
+    return GetClientByIndex(id);
 }
 
 ///-----------------------------------------------------------------------------
@@ -621,7 +586,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     {
         int i;
         //  Get client who sent the incoming data (based on socket ID)
-        _espClient *cli = &_clients[_IDtoIndex(rxBuffer[respFlag] - 48)];
+        _espClient *cli = const_cast<_espClient*>(_clients[_IDtoIndex(rxBuffer[respFlag] - 48)]);
 
         //  respFlag points to socket ID (single digit < 5)
         i = respFlag+2; //Skip comma and go to first digit of length
@@ -647,12 +612,14 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     }
     //  Socket got opened, create new client for it
     if (sockOflag >= 0)
-        _clients.push_back(_espClient(rxBuffer[sockOflag] - 48, this));
+        _clients[rxBuffer[sockOflag] - 48] = new _espClient(rxBuffer[sockOflag] - 48, this);
     //  Socket got closed, find client with this ID and delete it
     if (sockCflag >= 0)
-        _clients.erase(_clients.begin()+_IDtoIndex(rxBuffer[sockCflag] - 48));
-
-    return retVal;
+    {
+        delete _clients[rxBuffer[sockCflag] - 48];
+        _clients[rxBuffer[sockCflag] - 48] = 0;
+    }
+        return retVal;
 }
 
 ///-----------------------------------------------------------------------------
@@ -709,7 +676,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
     _FlushUART();
     while(HAL_ESP_UARTBusy());
 #ifdef __DEBUG_SESSION__
-    UARTprintf("Sending: %s \n", txBuffer);
+    SerialPort::GetI().Send("Sending: %s \n", txBuffer);
 #endif
     //  Send char-by-char until reaching end of command
     while (*(txBuffer + txLen) != '\0')
@@ -746,7 +713,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
 void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
 {
 #ifdef __DEBUG_SESSION__
-    UARTprintf("SendingRAWport: %s \n", buffer);
+    SerialPort::GetI().Send("SendingRAWport: %s \n", buffer);
 #endif
 
     for (uint16_t i = 0; i < bufLen; i++)
@@ -804,12 +771,10 @@ uint32_t ESP8266::_IPtoInt(char *ipAddr)
  */
 uint8_t ESP8266::_IDtoIndex(uint8_t sockID)
 {
-    uint8_t it;
-    for (it = 0; it < _clients.size(); it++)
-        if (_clients[it]._id == sockID) return it;
-    //  If not found, return any number bigger than 5 as it's maximum number of
-    //  clients ESP can have simultaneously
-    return 222;
+    if (sockID < ESP_MAX_CLI)
+        return sockID;
+    else
+        return 222;
 }
 
 ///-----------------------------------------------------------------------------
@@ -825,21 +790,16 @@ void UART7RxIntHandler(void)
     static uint16_t rxLen = 0;
 
     HAL_ESP_ClearInt();             //  Clear interrupt
-    HAL_ESP_WDControl(true, 0);     //   Reset watchdog timer
 
     //  Loop while there are characters in receiving buffer
     while (HAL_ESP_CharAvail())
     {
         char temp = HAL_ESP_GetChar();
-        //  Save only characters in valid range (ASCI > 30 or \n, \r)
-        //if ((temp > 30) || (temp == '\n') || (temp == '\r'))
-            rxBuffer[rxLen++] = temp;
+        HAL_ESP_WDControl(true, 0);     //   Reset watchdog timer
+
+        rxBuffer[rxLen++] = temp;
         //  Keep in mind buffer size
         rxLen %= 1024;
-#ifdef __DEBUG_SESSION__
-        if (((temp > 31) && (temp < 126)) || (temp == '\n'))
-            UARTprintf("%c", temp);
-#endif
     }
 
     /*
@@ -850,7 +810,19 @@ void UART7RxIntHandler(void)
     {
         rxBuffer[rxLen++] = '\r';
         rxBuffer[rxLen++] = '\n';
+#ifdef __DEBUG_SESSION__
+        SerialPort::GetI().Send("WATCHDOG!!\n");
+#endif
     }
+
+    //  Prevent parsing when buffer only contains \r\n and nothing else
+    if (rxLen == 2)
+        if ((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
+        {
+            //  Reset receiving buffer and its size
+            memset(rxBuffer, '\0', sizeof(rxBuffer));
+            rxLen = 0;
+        }
 
     /*
      *  There are 3 occasions when we want to process data in input buffer:
@@ -865,6 +837,14 @@ void UART7RxIntHandler(void)
     {
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
 
+#ifdef __DEBUG_SESSION__
+    {
+        uint16_t i;
+        for (i = 0; i < rxLen; i++)
+            SerialPort::GetI().Send("0x%x ", rxBuffer[i]);
+        SerialPort::GetI().Send("\nParsing(%d): %s\n", rxLen, rxBuffer);
+    }
+#endif
         //  Parse data in receiving buffer - if there was an error from WD timer
         //  leave it in so that we know there was a problem
         if (__esp->flowControl == ESP_STATUS_ERROR)
@@ -876,7 +856,7 @@ void UART7RxIntHandler(void)
         //  pass it to a user-defined function for further processing
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
-            for (uint8_t i = 0; i < __esp->_clients.size(); i++)
+            for (uint8_t i = 0; i < ESP_MAX_CLI; i++)
                 //  Check which socket received data
                 if (__esp->GetClientByIndex(i)->Ready())
                 {

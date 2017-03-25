@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.3.3
+ *  @version 1.4.1
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -28,10 +28,17 @@
  *  +Modified to support Task scheduler v2.3
  *  V1.3.2
  *  +Changed ESP8266 class into a singleton
- *  V1.3.3
+ *  V1.4.1 - 25.3.2017
  *  +All snprintf functions are replaced with a series of strcat. This is because
  *  *printf function occupy over 1.3kB of stack greatly limiting maximum stack
  *  depth("number of functions called from functions") eventually crashing program
+ *  +Vector holding opened sockets(clients) was replaced by and array dynamically
+ *  allocated clients. When client is 'deleted' (socket closed) it's pointer in
+ *  the array is 0. Other logic remains the same
+ *  +Kicking the dog is done on every received character, instead of every start
+ *  of the interrupt. It was noted that ISR sometimes receives more than 1 char
+ *  in a single call which causes watchdog to interrupt receiving if called once
+ *  per ISR.
  *  TODO:Add interface to send UDP packet
  */
 #include "roverKernel/hwconfig.h"
@@ -95,6 +102,9 @@ extern char _commBuf[1024];
 #define ESP_STATUS_IPD          1<<14
 #define ESP_GOT_IP              1<<15
 
+//  Max number of clients allowed by ESP8266
+#define ESP_MAX_CLI     5
+
 /**
  * ESP8266 class definition
  * Object provides a high-level interface to the ESP chip. Allows basic AP func.,
@@ -135,7 +145,6 @@ class ESP8266
 		uint32_t    OpenTCPSock(char *ipAddr, uint16_t port,
 		                        bool keepAlive=true, uint8_t sockID = 9);
 		bool        ValidSocket(uint8_t id);
-		uint32_t    Send2(char* arg);
 		uint32_t    Send(const char* arg, ...) { return ESP_NO_STATUS; }
 		//  Miscellaneous functions
 		uint32_t 	ParseResponse(char* rxBuffer, uint16_t rxLen);
@@ -151,7 +160,7 @@ class ESP8266
 
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
 		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
-		                     uint32_t timeout = 1000);
+		                     uint32_t timeout = 150);
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);
@@ -166,9 +175,10 @@ class ESP8266
 		uint16_t    _tcpServPort;
 		//  Specifies whether the TCP server is currently running
 		bool        _servOpen;
-		//  Vector clients currently connected to ESP (when in TCP-server mode)
-		//  or connections initiated by the ESP
-		espCli      _clients;
+		//  List of all opened sockets (clients) currently communicating with
+		//  ESP. It's important that pointers itself are volatile, not _espClient
+		//  object because pointers get changed within ISR. Array index is socket ID!
+		_espClient volatile *_clients[ESP_MAX_CLI];
 		//  Interface with task scheduler - provides memory space and function
 		//  to call in order for task scheduler to request service from this module
 #if defined(__USE_TASK_SCHEDULER__)
