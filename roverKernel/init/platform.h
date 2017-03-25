@@ -3,6 +3,10 @@
  *
  *  Created on: Mar 10, 2017
  *      Author: Vedran Mikov
+ *
+ *  Platform contains high-level definition of all modules currently attached and
+ *  needed on the platform. It is thought of a single module to unify low-level
+ *  drivers and provide single point for initialization of platform.
  */
 
 #ifndef ROVERKERNEL_INIT_PLATFORM_H_
@@ -19,6 +23,12 @@
 #include "roverKernel/network/dataStream.h"
 
 /**     TCP port definitions for standard data streams   */
+/*
+ * Macro for relating TCP port and socket handle as returned by ESP8266
+ * SOCKET_ID = TCP_PORT - SOCKET_OFFSET
+ */
+#define P_TO_SOCK(X)     (uint8_t)(X-2700)
+#define SOCK_TO_P(X)    ((uint16_t)X+2700)
 /*
  * Telemetry data stream
  * Telemetry includes bidirectional stream starting from rover to server containing
@@ -45,6 +55,8 @@ class Platform
 
         void InitHW();
 
+        void DecodeIncoming(const uint8_t* buf, const uint16_t len);
+
 #ifdef __HAL_USE_TASKSCH__
         volatile TaskScheduler* ts;
 #endif
@@ -52,7 +64,6 @@ class Platform
         ESP8266* esp;
         DataStream telemetry;
         DataStream commands;
-
 #endif
 #ifdef __HAL_USE_ENGINES__
         EngineData* eng;
