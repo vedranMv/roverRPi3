@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.4.1
+ *  @version 1.4.2
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -30,15 +30,18 @@
  *  +Changed ESP8266 class into a singleton
  *  V1.4.1 - 25.3.2017
  *  +All snprintf functions are replaced with a series of strcat. This is because
- *  *printf function occupy over 1.3kB of stack greatly limiting maximum stack
+ *  *printf function occupies over 1.3kB of stack greatly limiting maximum stack
  *  depth("number of functions called from functions") eventually crashing program
- *  +Vector holding opened sockets(clients) was replaced by and array dynamically
- *  allocated clients. When client is 'deleted' (socket closed) it's pointer in
- *  the array is 0. Other logic remains the same
+ *  +Vector holding opened sockets(clients) replaced by an array of dynamically
+ *  allocated clients. When client is 'deleted' (socket closed) its pointer in
+ *  the array is set to 0. Other logic remains the same
  *  +Kicking the dog is done on every received character, instead of every start
  *  of the interrupt. It was noted that ISR sometimes receives more than 1 char
  *  in a single call which causes watchdog to interrupt receiving if called once
  *  per ISR.
+ *  V1.4.2 - 28.3.2017
+ *  +Fixed small buffer size when passing received data to the hooked function
+ *  from ISR when not using task scheduler
  *  TODO:Add interface to send UDP packet
  */
 #include "roverKernel/hwconfig.h"
@@ -51,7 +54,7 @@
 class ESP8266;
 //  Shared buffer for ESP library to assemble text requests in (declared extern
 //  because it's shared with espClient library
-extern char _commBuf[1024];
+extern char _commBuf[2048];
 
 //  Include client library
 #include "espClient.h"

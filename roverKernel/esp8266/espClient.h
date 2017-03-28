@@ -11,9 +11,6 @@
 //  Define class prototype
 class _espClient;
 
-#include <vector>
-/// Short annotation for vector of TCP clients
-typedef std::vector<_espClient> espCli;
 
 #include "esp8266.h"
 

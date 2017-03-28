@@ -22,7 +22,7 @@ void UART7RxIntHandler(void);
 
 //  Buffer used to assemble commands (shared between all functions )
 //  2048 is max allowed length for a continuous stream ESP can handle
-char _commBuf[1024];
+char _commBuf[2048];
 
 
 #if defined(__USE_TASK_SCHEDULER__)
@@ -799,7 +799,7 @@ void UART7RxIntHandler(void)
 
         rxBuffer[rxLen++] = temp;
         //  Keep in mind buffer size
-        rxLen %= 1024;
+        rxLen %= sizeof(rxBuffer);
     }
 
     /*
@@ -857,6 +857,8 @@ void UART7RxIntHandler(void)
         if ((__esp->custHook != 0) && (__esp->flowControl & ESP_STATUS_IPD))
         {
             for (uint8_t i = 0; i < ESP_MAX_CLI; i++)
+                //  Skip null pointers
+                if (__esp->GetClientByIndex(i) != 0)
                 //  Check which socket received data
                 if (__esp->GetClientByIndex(i)->Ready())
                 {
@@ -867,11 +869,8 @@ void UART7RxIntHandler(void)
                     TaskScheduler::GetP()->SyncTask(tE);
 #else
                     //  If no task scheduler do everything in here
-                    char resp[128];
-                    uint16_t respLen = 0;
-                    memset(resp, 0, 128);
-                    __esp->GetClientByIndex(i)->Receive(resp, &respLen);
-                    __esp->custHook(i, (uint8_t*)resp, &respLen);
+                    _espClient* cli = __esp->GetClientByIndex(i);
+                    __esp->custHook(i, cli->RespBody, &(cli->RespLen));
 #endif
                 }
             }
