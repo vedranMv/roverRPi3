@@ -38,6 +38,7 @@ extern "C"
     extern void        HAL_TIM_Start(uint32_t load);
     extern void        HAL_TIM_Stop();
     extern uint32_t    HAL_TIM_GetValue();
+    extern float       HAL_TIM_GetS();
 
 #ifdef __cplusplus
 }

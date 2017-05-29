@@ -54,7 +54,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
     // Run I2C bus on 1MHz custom clock
     I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
-    //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
+    I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
     /*//  Taken from TivaWare library!
     //
@@ -315,4 +315,12 @@ uint32_t HAL_TIM_GetValue()
     return TimerValueGet(TIMER7_BASE, TIMER_A);
 }
 
+/**
+ * Get time it passed from starting the timer converted in seconds
+ * @return seconds passed form starting up the timer
+ */
+float HAL_TIM_GetS()
+{
+    return (float)HAL_TIM_GetValue()/((float)g_ui32SysClock);
+}
 #endif /* __HAL_USE_MPU9250__ */

@@ -45,7 +45,7 @@
  */
 #define P_COMMANDS      2701
 
-#define TCP_SERVER_IP   (uint8_t*)"192.168.0.11\0"
+#define TCP_SERVER_IP   (uint8_t*)"192.168.0.12\0"
 
 class Platform
 {

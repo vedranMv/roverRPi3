@@ -10,21 +10,113 @@
 
 #include "roverKernel/HAL/hal.h"
 #include "roverKernel/libs/myLib.h"
+#include "roverKernel/libs/helper_3dmath.h"
 
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
+#include "roverKernel/mpu9250/eMPL/inv_mpu.h"
+#include "roverKernel/mpu9250/eMPL/inv_mpu_dmp_motion_driver.h"
 
+#ifdef __DEBUG_SESSION__
+#include "roverKernel/serialPort/uartHW.h"
+SerialPort& comm = SerialPort::GetI();
+#endif
 
 //  Function prototype to an interrupt handler (declared at the bottom)
-void dataISR(void);
+void MPUDataHandler(void);
 
-/*
- * NOTES:
- * 	?? X & Y axis are read from registers with opposite signs, as -X and -Y
+///-----------------------------------------------------------------------------
+///         DMP related structs --  Start
+///-----------------------------------------------------------------------------
+
+/* The sensors can be mounted onto the board in any orientation. The mounting
+ * matrix seen below tells the MPL how to rotate the raw data from thei
+ * driver(s).
+ * TODO: The following matrices refer to the configuration on an internal test
+ * board at Invensense. If needed, please modify the matrices to match the
+ * chip-to-body matrix for your particular set up.
  */
+/*static signed char gyro_orientation[9] = {-1, 0, 0,
+                                           0,-1, 0,
+                                           0, 0, 1};*/
+static signed char gyro_orientation[9] = { 0, 0, 1,
+                                           0, 1, 0,
+                                          -1, 0, 0};
 
-//  Number of samples to use when calibrating sensor (calculating offset from 0)
-#define CALIBRATION_SAMPLES 200
+struct int_param_s int_param;
+
+struct rx_s {
+    unsigned char header[3];
+    unsigned char cmd;
+};
+struct hal_s {
+    unsigned char sensors;
+    unsigned char dmp_on;
+    unsigned char wait_for_tap;
+    volatile unsigned char new_gyro;
+    unsigned short report;
+    unsigned short dmp_features;
+    unsigned char motion_int_mode;
+    struct rx_s rx;
+};
+static struct hal_s hal = {0};
+
+///-----------------------------------------------------------------------------
+///         DMP related structs --  End
+///-----------------------------------------------------------------------------
+
+///-----------------------------------------------------------------------------
+///         DMP related functions --  Start
+///-----------------------------------------------------------------------------
+
+/* These next two functions converts the orientation matrix (see
+ * gyro_orientation) to a scalar representation for use by the DMP.
+ * NOTE: These functions are borrowed from Invensense's MPL.
+ */
+static inline unsigned short inv_row_2_scale(const signed char *row)
+{
+    unsigned short b;
+
+    if (row[0] > 0)
+        b = 0;
+    else if (row[0] < 0)
+        b = 4;
+    else if (row[1] > 0)
+        b = 1;
+    else if (row[1] < 0)
+        b = 5;
+    else if (row[2] > 0)
+        b = 2;
+    else if (row[2] < 0)
+        b = 6;
+    else
+        b = 7;      // error
+    return b;
+}
+
+static inline unsigned short inv_orientation_matrix_to_scalar(
+    const signed char *mtx)
+{
+    unsigned short scalar;
+
+    /*
+       XYZ  010_001_000 Identity Matrix
+       XZY  001_010_000
+       YXZ  010_000_001
+       YZX  000_010_001
+       ZXY  001_000_010
+       ZYX  000_001_010
+     */
+
+    scalar = inv_row_2_scale(mtx);
+    scalar |= inv_row_2_scale(mtx + 3) << 3;
+    scalar |= inv_row_2_scale(mtx + 6) << 6;
+
+
+    return scalar;
+}
+
+///-----------------------------------------------------------------------------
+///         DMP related functions --  End
+///-----------------------------------------------------------------------------
 
 //  Constants used for calculating/converting
 const float GRAVITY_CONST = 9.80665f;	//	m/s^2
@@ -105,71 +197,64 @@ MPU9250* MPU9250::GetP()
  */
 int8_t MPU9250::InitHW()
 {
-    HAL_MPU_Init(dataISR);
+    HAL_MPU_Init(MPUDataHandler);
+    HAL_TIM_Init();
 
     return MPU_SUCCESS;
 }
 
 /**
  * Initialize MPU sensor:
- *      -Force it to use PLL for system clock (if fails uses 20MHz IOSC)
- *      -Sets I2C master frequency for MPU to 348kHz for talking to peripherals
- *      -Set sampling rate to 200Hz -> 1kHz sampling  /(divider=4(+1)) =>dt=0.005
- *      -Reduce accelerometer bandwidth to 5Hz TODO: play with settings
- *      -Configure interrupt pin to go high for 50uS on every interrupt event
- *          interrupt is cleared by reading any of the registers
- *      -Disable FSYNC feature
- *      -Data from accelerometer is written in reg. only if it's different from
- *          current value
- *      -Only change in raw data triggers interrupt
  */
 int8_t MPU9250::InitSW()
 {
-    /*
-     * Configure PLL and set sampling rate for accel. & gyro
-     */
-    // Reset MPU & wait 10ms for it to power up
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x80);
-    HAL_DelayUS(10000);
-    // Power-on, try PLL, if not use IOSC 20MHz
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01);
-    //  Set I2C freq to 400kHz
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, I2C_MST_CTRL , 0x00);
-    //  Set sample divider to 4(+1)=5
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x04);
-    //  Prepare for 200Hz bandwidth @ 1kHz/5
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, CONFIG, 0x01);
-    //  Disable gyro self-test, set scale of 250dps,
-    //  confirm 250Hz bandwidth@1kHz/5
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, GYRO_CONFIG, 0x00);
-    //  Accel is default +/-2g scale, self-test turned off
-    //  Configure accel for 5Hz bandwidth @ 1kHz/5 sampling rate
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, ACCEL_CONFIG2, 0x06);
+    int result;
 
-    /*
-     * Interrupt pin configuration
-     */
-    //  Allow accel to trigger interrupt on compare mismatch
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, MOT_DETECT_CTRL, 1<<6);
-    //  Configure push-pull INT pin to go high when data is ready
-    //  Clear interrupt by reading any register; enable bypass
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, INT_PIN_CFG,  (1<<4) | (1<<1));
-    //  Activate interrupt when raw sensor data is available
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, INT_ENABLE, RAW_DATA_READY);
+    mpu_init(&int_param);
 
-    /*
-     * Adjust range of sensors
-     */
-    //  Set gyro range to 250dps
-    SetRange(MPU_SENS_GYRO, RANGE_250DPS);
-    //  Set accel range to +/-2g
-    SetRange(MPU_SENS_ACC, RANGE_2G);
+    //  Get/set hardware configuration. Start gyro.
+    // Wake up all sensors.
+    mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
+    // Push accel and quaternion data into the FIFO.
+    mpu_configure_fifo(INV_XYZ_ACCEL);
+    mpu_set_sample_rate(50);
 
-    //  If ID is wrong means there's an error in communication protocol
-    if (GetID() == 0x71)
-        return MPU_SUCCESS;
-    else
-        return MPU_I2C_ERROR;
+    // Initialize HAL state variables.
+    memset(&hal, 0, sizeof(hal));
+#ifdef __DEBUG_SESSION__
+    comm.Send("Trying to load firmware\n");
+#endif
+    result = 7; //  Try loading firmware max 7 times
+    while(result--)
+        if (dmp_load_motion_driver_firmware() == 0)
+            break;
+#ifdef __DEBUG_SESSION__
+        else
+            comm.Send("%d,  ", result);
+#endif
+
+    if (result == 0)    //  If loading failed 7 times hang here, DMP not usable
+        while(1);
+
+#ifdef __DEBUG_SESSION__
+    comm.Send(" >Firmware loaded\n");
+    comm.Send(" >Updating DMP features...");
+#endif
+    dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation));
+
+    hal.dmp_features = DMP_FEATURE_6X_LP_QUAT | DMP_FEATURE_TAP |
+        DMP_FEATURE_ANDROID_ORIENT | DMP_FEATURE_SEND_RAW_ACCEL | DMP_FEATURE_SEND_CAL_GYRO |
+        DMP_FEATURE_GYRO_CAL;
+    dmp_enable_feature(hal.dmp_features);
+
+    dmp_set_fifo_rate(50);
+    mpu_set_dmp_state(1);
+    hal.dmp_on = 1;
+#ifdef __DEBUG_SESSION__
+    comm.Send("done\n");
+#endif
+
+    return MPU_SUCCESS;
 }
 
 /**
@@ -179,164 +264,6 @@ void MPU9250::Reset()
 {
     HAL_MPU_WriteByteNB(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
     HAL_DelayUS(50000);
-}
-
-/**
- * Updates range in register on MPU, and computes appropriate multiplier
- *  for converting 16bit ADC values from MPU to acceleration(m/s^2)
- *  or angular velocity (�/s)
- */
-void MPU9250::SetRange(uint8_t sensor, uint8_t range)
-{
-    uint8_t temp;
-
-    if (sensor ==  MPU_SENS_GYRO)
-    {
-        //  Read current range
-        temp = HAL_MPU_ReadByte(MPU9250_ADDRESS, GYRO_CONFIG);
-        //  Clear current range configuration
-        temp = temp & ~(3<<3);
-        //  Write new range configuration
-        HAL_MPU_WriteByte(MPU9250_ADDRESS, GYRO_CONFIG, temp | (range<<3));
-        //  Update internal (in class object) value of range
-        switch (range)
-        {
-        case RANGE_250DPS:
-            _range[MPU_SENS_GYRO] = 250;
-            break;
-        case RANGE_500DPS:
-            _range[MPU_SENS_GYRO] = 500;
-            break;
-        case RANGE_1000DPS:
-            _range[MPU_SENS_GYRO] = 1000;
-            break;
-        case RANGE_2000DPS:
-            _range[MPU_SENS_GYRO] = 2000;
-            break;
-        }
-        //  Internal range is used to convert raw sensor value (signed 16 bit)
-        //  to float
-        _range[MPU_SENS_GYRO] = _range[MPU_SENS_GYRO]/32768.0f;
-    }
-
-    if (sensor == MPU_SENS_ACC)
-    {
-        //  Read current range
-        temp = HAL_MPU_ReadByte(MPU9250_ADDRESS, ACCEL_CONFIG);
-        //  Clear current range configuration
-        temp = temp & ~(3<<3);
-        //  Write new range configuration
-        HAL_MPU_WriteByte(MPU9250_ADDRESS, ACCEL_CONFIG, temp | (range<<3));
-        //  Update internal (in class object) value of range
-        switch (range)
-        {
-        case RANGE_2G:
-            _range[MPU_SENS_ACC] = 2;
-            break;
-        case RANGE_4G:
-            _range[MPU_SENS_ACC] = 4;
-            break;
-        case RANGE_8G:
-            _range[MPU_SENS_ACC] = 8;
-            break;
-        case RANGE_16G:
-            _range[MPU_SENS_ACC] = 16;
-            break;
-        }
-        //  Internal range is used to convert raw sensor value (signed 16 bit)
-        //  to float
-        _range[MPU_SENS_ACC] = GRAVITY_CONST * _range[MPU_SENS_ACC]/32768.0f;   //  m/s^2
-    }
-}
-
-/**
- * Calibration of two MPU instruments based on the input arguments
- *      -current offset values are overridden and upon completion replaced with
- *          new ones calculated by averaging a number of samples
- *      -SAMPLE_NUMBER macro defines number of samples to be averaged for calculation
- *      -function in principle does 'zeroing' of both instruments on all 3 axes
- *      -ASSUMPTION!!!:
- *          -gravity acts in direction of -X axis on the sensor
- *          -sensor is at rest, with only gravity acting on it
- */
-int8_t MPU9250::Calibrate(bool accCal, bool gyroCal)
-{
-    uint8_t sampleCount = 0, i;
-    float accSum[3] = {0,0,0},
-          gyroSum[3]={0,0,0},
-          aRes_old, gRes_old;
-
-    //  If no calibration is required(but function still called)
-    //  then return
-    if (!(accCal | gyroCal)) return MPU_SUCCESS;
-
-    dataISR();  //Call ISR to clear all interrupt flags
-    //  Stop interrupts in order to prepare environment for calibration
-    HAL_MPU_IntEnable(false);
-
-    //  Prepare for calibrating accelerometer, if requested
-    if (accCal)
-    {
-        //  Set resolution to 1 for easier calculation afterwards
-        aRes_old = _range[MPU_SENS_ACC];
-        _range[MPU_SENS_ACC] = 1;
-        //  Clear old offset value
-       _off[MPU_SENS_ACC][MPU_X_AXIS] = 0;
-       _off[MPU_SENS_ACC][MPU_Y_AXIS] = 0;
-       _off[MPU_SENS_ACC][MPU_Z_AXIS] = 0;
-    }
-
-    //  Prepare for calibrating gyro, if requested
-    if (gyroCal)
-    {
-        //  Set resolution to 1 for easier calculation afterwards
-        gRes_old = _range[MPU_SENS_GYRO];
-        _range[MPU_SENS_GYRO] = 1;
-        //  Clear old offset value
-        _off[MPU_SENS_GYRO][MPU_X_AXIS] = 0;
-        _off[MPU_SENS_GYRO][MPU_Y_AXIS] = 0;
-        _off[MPU_SENS_GYRO][MPU_Z_AXIS] = 0;
-    }
-
-    //  Turn on interrupt-based data sampling and start acquiring samples
-    HAL_MPU_IntEnable(true);
-    while (sampleCount < CALIBRATION_SAMPLES)
-    {
-        //  Wait for the flag, then clear it for next cycle
-        while (!IsDataReady());
-
-        //  Add measurement from this cycle to common sum for each instrument and axis
-        for (i = 0; i < 3; i++) accSum[i] += _rawData[MPU_SENS_ACC][i];
-        for (i = 0; i < 3; i++) gyroSum[i] += _rawData[MPU_SENS_GYRO][i];
-
-        _dataFlag = false;
-        sampleCount++;
-    }
-    HAL_MPU_IntEnable(false);   //  Stop sampling so we can process data
-
-    //  Calculate new offset based on readings
-    //  offset=sumOfSamples/numberOfSamples
-    if (accCal)
-    {
-        for (i = 0; i < 3; i++)
-            _off[MPU_SENS_ACC][i] = (int16_t)(accSum[i]/((float)CALIBRATION_SAMPLES));
-
-        //  Compensating for gravity acting fully on X-axis (-X direction)
-        //  TODO: Detect direction of Earth's gravity
-        _off[MPU_SENS_ACC][0] = _off[MPU_SENS_ACC][0] - GRAVITY_CONST / aRes_old;
-        _range[MPU_SENS_ACC] = aRes_old;
-    }
-
-    if (gyroCal)
-    {
-        for (i = 0; i < 3; i++)
-            _off[MPU_SENS_GYRO][i] = (int16_t)(gyroSum[i]/((float)CALIBRATION_SAMPLES));
-        _range[MPU_SENS_GYRO] = gRes_old;
-    }
-    //  TODO: Write these values into MPU registers
-
-
-    return MPU_SUCCESS;
 }
 
 /**
@@ -367,42 +294,7 @@ uint8_t MPU9250::GetID()
 void MPU9250::Listen(bool enable)
 {
     HAL_MPU_IntEnable(enable);
-}
-
-/**
- * Read new data from all 3 instruments and save it member variables
- */
-void MPU9250::ReadData()
-{
-    _GetRawAcc();
-    _GetRawGyro();
-    _GetRawMag();
-    _dataFlag = true;
-}
-
-/**
- * Fetches raw sensor data from member variables and returns it in arrays
- * whose pointers are provided as arguments to this function
- * @param acc pointer to array to store accelerometer data (array size 3)
- * @param gyro pointer to array to store gyroscope data (array size 3)
- * @param mag pointer to array to store magnetometer data (array size 3)
- * @param clrFlag if true clears data-ready flag of this instance before it retuns
- */
-void MPU9250::GetData(float* acc, float *gyro, float *mag, bool clrFlag)
-{
-    if (gyro != 0)
-        for (int i = 0; i < 3; i++)
-            gyro[i] = _rawData[MPU_SENS_GYRO][i];
-
-    if (acc != 0)
-        for (int i = 0; i < 3; i++)
-            acc[i] = _rawData[MPU_SENS_ACC][i];
-
-    if (mag != 0)
-        for (int i = 0; i < 3; i++)
-            mag[i] = _rawData[MPU_SENS_MAG][i];
-
-    if (clrFlag) _dataFlag = false;
+    //HAL_TIM_Start(0);
 }
 
 /**
@@ -410,7 +302,7 @@ void MPU9250::GetData(float* acc, float *gyro, float *mag, bool clrFlag)
  * data has been received
  * @param custHook pointer to function with two float args (accel & gyro array)
  */
-void MPU9250::AddHook(void((*custHook)(float*,float*)))
+void MPU9250::AddHook(void((*custHook)(uint8_t,float*)))
 {
     userHook = custHook;
 }
@@ -420,61 +312,11 @@ void MPU9250::AddHook(void((*custHook)(float*,float*)))
 ///-----------------------------------------------------------------------------
 
 MPU9250::MPU9250() : dT(0), _dataFlag(false), userHook(0)
-{
-    memset((void*)(&_rawData[0][0]), 0, sizeof(_rawData));
-    memset(_off, 0, sizeof(_off));
-    memset(_range, 0, sizeof(_range));
-
-}
+{}
 
 MPU9250::~MPU9250()
 {}
 
-///-----------------------------------------------------------------------------
-///         Functions for reading raw data from MPU9250              [PROTECTED]
-///-----------------------------------------------------------------------------
-
-void MPU9250::_GetRawAcc()
-{
-    for (int i = MPU_X_AXIS; i <= MPU_Z_AXIS; i++)
-    {
-        uint8_t regData[2] = {0, 0};
-        int16_t temp;
-
-        // Read High & Low register for this particular axis
-        HAL_MPU_ReadBytes(MPU9250_ADDRESS, ACCEL_XOUT_H + 2 * i, 2, regData);
-        temp = (int16_t)(((uint16_t)regData[0] << 8) | regData[1]);
-        _rawData[MPU_SENS_ACC][i] = (float)(temp - _off[MPU_SENS_ACC][i]) * _range[MPU_SENS_ACC];
-    }
-}
-
-void MPU9250::_GetRawGyro()
-{
-    for (int i = 0; i < 3; i++)
-    {
-        uint8_t regData[2] = {0, 0};
-        int16_t temp;
-
-        // Read High & Low register for this particular axis
-        HAL_MPU_ReadBytes(MPU9250_ADDRESS, GYRO_XOUT_H + 2 * i, 2, regData);
-        temp = (int16_t)(((uint16_t)regData[0] << 8) | regData[1]);
-        _rawData[MPU_SENS_GYRO][i] = (float)(temp - _off[MPU_SENS_GYRO][i]) * _range[MPU_SENS_GYRO];
-    }
-}
-
-void MPU9250::_GetRawMag()
-{
-    for (int i = 0; i < 3; i++)
-    {
-        uint8_t regData[2] = {0, 0};
-        int16_t temp;
-
-        // Read High & Low register for this particular axis
-        HAL_MPU_ReadBytes(AK8963_ADDRESS, AK8963_XOUT_L + 2 * i, 2, regData);
-        temp = (int16_t)(((uint16_t)regData[1] << 8) | regData[0]);
-        _rawData[MPU_SENS_MAG][i] = (float)(temp - _off[MPU_SENS_MAG][i]) * _range[MPU_SENS_MAG];
-    }
-}
 
 ///-----------------------------------------------------------------------------
 ///         ISR executed whenever MPU toggles a data-ready pin         [PRIVATE]
@@ -489,66 +331,53 @@ void MPU9250::_GetRawMag()
  *  Additionally: measures the time between interrupt calls to provide time
  *      reference for integration
  */
-void dataISR(void)
+void MPUDataHandler(void)
 {
-    MPU9250& __mpu = MPU9250::GetI();
-    uint8_t intStatus;
+    short gyro[3], accel[3], sensors;
+    unsigned char more;
+    long quat[4];
+    unsigned long sensor_timestamp;
 
-    //  IntClear returns true if the interrupt was caused by the correct pin
-    if (!HAL_MPU_IntClear()) return;
+#ifdef __USE_TASK_SCHEDULER__
+    //  Calculate dT in seconds!
+    static uint64_t oldms = 0;
+    MPU9250::GetI().dT = ((float)(msSinceStartup-oldms))/1000.0f;
+    oldms = msSinceStartup;
+#endif /* __HAL_USE_TASKSCH__ */
 
-    //  Stop timer and get time reference from least measurement
-    HAL_TIM_Stop();
-    __mpu.dT = (float)HAL_TIM_GetValue()/(float)g_ui32SysClock;
-    HAL_TIM_Start(0);
+    //= HAL_TIM_GetS();
 
-    //  Read MPU interrupt status to see what caused an interrupt
-    intStatus = HAL_MPU_ReadByte(MPU9250_ADDRESS, INT_STATUS);
+    /* This function gets new data from the FIFO when the DMP is in
+     * use. The FIFO can contain any combination of gyro, accel,
+     * quaternion, and gesture data. The sensors parameter tells the
+     * caller which data fields were actually populated with new data.
+     * For example, if sensors == (INV_XYZ_GYRO | INV_WXYZ_QUAT), then
+     * the FIFO isn't being filled with accel data.
+     * The driver parses the gesture data to determine if a gesture
+     * event has occurred; on an event, the application will be notified
+     * via a callback (assuming that a callback function was properly
+     * registered). The more parameter is non-zero if there are
+     * leftover packets in the FIFO.
+     */
+    dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
+    Quaternion qt;
+    qt.x = quat[0];
+    qt.y = quat[1];
+    qt.z = quat[2];
+    qt.w = quat[3];
+    VectorFloat v;
+    dmp_GetGravity(&v, &qt);
+    float ypr[3];
 
-    if ((intStatus & RAW_DATA_READY) == RAW_DATA_READY)
-    {
-        float acc[3], gyro[3];
+    dmp_GetYawPitchRoll(ypr, &qt, &v);
 
-        __mpu.ReadData();
-        __mpu.GetData(acc, gyro, 0, false);
-        if (__mpu.userHook != 0)
-            __mpu.userHook(acc, gyro);
-        __mpu.IMU()->Update(acc, gyro);
-    }
-}
+#ifdef __DEBUG_SESSION__
+    comm.Send("RPY: %d  %d %d %dms \n", lroundf(ypr[2]*180.0f/3.1415926f), lroundf(ypr[1]*180.0f/3.1415926f), lroundf(ypr[0]*180.0f/3.1415926f), ((uint16_t)oldms));
+#endif
+    MPU9250::GetI()._dataFlag = true;
 
-/**
- * Implementation of complementary filter to calculate R/P/Y
- * @param gyro
- * @param acc
- */
-void Orientation::Update(float *acc, float *gyro)
-{
-    MPU9250* __mpu = MPU9250::GetP();
-    static bool firstEntry = true;
-    float __R, __P, __Y,
-          accR, accP;
-
-    __R = gyro[MPU_Z_AXIS] * __mpu->dT;
-    __P = gyro[MPU_Y_AXIS] * __mpu->dT;
-    __Y = gyro[MPU_X_AXIS] * __mpu->dT;
-
-    accR = -90 + atan2f(acc[MPU_X_AXIS], acc[MPU_Y_AXIS]) * 180 / PI_CONST;   //y,x
-    accP =  90 - atan2f(acc[MPU_X_AXIS], acc[MPU_Z_AXIS]) * 180 / PI_CONST;
-
-    if (firstEntry)
-    {
-        _RPYsetpoints[0] = __R;
-        _RPYsetpoints[1] = __P;
-        _RPYsetpoints[2] = __Y;
-        firstEntry = false;
-    }
-    else
-    {
-        _roll = (__R + _roll) * 0.93 + (accR * 0.07);
-        _pitch = (__P + _pitch) * 0.93 + (accP * 0.07);
-        if (fabs(gyro[MPU_X_AXIS]) > 0.8) _yaw += __Y;
-    }
+    HAL_MPU_IntClear();
+    //HAL_TIM_Start(0);
 }
 
 #endif  /* __HAL_USE_MPU9250__ */

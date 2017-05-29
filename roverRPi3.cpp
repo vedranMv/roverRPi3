@@ -4,7 +4,7 @@
 #include "roverKernel/HAL/hal.h"
 
 //  Debug bridge UART<->USB
-SerialPort&comm = SerialPort::GetI();
+SerialPort &comm2 = SerialPort::GetI();
 //  Rover platform
 Platform& rover = Platform::GetI();
 
@@ -15,7 +15,7 @@ struct _kernelEntry dataDump;
 void dataDumpCallback(void)
 {
     EngineData& eng = EngineData::GetI();
-    comm.Send("%6d::: LEFT: %d   RIGHT: %d  \n", msSinceStartup, eng.wheelCounter[0], eng.wheelCounter[1]);
+    comm2.Send("%6d::: LEFT: %d   RIGHT: %d  \n", msSinceStartup, eng.wheelCounter[0], eng.wheelCounter[1]);
 }
 
 int main(void)
@@ -24,15 +24,15 @@ int main(void)
     HAL_BOARD_CLOCK_Init();
 
     //  Initialize UART port for connection with PC (for debugging)
-    comm.InitHW();
-    comm.Send("Debug port initialized \n");
+    comm2.InitHW();
+    comm2.Send("Debug port initialized \n");
 
     //  Register data-dump kernel module
     dataDump.callBackFunc = dataDumpCallback;
     TS_RegCallback(&dataDump, 7);
 
     rover.InitHW();
-    comm.Send("Board initialized!\r\n");
+    comm2.Send("Board initialized!\r\n");
 
     //  Schedule radar scan at T+2s
     //rover.ts->SyncTask(RADAR_UID, RADAR_SCAN, -2000);
