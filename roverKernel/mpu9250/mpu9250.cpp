@@ -15,6 +15,8 @@
 #include "roverKernel/mpu9250/eMPL/inv_mpu.h"
 #include "roverKernel/mpu9250/eMPL/inv_mpu_dmp_motion_driver.h"
 
+#define QUAT_SENS  1073741824.0f
+
 #ifdef __DEBUG_SESSION__
 #include "roverKernel/serialPort/uartHW.h"
 SerialPort& comm = SerialPort::GetI();
@@ -34,12 +36,10 @@ void MPUDataHandler(void);
  * board at Invensense. If needed, please modify the matrices to match the
  * chip-to-body matrix for your particular set up.
  */
-static signed char gyro_orientation[9] = {-1, 0, 0,
-                                           0,-1, 0,
-                                           0, 0, 1};
-/*static signed char gyro_orientation[9] = { 0, 0, 1,
-                                           0, 1, 0,
-                                          -1, 0, 0};*/
+//  In this case chip is rotated -90° around Y axis
+static signed char gyro_orientation[9] = { 0, 0, -1,
+                                           0, 1,  0,
+                                           1, 0,  0};
 
 struct int_param_s int_param;
 
@@ -118,10 +118,6 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
 ///         DMP related functions --  End
 ///-----------------------------------------------------------------------------
 
-//  Constants used for calculating/converting
-const float GRAVITY_CONST = 9.80665f;	//	m/s^2
-
-
 #if defined(__USE_TASK_SCHEDULER__)
 
 /**
@@ -152,11 +148,14 @@ void _MPU_KernelCallback(void)
         {
             if (__mpu->IsDataReady())
             {
-#ifdef __DEBUG_SESSION__
-    comm.Send("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), ((uint16_t)__mpu->dT*1000));
+#ifdef __DEBUG_SESSION___
+    comm.Send("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*10.0));
     comm.Send("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
 #endif
             }
+#ifdef __DEBUG_SESSION__
+    comm.Send("No data\n");
+#endif
         }
         break;
     default:
@@ -338,7 +337,6 @@ MPU9250::~MPU9250()
 ///         ISR executed whenever MPU toggles a data-ready pin         [PRIVATE]
 ///-----------------------------------------------------------------------------
 
-
 /**
  * On interrupt pin going high(PA2) this function gets called and does:
  *  1. clear TM4C interrupt status
@@ -358,9 +356,8 @@ void MPUDataHandler(void)
 #ifdef __USE_TASK_SCHEDULER__
     //  Calculate dT in seconds!
     static uint64_t oldms = 0;
-    //_mpu.dT = ((float)(msSinceStartup-oldms))/1000.0f;
-    _mpu.dT = (float)msSinceStartup;
-    oldms = msSinceStartup;
+    _mpu.dT = (float)(msSinceStartup-oldms);
+    oldms = (int32_t)msSinceStartup;
 #endif /* __HAL_USE_TASKSCH__ */
 
     /* This function gets new data from the FIFO when the DMP is in
@@ -377,15 +374,15 @@ void MPUDataHandler(void)
      */
     dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
     Quaternion qt;
-    qt.x = quat[0];
-    qt.y = quat[1];
-    qt.z = quat[2];
-    qt.w = quat[3];
+    qt.x = (float)quat[0]/QUAT_SENS;
+    qt.y = (float)quat[1]/QUAT_SENS;
+    qt.z = (float)quat[2]/QUAT_SENS;
+    qt.w = (float)quat[3]/QUAT_SENS;
 
     VectorFloat v;
     dmp_GetGravity(&v, &qt);
 
-    dmp_GetYawPitchRoll((float*)_mpu._ypr, &qt, &v);
+    dmp_GetYawPitchRoll((float*)(_mpu._ypr), &qt, &v);
     //  Copy to MPU class
     _mpu._quat[0] =  qt.x;
     _mpu._quat[1] =  qt.y;

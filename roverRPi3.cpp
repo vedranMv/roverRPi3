@@ -2,6 +2,7 @@
 #include "roverKernel/libs/myLib.h"
 #include "roverKernel/serialPort/uartHW.h"
 #include "roverKernel/HAL/hal.h"
+#include <sstream>
 
 //  Debug bridge UART<->USB
 SerialPort &comm2 = SerialPort::GetI();

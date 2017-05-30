@@ -42,10 +42,10 @@ Platform* Platform::GetP()
  */
 void Platform::InitHW()
 {
-    //  If using task scheduler get handle and start systick every 100ms
+    //  If using task scheduler get handle and start systick every 1ms
 #ifdef __HAL_USE_TASKSCH__
         ts = TaskScheduler::GetP();
-        ts->InitHW(100);
+        ts->InitHW(1);
 #endif
 #ifdef __HAL_USE_ENGINES__
         eng = EngineData::GetP();
@@ -74,6 +74,9 @@ void Platform::InitHW()
 //        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
 
 #endif
+
+        //  Run post-initialization stuff
+        _PostInit();
 }
 
 /**
@@ -120,14 +123,14 @@ void Platform::DecodeIncoming(const uint8_t* buf, const uint16_t len)
     ts->AddArgs((void*)(buf+it), argLen);
 
     //TODO: Do something useful with timestamp
-
-    //  Run post-initialization stuff
-    _PostInit();
 }
 
 void Platform::_PostInit()
 {
+#ifdef __HAL_USE_MPU9250__
     mpu->Listen(true);
+#endif
+
 }
 
 ///-----------------------------------------------------------------------------
