@@ -77,6 +77,8 @@ class Platform
     protected:
         Platform();
         ~Platform();
+
+        void    _PostInit();
 };
 
 

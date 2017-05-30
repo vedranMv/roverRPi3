@@ -40,7 +40,11 @@ int main(void)
 
     //  Schedule periodic printing of encoder readouts
     //  -1 repeats means task is repeated indefinitely
-//  rover.ts->SyncTask(3, 0, 1000, true, -1);
+//  rover.ts->SyncTask(7, 0, 1000, true, -1);
+
+    //  Schedule periodic dump of sensor data 2 times per second
+    rover.ts->SyncTask(MPU_UID, MPU_GET_DATA, 500, true, -1);
+    rover.ts->AddArg<uint8_t>(0);
 
     while(1)
         TS_GlobalCheck();

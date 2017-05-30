@@ -34,12 +34,12 @@ void MPUDataHandler(void);
  * board at Invensense. If needed, please modify the matrices to match the
  * chip-to-body matrix for your particular set up.
  */
-/*static signed char gyro_orientation[9] = {-1, 0, 0,
+static signed char gyro_orientation[9] = {-1, 0, 0,
                                            0,-1, 0,
-                                           0, 0, 1};*/
-static signed char gyro_orientation[9] = { 0, 0, 1,
+                                           0, 0, 1};
+/*static signed char gyro_orientation[9] = { 0, 0, 1,
                                            0, 1, 0,
-                                          -1, 0, 0};
+                                          -1, 0, 0};*/
 
 struct int_param_s int_param;
 
@@ -148,6 +148,17 @@ void _MPU_KernelCallback(void)
 
         }
         break;
+    case MPU_GET_DATA:
+        {
+            if (__mpu->IsDataReady())
+            {
+#ifdef __DEBUG_SESSION__
+    comm.Send("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), ((uint16_t)__mpu->dT*1000));
+    comm.Send("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
+#endif
+            }
+        }
+        break;
     default:
         break;
     }
@@ -254,6 +265,12 @@ int8_t MPU9250::InitSW()
     comm.Send("done\n");
 #endif
 
+#if defined(__USE_TASK_SCHEDULER__)
+    //  Register module services with task scheduler
+    _mpuKer.callBackFunc = _MPU_KernelCallback;
+    TS_RegCallback(&_mpuKer, MPU_UID);
+#endif
+
     return MPU_SUCCESS;
 }
 
@@ -294,7 +311,6 @@ uint8_t MPU9250::GetID()
 void MPU9250::Listen(bool enable)
 {
     HAL_MPU_IntEnable(enable);
-    //HAL_TIM_Start(0);
 }
 
 /**
@@ -333,6 +349,7 @@ MPU9250::~MPU9250()
  */
 void MPUDataHandler(void)
 {
+    MPU9250 &_mpu = MPU9250::GetI();
     short gyro[3], accel[3], sensors;
     unsigned char more;
     long quat[4];
@@ -341,11 +358,10 @@ void MPUDataHandler(void)
 #ifdef __USE_TASK_SCHEDULER__
     //  Calculate dT in seconds!
     static uint64_t oldms = 0;
-    MPU9250::GetI().dT = ((float)(msSinceStartup-oldms))/1000.0f;
+    //_mpu.dT = ((float)(msSinceStartup-oldms))/1000.0f;
+    _mpu.dT = (float)msSinceStartup;
     oldms = msSinceStartup;
 #endif /* __HAL_USE_TASKSCH__ */
-
-    //= HAL_TIM_GetS();
 
     /* This function gets new data from the FIFO when the DMP is in
      * use. The FIFO can contain any combination of gyro, accel,
@@ -365,19 +381,25 @@ void MPUDataHandler(void)
     qt.y = quat[1];
     qt.z = quat[2];
     qt.w = quat[3];
+
     VectorFloat v;
     dmp_GetGravity(&v, &qt);
-    float ypr[3];
 
-    dmp_GetYawPitchRoll(ypr, &qt, &v);
+    dmp_GetYawPitchRoll((float*)_mpu._ypr, &qt, &v);
+    //  Copy to MPU class
+    _mpu._quat[0] =  qt.x;
+    _mpu._quat[1] =  qt.y;
+    _mpu._quat[2] =  qt.z;
+    _mpu._quat[3] =  qt.w;
 
-#ifdef __DEBUG_SESSION__
-    comm.Send("RPY: %d  %d %d %dms \n", lroundf(ypr[2]*180.0f/3.1415926f), lroundf(ypr[1]*180.0f/3.1415926f), lroundf(ypr[0]*180.0f/3.1415926f), ((uint16_t)oldms));
-#endif
+    _mpu._gv[0] = v.x;
+    _mpu._gv[1] = v.y;
+    _mpu._gv[2] = v.z;
+
+    //  Raise new-data flag
     MPU9250::GetI()._dataFlag = true;
 
     HAL_MPU_IntClear();
-    //HAL_TIM_Start(0);
 }
 
 #endif  /* __HAL_USE_MPU9250__ */

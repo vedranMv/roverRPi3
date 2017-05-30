@@ -14,7 +14,7 @@
  *  +Changed MPU9250 class into a singleton
  *  V3.0 - 29.5.2017
  *  +Completely rewriting MPU9250 class, uses built-in digital motion processor
- *  instead of reading raw sensor data
+ *  instead of reading raw sensor data.
  */
 #include "roverKernel/hwconfig.h"
 
@@ -42,17 +42,6 @@
     #define MPU_LISTEN          0
     #define MPU_GET_DATA        1
 #endif
-
-
-#define MPU_SENS_GYRO   0
-#define MPU_SENS_ACC    1
-#define MPU_SENS_MAG    2
-
-#define MPU_X_AXIS      0
-#define MPU_Y_AXIS      1
-#define MPU_Z_AXIS      2
-
-#define MPU_THRESH      15.0f
 
 //Custom error codes for the library
 #define MPU_SUCCESS             0
@@ -89,6 +78,13 @@ class MPU9250
         ~MPU9250();
         MPU9250(MPU9250 &arg) {}              //  No definition - forbid this
         void operator=(MPU9250 const &arg) {} //  No definition - forbid this
+
+        //  Orientation in quaternions in sensor units
+        volatile float _quat[4];
+        //  Yaw-Pitch-Roll orientation[Y,P,R] in radians
+        volatile float _ypr[3];
+        //  Gravity vector[x,y,z]
+        volatile float _gv[3];
 
         //  Flag set by ISR whenever new raw data is available
         volatile bool   _dataFlag;

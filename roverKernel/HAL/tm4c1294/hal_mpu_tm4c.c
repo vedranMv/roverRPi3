@@ -53,8 +53,8 @@ void HAL_MPU_Init(void((*custHook)(void)))
     I2CMasterEnable(MPU9250_I2C_BASE);
 
     // Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
-    I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
+    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, false);
+    //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
     /*//  Taken from TivaWare library!
     //

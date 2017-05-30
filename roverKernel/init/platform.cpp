@@ -67,11 +67,11 @@ void Platform::InitHW()
         esp = ESP8266::GetP();
         esp->InitHW();
         esp->AddHook(ESPDataReceived);
-        esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
-        //  Initialize data streams and bind them to sockets
-        DataStream_InitHW();
-        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
-        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
+//        esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
+//        //  Initialize data streams and bind them to sockets
+//        DataStream_InitHW();
+//        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
+//        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
 
 #endif
 }
@@ -120,6 +120,14 @@ void Platform::DecodeIncoming(const uint8_t* buf, const uint16_t len)
     ts->AddArgs((void*)(buf+it), argLen);
 
     //TODO: Do something useful with timestamp
+
+    //  Run post-initialization stuff
+    _PostInit();
+}
+
+void Platform::_PostInit()
+{
+    mpu->Listen(true);
 }
 
 ///-----------------------------------------------------------------------------
