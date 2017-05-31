@@ -68,6 +68,7 @@ class MPU9250
         void    Listen(bool enable);
 
         void    AddHook(void((*custHook)(uint8_t,float*)));
+        void    RPY(float* RPY, bool inDeg);
 
         volatile float  dT;
         //  Function to be hooked when new sensor data is received. 1st argument

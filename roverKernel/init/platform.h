@@ -47,19 +47,25 @@
 
 #define TCP_SERVER_IP   (uint8_t*)"192.168.0.12\0"
 
+    #define PLAT_UID    5
+    //  Definitions of ServiceID for service offered by this module
+    #define PLAT_TEL    0   //  Send telemetry data frame
+
+
 class Platform
 {
+    friend void _PLAT_KernelCallback(void);
     public:
         static Platform& GetI();
         static Platform* GetP();
 
         void InitHW();
 
-        void DecodeIncoming(const uint8_t* buf, const uint16_t len);
+        void Execute(const uint8_t* buf, const uint16_t len);
 
-#ifdef __HAL_USE_TASKSCH__
+        //  Task scheduler is a requirement for platform
         volatile TaskScheduler* ts;
-#endif
+
 #ifdef __HAL_USE_ESP8266__
         ESP8266* esp;
         DataStream telemetry;
@@ -79,6 +85,10 @@ class Platform
         ~Platform();
 
         void    _PostInit();
+
+        //  Interface with task scheduler - provides memory space and function
+        //  to call in order for task scheduler to request service from this module
+        _kernelEntry _platKer;
 };
 
 

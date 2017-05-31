@@ -47,9 +47,10 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
     else if (sockID == Platform::GetI().commands.socketID)
     {
         //  Parse incoming command and schedule its execution
-        Platform::GetI().DecodeIncoming(buf, len);
-        uint32_t arg = (uint32_t)(&(Platform::GetI().commands));
-        TaskScheduler::GetP()->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
+        Platform::GetI().Execute(buf, len);
+//        //  Stop keeping command DataStrem alive
+//        uint32_t arg = (uint32_t)(&(Platform::GetI().commands));
+//        TaskScheduler::GetP()->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
     }
     else
     {
@@ -65,9 +66,9 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
  */
 static void RADScanComplete(uint8_t* scanData, uint16_t* scanLen)
 {
-    //  Once scan is completed schedule sending data to socket 0
+    //  Once scan is completed schedule sending data to command socket
     TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
-    TaskScheduler::GetP()->AddArg<uint8_t>(1);  //Socket ID
+    TaskScheduler::GetP()->AddArg<uint8_t>(P_TO_SOCK(P_COMMANDS));  //Socket ID
     TaskScheduler::GetP()->AddArgs((void*)scanData, *scanLen);
 }
 

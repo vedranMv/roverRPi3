@@ -322,6 +322,20 @@ void MPU9250::AddHook(void((*custHook)(uint8_t,float*)))
     userHook = custHook;
 }
 
+/**
+ * Copy orientation from internal buffer to user-provided one
+ * @param RPY pointer to float buffer of size 3 to hold roll-pitch-yaw
+ * @param inDeg if true RPY returned in degrees, if false in radians
+ */
+void MPU9250::RPY(float* RPY, bool inDeg)
+{
+    for (uint8_t i = 0; i < 3; i++)
+        if (inDeg)
+            RPY[i] = _ypr[i]*180.0/PI_CONST;
+        else
+            RPY[i] = _ypr[i];
+}
+
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------

@@ -9,6 +9,64 @@
 #include "roverKernel/libs/myLib.h"
 
 #include "utils/uartstdio.h"
+#include <string>
+#include <sstream>
+
+//  TODO: In test -> measure how much stack uses
+template <typename T> std::string tostr(const T& t) {
+   std::ostringstream os;
+   os<<t;
+   return os.str();
+}
+
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
+ */
+void _PLAT_KernelCallback(void)
+{
+    Platform* __plat = Platform::GetP();
+    //  Check for null-pointer
+    if (__plat->_platKer.args == 0)
+        return;
+    /*
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
+     */
+    switch (__plat->_platKer.serviceID)
+    {
+    /*
+     *  Pack & send telemetry frame
+     *  args[] = none
+     *  retVal none
+     */
+    case PLAT_TEL:
+        {
+            /*
+             * Telemetry frame has the following format:
+             * @note numbers are represented as strings not byte values
+             * [timeSinceStartup]:leftEncoder|rightEncoder|Roll|Pitch|Yaw\0
+             */
+            std::string telemetryFrame;
+            float rpy[3];
+
+            telemetryFrame = "[" + tostr(msSinceStartup) + "]:";
+#ifdef __HAL_USE_MPU9250__
+            //  Get RPY orientation on degrees
+            __plat->mpu->RPY(rpy, true);
+            telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
+#endif
+            //  Send over telemetry stream
+            __plat->telemetry.Send((uint8_t*)telemetryFrame.c_str(), (uint16_t)telemetryFrame.size());
+        }
+        break;
+    default:
+        break;
+    }
+}
 
 ///-----------------------------------------------------------------------------
 ///         Functions for returning static instance                     [PUBLIC]
@@ -42,6 +100,10 @@ Platform* Platform::GetP()
  */
 void Platform::InitHW()
 {
+    //  Register module services with task scheduler
+    _platKer.callBackFunc = _PLAT_KernelCallback;
+    TS_RegCallback(&_platKer, MPU_UID);
+
     //  If using task scheduler get handle and start systick every 1ms
 #ifdef __HAL_USE_TASKSCH__
         ts = TaskScheduler::GetP();
@@ -67,11 +129,11 @@ void Platform::InitHW()
         esp = ESP8266::GetP();
         esp->InitHW();
         esp->AddHook(ESPDataReceived);
-//        esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
-//        //  Initialize data streams and bind them to sockets
-//        DataStream_InitHW();
-//        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
-//        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
+        esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
+        //  Initialize data streams and bind them to sockets
+        DataStream_InitHW();
+        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
+        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
 
 #endif
 
@@ -80,13 +142,15 @@ void Platform::InitHW()
 }
 
 /**
- * Decode receiving message
+ * Decode receiving message which carries a task to be scheduled
+ * This function extracts task and its arguments from message and schedules task
+ * within task scheduler.
  * Message frame:
  * Sender:timestamp(int32_t):repeats(int8_t):argLen(2B)::libUID(1B)serviceID(1B):args\r\n
  * @param buf
  * @param len
  */
-void Platform::DecodeIncoming(const uint8_t* buf, const uint16_t len)
+void Platform::Execute(const uint8_t* buf, const uint16_t len)
 {
     uint16_t it = 2, argLen = 0;
     uint8_t libUID, serviceID;
@@ -128,8 +192,13 @@ void Platform::DecodeIncoming(const uint8_t* buf, const uint16_t len)
 void Platform::_PostInit()
 {
 #ifdef __HAL_USE_MPU9250__
+    //  Take some time for sensor to warm-up, 3 seconds
+    //  Start listening for sensor data
     mpu->Listen(true);
 #endif
+
+    //  Schedule periodic telemetry sending every 1.5s
+    ts->SyncTask(PLAT_UID, PLAT_TEL, 1500, true, T_PERIODIC);
 
 }
 
