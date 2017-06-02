@@ -10,7 +10,7 @@
  *  can be integrated with task scheduler to periodically check if the stream is
  *  opened and try to reconnect in case of a failure.
  *
- *  @version 1.2
+ *  @version 1.2.1
  *  V1.0 - 17.3.2017
  *  +Created document
  *  +Functionality: Initialize data stream with server IP & port, bind to opened
@@ -21,6 +21,9 @@
  *  +On first call to BindToSocketID() object registers periodic health-check of
  *  connection to server. Attempts to reestablish lost connection.
  *  +Destructor removes periodic task checking for connection health
+ *  V1.2.1 - 2.6.2017
+ *  +Fixed bug which allowed attempt to send data even if the underlying socket
+ *  was closed, causing the system to go into a FaultISR
  */
 #include "roverKernel/hwconfig.h"
 

@@ -170,15 +170,16 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
  */
 void DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
 {
-    //  Check if the socket is still opened
     _socket = ESP8266::GetI().GetClientBySockID(socketID);
-    if (_socket!= 0)
-    {
-        //  If it isn't attempt to reopen it
-        BindToSocketID(socketID);
-    }
 
-    _socket->SendTCP((char*)buffer, bufferLen);
+    //  Check if the socket is still opened
+    if (_socket != 0)
+        _socket->SendTCP((char*)buffer, bufferLen);
+    //  If it isn't try to reopen it; if succeeded, send data
+    else if (BindToSocketID(socketID) < ESP_MAX_CLI)
+        _socket->SendTCP((char*)buffer, bufferLen);
+
+
 }
 
 /**
