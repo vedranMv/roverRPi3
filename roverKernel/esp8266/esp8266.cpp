@@ -8,13 +8,13 @@
 
 #if defined(__HAL_USE_ESP8266__)       //  Compile only if module is enabled
 
-#include "../libs/myLib.h"
-#include "../HAL/hal.h"
+#include "libs/myLib.h"
+#include "HAL/hal.h"
 
 #include <stdio.h>
 #include <ctype.h>
 #ifdef __DEBUG_SESSION__
-#include "roverKernel/serialPort/uartHW.h"
+#include "serialPort/uartHW.h"
 #endif
 
 //  Function prototype to an interrupt handler (declared at the bottom)
@@ -676,7 +676,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
     _FlushUART();
     while(HAL_ESP_UARTBusy());
 #ifdef __DEBUG_SESSION__
-    SerialPort::GetI().Send("Sending: %s \n", txBuffer);
+    DEBUG_WRITE("Sending: %s \n", txBuffer);
 #endif
     //  Send char-by-char until reaching end of command
     while (*(txBuffer + txLen) != '\0')
@@ -713,7 +713,7 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
 void ESP8266::_RAWPortWrite(const char* buffer, uint16_t bufLen)
 {
 #ifdef __DEBUG_SESSION__
-    SerialPort::GetI().Send("SendingRAWport: %s \n", buffer);
+    DEBUG_WRITE("SendingRAWport: %s \n", buffer);
 #endif
 
     for (uint16_t i = 0; i < bufLen; i++)
@@ -811,7 +811,7 @@ void UART7RxIntHandler(void)
         rxBuffer[rxLen++] = '\r';
         rxBuffer[rxLen++] = '\n';
 #ifdef __DEBUG_SESSION__
-        SerialPort::GetI().Send("WATCHDOG!!\n");
+        DEBUG_WRITE("WATCHDOG!!\n");
 #endif
     }
 
@@ -841,8 +841,8 @@ void UART7RxIntHandler(void)
     {
         uint16_t i;
         for (i = 0; i < rxLen; i++)
-            SerialPort::GetI().Send("0x%x ", rxBuffer[i]);
-        SerialPort::GetI().Send("\nParsing(%d): %s\n", rxLen, rxBuffer);
+            DEBUG_WRITE("0x%x ", rxBuffer[i]);
+        DEBUG_WRITE("\nParsing(%d): %s\n", rxLen, rxBuffer);
     }
 #endif
         //  Parse data in receiving buffer - if there was an error from WD timer

@@ -3,7 +3,7 @@
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran Mikov
- *  @version v2.1.2
+ *  @version v2.1.3
  *  V1.0 - 29.5.2016
  *  +Implemented C code as C++ object, adjusted it to use HAL
  *  V2.0 - 7.2.2017
@@ -15,8 +15,10 @@
  *  +Changed EngineData class into a singleton
  *  V2.1.2 - 21.3.2017
  *  +Total distance traveled by each wheel separated(counter) from set point
+ *  V1.2.3 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ENGINES_H_) && defined(__HAL_USE_ENGINES__)
@@ -33,7 +35,7 @@
 
 //  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "roverKernel/taskScheduler/taskScheduler.h"
+    #include "taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define ENGINES_UID         2
     //  Definitions of ServiceID for service offered by this module

@@ -4,13 +4,18 @@
  *  Created on: Mar 10, 2017
  *      Author: Vedran
  */
-#include <roverKernel/init/hooks.h>
-#include <roverKernel/init/platform.h>
-#include "roverKernel/libs/myLib.h"
+#include <init/hooks.h>
+#include <init/platform.h>
+#include "libs/myLib.h"
+#include <string>
 
 #include "utils/uartstdio.h"
-#include <string>
 #include <sstream>
+
+#ifdef __DEBUG_SESSION__
+#include "serialPort/uartHW.h"
+
+#endif
 
 //  TODO: In test -> measure how much stack uses
 template <typename T> std::string tostr(const T& t) {
@@ -59,8 +64,10 @@ void _PLAT_KernelCallback(void)
             __plat->mpu->RPY(rpy, true);
             telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
 #endif
+            telemetryFrame += '\n';
+
             //  Send over telemetry stream
-            __plat->telemetry.Send((uint8_t*)telemetryFrame.c_str(), (uint16_t)telemetryFrame.size());
+            __plat->telemetry.Send((uint8_t*)telemetryFrame.c_str());
         }
         break;
     default:
@@ -102,7 +109,7 @@ void Platform::InitHW()
 {
     //  Register module services with task scheduler
     _platKer.callBackFunc = _PLAT_KernelCallback;
-    TS_RegCallback(&_platKer, MPU_UID);
+    TS_RegCallback(&_platKer, PLAT_UID);
 
     //  If using task scheduler get handle and start systick every 1ms
 #ifdef __HAL_USE_TASKSCH__
@@ -165,8 +172,9 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len)
         argLen++;
     //  Convert string to int
     timestamp = stoi((uint8_t*)(buf+it-argLen-1), argLen);
-    SerialPort::GetI().Send("Task pending at %d \n", timestamp);
-
+#ifdef __DEBUG_SESSION__
+    DEBUG_WRITE("Task pending at %ul \n", timestamp);
+#endif
     //  Find :: ->that's beginning of the message; when done, iterator is
     //  at first char of message (also first char of libUID)
     while ( !((buf[it-2] == 0x3A) && (buf[it-1] == 0x3A)) )

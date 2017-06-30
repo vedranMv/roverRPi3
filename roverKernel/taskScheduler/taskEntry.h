@@ -7,7 +7,7 @@
 #ifndef ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_
 #define ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_
 
-#include "roverKernel/libs/myLib.h"
+#include "libs/myLib.h"
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class

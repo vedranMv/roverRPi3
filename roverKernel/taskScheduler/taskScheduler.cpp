@@ -11,12 +11,12 @@
 
 #if defined(__HAL_USE_TASKSCH__)   //  Compile only if module is enabled
 
-#include "roverKernel/libs/myLib.h"
-#include "roverKernel/HAL/hal.h"
+#include "libs/myLib.h"
+#include "HAL/hal.h"
 
 #include <ctype.h>
 #ifdef __DEBUG_SESSION__
-#include "roverKernel/serialPort/uartHW.h"
+#include "serialPort/uartHW.h"
 #endif
 
 
@@ -275,10 +275,10 @@ void TS_GlobalCheck(void)
             __kernelVector[tE._libuid]->args = (uint8_t*)tE._args;
 
 #if defined(__DEBUG_SESSION__)
-            UARTprintf("Now is %d \n", msSinceStartup);
+            DEBUG_WRITE("Now is %d \n", msSinceStartup);
 
-            UARTprintf("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
-            UARTprintf("-(%d)> %s\n", tE._argN, tE._args);
+            DEBUG_WRITE("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
+            DEBUG_WRITE("-(%d)> %s\n", tE._argN, tE._args);
 #endif
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();

@@ -6,7 +6,7 @@
  *
  *  IR-sensor based radar (on 2D gimbal)
  *  (library Infrared Proximity Sensor, Sharp GP2Y0A21YK)
- *  @version 1.2.2
+ *  @version 1.2.3
  *  v1.1
  *  +Packed sensor functions and data into a C++ object
  *  V1.2
@@ -17,8 +17,10 @@
  *  +Modified to support Task scheduler v2.3
  *  V1.2.2 - 9.3.2017
  *  +Changed RadarModule class into a singleton
+ *  V1.2.3 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(RADARGP2_H_) && defined(__HAL_USE_RADAR__)
@@ -32,7 +34,7 @@
 
 //  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "roverKernel/taskScheduler/taskScheduler.h"
+    #include "taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define RADAR_UID       1
     //  Definitions of ServiceID for service offered by this module

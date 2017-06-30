@@ -5,12 +5,10 @@
  *      Author: Vedran
  */
 #include "espClient.h"
-#include "roverKernel/HAL/hal.h"
-#include "roverKernel/libs/myLib.h"
+#include "HAL/hal.h"
+#include "libs/myLib.h"
 
 #include <stdio.h>
-#include "driverlib/uart.h"
-#include "utils/uartstdio.h"
 
 
 ///-----------------------------------------------------------------------------

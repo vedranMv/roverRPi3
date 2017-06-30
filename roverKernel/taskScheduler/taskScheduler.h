@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  Task scheduler library
- *  @version 2.4.3
+ *  @version 2.5.1
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -39,27 +39,30 @@
  *  +Changed TaskScheduler class into a singleton
  *  V2.5 - 25.3.2017
  *  +Implemented a member function to delete already scheduled tasks from list
+ *  V2.5.1 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  *  TODO:
  *  Add a way to pass task outcome to the task caller(!)
  *  Implement deletion of periodic tasks
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_) \
     && defined(__HAL_USE_TASKSCH__)
 #define ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_
 
-#include <vector>
 #include "linkedList.h"
 
 //  Pass to 'repeats' argument for indefinite number of repeats
 #define T_PERIODIC  (-1)
-//  Pass to 'time'  for execution as-soon-as-possible
+//  Pass to 'time' for execution as-soon-as-possible
 #define T_ASAP      (0)
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
 
 /**
  * Task scheduler class implementation

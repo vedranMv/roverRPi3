@@ -12,7 +12,7 @@
 #ifndef __HAL_H__
 #define __HAL_H__
 
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 
 #ifdef __BOARD_TM4C1294NCPDT__

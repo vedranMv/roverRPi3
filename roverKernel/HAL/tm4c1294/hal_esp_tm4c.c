@@ -8,8 +8,8 @@
 
 #if defined(__HAL_USE_ESP8266__)
 
-#include "roverKernel/libs/myLib.h"
-#include "roverKernel/HAL/tm4c1294/hal_common_tm4c.h"
+#include "libs/myLib.h"
+#include "HAL/tm4c1294/hal_common_tm4c.h"
 
 #include "inc/hw_memmap.h"
 #include "inc/hw_types.h"

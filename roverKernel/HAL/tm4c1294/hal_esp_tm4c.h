@@ -9,7 +9,7 @@
  *      GPIO PC6(CH_PD), PC7(Reset-not implemented!)
  *      Timer 6 - watchdog timer in case UART port hangs(likes to do so)
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_ESP_TM4C_H_) && defined(__HAL_USE_ESP8266__)

@@ -8,9 +8,12 @@
 
 //  Makes sense to compile only if ESP module is being used
 #if defined(__HAL_USE_ESP8266__)
-#include "roverKernel/libs/myLib.h"
-#include "roverKernel/esp8266/esp8266.h"
-#include "roverKernel/serialPort/uartHW.h"
+#include "libs/myLib.h"
+#include "esp8266/esp8266.h"
+
+#ifdef __DEBUG_SESSION__
+#include "serialPort/uartHW.h"
+#endif
 
 
 #if defined(__USE_TASK_SCHEDULER__)

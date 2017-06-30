@@ -4,6 +4,8 @@
  *  Created on: 30. 7. 2016.
  *      Author: Vedran Mikov
  *
+ *  Debug bridge between PC<--(USB)-->TM4C
+ *
  */
 #ifndef UARTHW_H_
 #define UARTHW_H_
@@ -11,6 +13,10 @@
 /*		Communication settings	 	*/
 #define COMM_BAUD	115200
 #define TX_BUF_LEN	512
+
+/*      Macro to short the expression needed to print to debug port     */
+#define DEBUG_WRITE(...) SerialPort::GetI().Send(__VA_ARGS__)
+
 
 /**
  * Interface to a UART-to-USB port, used for debugging
@@ -31,6 +37,7 @@ class SerialPort
         ~SerialPort();
 
 };
+
 
 /*
  * Function for receiving and processing incomming data - no need to call them

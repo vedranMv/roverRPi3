@@ -1,8 +1,8 @@
-#include <roverKernel/init/platform.h>
-#include "roverKernel/libs/myLib.h"
-#include "roverKernel/serialPort/uartHW.h"
-#include "roverKernel/HAL/hal.h"
-#include <sstream>
+#include "init/platform.h"
+#include "libs/myLib.h"
+#include "serialPort/uartHW.h"
+#include "HAL/hal.h"
+
 
 //  Debug bridge UART<->USB
 SerialPort &comm2 = SerialPort::GetI();

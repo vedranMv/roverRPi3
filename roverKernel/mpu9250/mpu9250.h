@@ -3,7 +3,8 @@
  *
  *  Created on: 25. 3. 2015.
  *      Author: Vedran Mikov
- *  @version V1.2
+ *
+ *  @version V3.0.1
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
  *  V1.1 - 25.6.2016
@@ -15,8 +16,10 @@
  *  V3.0 - 29.5.2017
  *  +Completely rewriting MPU9250 class, uses built-in digital motion processor
  *  instead of reading raw sensor data.
+ *  V3.0.1 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_MPU9250_MPU9250_H_) && defined(__HAL_USE_MPU9250__)
@@ -35,7 +38,7 @@
 
 //  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "roverKernel/taskScheduler/taskScheduler.h"
+    #include "taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define MPU_UID             3
     //  Definitions of ServiceID for service offered by this module

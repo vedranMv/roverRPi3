@@ -8,18 +8,17 @@
 
 #if defined(__HAL_USE_MPU9250__)       //  Compile only if module is enabled
 
-#include "roverKernel/HAL/hal.h"
-#include "roverKernel/libs/myLib.h"
-#include "roverKernel/libs/helper_3dmath.h"
+#include "HAL/hal.h"
+#include "libs/myLib.h"
+#include "libs/helper_3dmath.h"
 
-#include "roverKernel/mpu9250/eMPL/inv_mpu.h"
-#include "roverKernel/mpu9250/eMPL/inv_mpu_dmp_motion_driver.h"
+#include "eMPL/inv_mpu.h"
+#include "eMPL/inv_mpu_dmp_motion_driver.h"
 
 #define QUAT_SENS  1073741824.0f
 
 #ifdef __DEBUG_SESSION__
-#include "roverKernel/serialPort/uartHW.h"
-SerialPort& comm = SerialPort::GetI();
+#include "serialPort/uartHW.h"
 #endif
 
 //  Function prototype to an interrupt handler (declared at the bottom)
@@ -148,13 +147,13 @@ void _MPU_KernelCallback(void)
         {
             if (__mpu->IsDataReady())
             {
-#ifdef __DEBUG_SESSION___
-    comm.Send("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*10.0));
-    comm.Send("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
+#ifdef __DEBUG_SESSION__
+    DEBUG_WRITE("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*1000.0f));
+    DEBUG_WRITE("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
 #endif
             }
 #ifdef __DEBUG_SESSION__
-    comm.Send("No data\n");
+    DEBUG_WRITE("No data\n");
 #endif
         }
         break;
@@ -232,7 +231,7 @@ int8_t MPU9250::InitSW()
     // Initialize HAL state variables.
     memset(&hal, 0, sizeof(hal));
 #ifdef __DEBUG_SESSION__
-    comm.Send("Trying to load firmware\n");
+    DEBUG_WRITE("Trying to load firmware\n");
 #endif
     result = 7; //  Try loading firmware max 7 times
     while(result--)
@@ -240,15 +239,15 @@ int8_t MPU9250::InitSW()
             break;
 #ifdef __DEBUG_SESSION__
         else
-            comm.Send("%d,  ", result);
+            DEBUG_WRITE("%d,  ", result);
 #endif
 
     if (result == 0)    //  If loading failed 7 times hang here, DMP not usable
         while(1);
 
 #ifdef __DEBUG_SESSION__
-    comm.Send(" >Firmware loaded\n");
-    comm.Send(" >Updating DMP features...");
+    DEBUG_WRITE(" >Firmware loaded\n");
+    DEBUG_WRITE(" >Updating DMP features...");
 #endif
     dmp_set_orientation(inv_orientation_matrix_to_scalar(gyro_orientation));
 
@@ -261,7 +260,7 @@ int8_t MPU9250::InitSW()
     mpu_set_dmp_state(1);
     hal.dmp_on = 1;
 #ifdef __DEBUG_SESSION__
-    comm.Send("done\n");
+    DEBUG_WRITE("done\n");
 #endif
 
 #if defined(__USE_TASK_SCHEDULER__)
@@ -370,7 +369,7 @@ void MPUDataHandler(void)
 #ifdef __USE_TASK_SCHEDULER__
     //  Calculate dT in seconds!
     static uint64_t oldms = 0;
-    _mpu.dT = (float)(msSinceStartup-oldms);
+    _mpu.dT = (float)(msSinceStartup-oldms)/1000.0f;
     oldms = (int32_t)msSinceStartup;
 #endif /* __HAL_USE_TASKSCH__ */
 

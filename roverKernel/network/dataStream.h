@@ -10,7 +10,7 @@
  *  can be integrated with task scheduler to periodically check if the stream is
  *  opened and try to reconnect in case of a failure.
  *
- *  @version 1.2.1
+ *  @version 1.2.2
  *  V1.0 - 17.3.2017
  *  +Created document
  *  +Functionality: Initialize data stream with server IP & port, bind to opened
@@ -24,14 +24,16 @@
  *  V1.2.1 - 2.6.2017
  *  +Fixed bug which allowed attempt to send data even if the underlying socket
  *  was closed, causing the system to go into a FaultISR
+ *  V1.2.2 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Makes sense to compile only if ESP module is being used
 #if !defined(ROVERKERNEL_NETWORK_DATASTREAM_H_) && defined(__HAL_USE_ESP8266__)
 #define ROVERKERNEL_NETWORK_DATASTREAM_H_
 
-#include "roverKernel/esp8266/espClient.h"
+#include "esp8266/espClient.h"
 
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project
@@ -41,7 +43,7 @@
 
 //  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "roverKernel/taskScheduler/taskScheduler.h"
+    #include "taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define DATAS_UID       4
     //  Definitions of ServiceID for service offered by this module

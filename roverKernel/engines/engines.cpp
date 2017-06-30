@@ -8,11 +8,11 @@
 
 #if defined(__HAL_USE_ENGINES__)       //  Compile only if module is enabled
 
-#include "roverKernel/HAL/hal.h"
-#include "roverKernel/libs/myLib.h"
+#include "HAL/hal.h"
+#include "libs/myLib.h"
 
 #ifdef __DEBUG_SESSION__
-#include "utils/uartstdio.h"
+#include "serialPort/uartHW.h"
 #endif
 
 /**     Motor selectors (based on the side, viewed from the back of the vehicle) */
@@ -226,7 +226,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 
 
 #if defined(__DEBUG_SESSION__)
-	UARTprintf("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelSetPoint[ED_LEFT], wheelSetPoint[ED_RIGHT]);
+    DEBUG_WRITE("Going %d LEFT: %d   RIGHT: %d  \n", dir, wheelSetPoint[ED_LEFT], wheelSetPoint[ED_RIGHT]);
 #endif
 	HAL_ENG_SetHBridge(ED_BOTH, dir);       //  Configure H-bridge
 	HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);	//  Set left engine speed
@@ -240,7 +240,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	if (blocking) HAL_ENG_Enable(ED_BOTH, false);
 
 #if defined(__DEBUG_SESSION__)
-    UARTprintf("Drove LEFT: %d   RIGHT: %d  \n", wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
+	DEBUG_WRITE("Drove LEFT: %d   RIGHT: %d  \n", wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
 #endif
 
 	return STATUS_OK;	//  Successful execution

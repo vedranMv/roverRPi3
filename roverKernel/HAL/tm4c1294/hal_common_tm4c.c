@@ -4,7 +4,7 @@
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
  */
-#include "roverKernel/libs/myLib.h"
+#include "libs/myLib.h"
 #include "hal_common_tm4c.h"
 
 #include "inc/hw_memmap.h"

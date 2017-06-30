@@ -40,6 +40,7 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
     //  Check which socket received data
     if (sockID == Platform::GetI().telemetry.socketID)
     {
+        /// No data is expected to arrive here. Maybe ACK from server at some point
         //  Schedule new, fine radar scan at T+2s
         TaskScheduler::GetP()->SyncTask(RADAR_UID, RADAR_SCAN, -1000);
         TaskScheduler::GetP()->AddArg<uint8_t>(Platform::GetI().telemetry.socketID);
@@ -66,10 +67,21 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
  */
 static void RADScanComplete(uint8_t* scanData, uint16_t* scanLen)
 {
+    //uint8_t message[*scanLen + sizeof(DEVICE_ID)];
+    //  Assemble message
+    //  sender:data
+    //strcat((char*)message, DEVICE_ID);
+    //strcat((char*)message, ":");
+
+    //  Copy scan data into message
+    //memcpy((void*)(message+sizeof(DEVICE_ID)+1), (void*)scanData, *scanLen);
+
     //  Once scan is completed schedule sending data to command socket
     TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
     TaskScheduler::GetP()->AddArg<uint8_t>(P_TO_SOCK(P_COMMANDS));  //Socket ID
+
     TaskScheduler::GetP()->AddArgs((void*)scanData, *scanLen);
+    //TaskScheduler::GetP()->AddArgs((void*)message, (sizeof(DEVICE_ID)+1+*scanLen));
 }
 
 #endif /* ROVERKERNEL_INIT_HOOKS_H_ */

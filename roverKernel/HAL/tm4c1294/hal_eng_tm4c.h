@@ -11,7 +11,7 @@
  *      GPIO PP0(left optical encoder), PP1(right optical encoder) - interrupt
  *      Interrupts have to be registered through startup_ccs.c file
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_ENG_TM4C_H_) && defined(__HAL_USE_ENGINES__)

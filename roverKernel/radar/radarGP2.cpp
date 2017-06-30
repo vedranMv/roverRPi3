@@ -7,10 +7,12 @@
 #include "radarGP2.h"
 
 #if defined(__HAL_USE_RADAR__)       //  Compile only if module is enabled
-#include "roverKernel/libs/myLib.h"
+#include "libs/myLib.h"
 
-#include "roverKernel/HAL/hal.h"
-#include "utils/uartstdio.h"
+#include "HAL/hal.h"
+#ifdef __DEBUG_SESSION__
+#include "serialPort/uartHW.h"
+#endif
 
 void _RADAR_KernelCallback(void)
 {

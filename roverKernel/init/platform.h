@@ -12,15 +12,14 @@
 #ifndef ROVERKERNEL_INIT_PLATFORM_H_
 #define ROVERKERNEL_INIT_PLATFORM_H_
 
-#include "roverKernel/hwconfig.h"
-#include "roverKernel/engines/engines.h"
-#include "roverKernel/esp8266/esp8266.h"
-#include "roverKernel/radar/radarGP2.h"
-#include "roverKernel/mpu9250/mpu9250.h"
-#include "roverKernel/taskScheduler/taskScheduler.h"
-#include "roverKernel/serialPort/uartHW.h"
+#include "hwconfig.h"
+#include "engines/engines.h"
+#include "esp8266/esp8266.h"
+#include "radar/radarGP2.h"
+#include "mpu9250/mpu9250.h"
+#include "taskScheduler/taskScheduler.h"
 
-#include "roverKernel/network/dataStream.h"
+#include "network/dataStream.h"
 
 /**     TCP port definitions for standard data streams   */
 /*
@@ -51,6 +50,7 @@
     //  Definitions of ServiceID for service offered by this module
     #define PLAT_TEL    0   //  Send telemetry data frame
 
+const char DEVICE_ID[] = {"ROVER1"};
 
 class Platform
 {

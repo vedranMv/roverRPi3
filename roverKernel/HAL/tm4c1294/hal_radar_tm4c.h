@@ -9,7 +9,7 @@
  *      G1:PWM Out1(PF1 - horiz. axis), G3:PWM Out4(PG0 - vert. axis)
  *      ADC0: AIN3(PE0) - sampling sensor output
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_RADAR_TM4C_H_) && defined(__HAL_USE_RADAR__)

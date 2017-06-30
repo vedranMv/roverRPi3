@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.4.2
+ *  @version 1.4.3
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -42,9 +42,11 @@
  *  V1.4.2 - 28.3.2017
  *  +Fixed small buffer size when passing received data to the hooked function
  *  from ISR when not using task scheduler
+ *  V1.4.3 - 30.6.2017
+ *  +Change include paths for better portability, new way of printing to debug
  *  TODO:Add interface to send UDP packet
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ESP8266_H_) && defined(__HAL_USE_ESP8266__)
@@ -70,7 +72,7 @@ extern char _commBuf[2048];
 
 //  Check if this library is set to use task scheduler
 #if defined(__USE_TASK_SCHEDULER__)
-    #include "roverKernel/taskScheduler/taskScheduler.h"
+    #include "taskScheduler/taskScheduler.h"
     //  Unique identifier of this module as registered in task scheduler
     #define ESP_UID         0
     //  Definitions of ServiceID for service offered by this module

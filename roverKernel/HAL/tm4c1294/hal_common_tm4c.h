@@ -4,7 +4,7 @@
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
  */
-#include "roverKernel/hwconfig.h"
+#include "hwconfig.h"
 
 #ifndef ROVERKERNEL_HAL_TM4C1294_HAL_COMMON_TM4C_H_
 #define ROVERKERNEL_HAL_TM4C1294_HAL_COMMON_TM4C_H_

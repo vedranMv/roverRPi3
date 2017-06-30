@@ -4,7 +4,7 @@
  *  Created on: 29. 5. 2016.
  *      Author: Vedran
  */
-#include "roverKernel/libs/myLib.h"
+#include "libs/myLib.h"
 
 #include "inc/hw_memmap.h"
 #include "inc/hw_ints.h"

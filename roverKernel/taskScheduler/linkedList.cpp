@@ -5,7 +5,9 @@
  *      Author: Vedran
  */
 #include "linkedList.h"
-#include "roverKernel/serialPort/uartHW.h"
+#ifdef __DEBUG_SESSION__
+#include "serialPort/uartHW.h"
+#endif
 
 /*******************************************************************************
   *********         Linked list node - member functions                *********
