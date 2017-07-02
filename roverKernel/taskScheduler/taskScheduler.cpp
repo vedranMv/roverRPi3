@@ -27,7 +27,7 @@
  * called when requesting a service, and memory space for arguments to be
  * transfered to module when requesting a service
  */
-static volatile struct _kernelEntry *__kernelVector[10];
+static volatile struct _kernelEntry *__kernelVector[NUM_OF_MODULES];
 /**
  * Register services for a kernel modules into a callback vector
  * @param arg structure with parameters for callback action
