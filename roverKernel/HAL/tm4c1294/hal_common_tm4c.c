@@ -45,6 +45,14 @@ void HAL_BOARD_CLOCK_Init()
 }
 
 /**
+ * Software-triggered reboot of microcontroller
+ */
+void HAL_BOARD_Reset()
+{
+    SysCtlReset();
+}
+
+/**
  * Wait for given amount of us - blocking function
  * @param us time in us to wait
  */

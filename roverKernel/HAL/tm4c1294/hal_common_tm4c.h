@@ -22,6 +22,7 @@ extern uint32_t g_ui32SysClock;
 
 extern void         HAL_DelayUS(uint32_t us);
 extern void         HAL_BOARD_CLOCK_Init();
+extern void         HAL_BOARD_Reset();
 extern void         UNUSED (int32_t arg);
 extern uint32_t     _TM4CMsToCycles(uint32_t ms);
 
