@@ -39,11 +39,11 @@
  *  +Changed TaskScheduler class into a singleton
  *  V2.5 - 25.3.2017
  *  +Implemented a member function to delete already scheduled tasks from list
- *  V2.5.1 - 30.6.2017
+ *  V2.5.1 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
+ *  +Integration with event logger
+ *
  *  TODO:
- *  Add a way to pass task outcome to the task caller(!)
- *  Implement deletion of periodic tasks
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
  */
@@ -61,16 +61,13 @@
 //  Pass to 'time' for execution as-soon-as-possible
 #define T_ASAP      (0)
 
-//  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
-
 //  Unique identifier of this module as registered in task scheduler
     #define TASKSCHED_UID            7
 
 /**
  * Task scheduler class implementation
  * @note Task and its arguments are added separately. First add new task and then
- * use some of the 'AddArg(s)' function to add argument(s) for that task
+ * use 'AddArgs()' or AddArg<T> functions to add argument(s) for that task
  * Task scheduler allows to schedule tasks for execution at a specific point in
  * time, it's NOT a task scheduler you'd find in an operating system and it
  * doesn't perform actual context switching. Rather it runs-to-completion a

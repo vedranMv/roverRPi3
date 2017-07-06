@@ -17,7 +17,7 @@
  *  +Modified to support Task scheduler v2.3
  *  V1.2.2 - 9.3.2017
  *  +Changed RadarModule class into a singleton
- *  V1.2.3 - 30.6.2017
+ *  V1.2.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
  */
@@ -43,7 +43,7 @@
     #define RADAR_SETH      2   //  Set horizontal angle for radar
     #define RADAR_SETV      3   //  Set vertical angle of radar
 
-#endif
+#endif /* __USE_TASK_SCHEDULER__ */
 
 /**
  * Class object representing IR radar module

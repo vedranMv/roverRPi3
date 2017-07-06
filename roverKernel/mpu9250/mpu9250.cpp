@@ -15,16 +15,18 @@
 #include "eMPL/inv_mpu.h"
 #include "eMPL/inv_mpu_dmp_motion_driver.h"
 
-#define QUAT_SENS  1073741824.0f
-
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
 
+//  Sensitivity of sensor while outputting quaternions
+#define QUAT_SENS  1073741824.0f
+
+//  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
     #include "init/eventLog.h"
+    //  Simplify emitting events
     #define EMIT_EV(X, Y)  EventLog::EmitEvent(MPU_UID, X, Y)
 #endif  /* __HAL_USE_EVENTLOG__ */
-
 
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
@@ -135,9 +137,9 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
  */
 void _MPU_KernelCallback(void)
 {
-    MPU9250* __mpu = MPU9250::GetP();
+    MPU9250 &__mpu = MPU9250::GetI();
     //  Check for null-pointer
-    if (__mpu->_mpuKer.argN == 0)
+    if (__mpu._mpuKer.argN == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -145,7 +147,7 @@ void _MPU_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__mpu->_mpuKer.serviceID)
+    switch (__mpu._mpuKer.serviceID)
     {
     /*
      * retVal one of MPU_* error codes
@@ -153,24 +155,24 @@ void _MPU_KernelCallback(void)
     case MPU_LISTEN:
         {
             //  Double negation to convert any non-zero int to bool
-            bool listen = !(!(__mpu->_mpuKer.args[0]));
+            bool listen = !(!(__mpu._mpuKer.args[0]));
 
-            __mpu->Listen(listen);
-            __mpu->_mpuKer.retVal = MPU_SUCCESS;
+            __mpu.Listen(listen);
+            __mpu._mpuKer.retVal = MPU_SUCCESS;
         }
         break;
     case MPU_GET_DATA:
         {
-            if (__mpu->IsDataReady())
+            if (__mpu.IsDataReady())
             {
 #ifdef __DEBUG_SESSION__
     //DEBUG_WRITE("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*1000.0f));
     //DEBUG_WRITE("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
 #endif
-                __mpu->_mpuKer.retVal = MPU_SUCCESS;
+                __mpu._mpuKer.retVal = MPU_SUCCESS;
             }
             else
-                __mpu->_mpuKer.retVal = MPU_ERROR;
+                __mpu._mpuKer.retVal = MPU_ERROR;
         }
         break;
         /*
@@ -178,10 +180,10 @@ void _MPU_KernelCallback(void)
          */
     case MPU_REBOOT:
         {
-            if (__mpu->_mpuKer.args[0] == 0x17)
+            if (__mpu._mpuKer.args[0] == 0x17)
             {
-                __mpu->Reset();
-                __mpu->_mpuKer.retVal = (int32_t)__mpu->InitSW();
+                __mpu.Reset();
+                __mpu._mpuKer.retVal = (int32_t)__mpu.InitSW();
             }
         }
         break;
@@ -191,10 +193,10 @@ void _MPU_KernelCallback(void)
 
     //  Report outcome to event logger
 #ifdef __HAL_USE_EVENTLOG__
-    if (__mpu->_mpuKer.retVal == MPU_SUCCESS)
-        EMIT_EV(__mpu->_mpuKer.serviceID, EVENT_OK);
+    if (__mpu._mpuKer.retVal == MPU_SUCCESS)
+        EMIT_EV(__mpu._mpuKer.serviceID, EVENT_OK);
     else
-        EMIT_EV(__mpu->_mpuKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__mpu._mpuKer.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif

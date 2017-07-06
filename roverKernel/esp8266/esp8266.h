@@ -42,8 +42,10 @@
  *  V1.4.2 - 28.3.2017
  *  +Fixed small buffer size when passing received data to the hooked function
  *  from ISR when not using task scheduler
- *  V1.4.3 - 30.6.2017
+ *  V1.4.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
+ *  +Integration with event logger
+ *
  *  TODO:Add interface to send UDP packet
  */
 #include "hwconfig.h"

@@ -29,7 +29,9 @@
  *  transmits low-priority event after a higher-priority event has already been
  *  logged since last start-up event. Reemitting startup event clears any
  *  previous event of higher priority
- *  +Fixed log length. Log is dropped when limit is reached (but )
+ *  +Fixed log length. Log is dropped when limit is reached (last event from
+ *  each module is saved, together with priority inversion occurrence and highest
+ *  priority event since startup in each module)
  *
  */
 #include "hwconfig.h"
@@ -106,7 +108,7 @@ class EventLog
         //  Functions for manipulating event log
         void            RecordEvents(bool enable);
         static void     EmitEvent(uint8_t libUID, int8_t taskID, Events event);
-        void            DropBefore(uint32_t timestamp);
+        uint32_t        DropBefore(uint32_t timestamp);
         //  Functions for accessing event log
         uint16_t                        EventCount();
         volatile struct _eventEntry*    GetHead();

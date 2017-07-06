@@ -71,21 +71,21 @@ class Platform
         void Execute(const uint8_t* buf, const uint16_t len, int *err);
 
         //  Task scheduler is a requirement for platform
-        volatile TaskScheduler* ts;
+        volatile TaskScheduler *ts;
 
 #ifdef __HAL_USE_ESP8266__
-        ESP8266* esp;
+        ESP8266 *esp;
         DataStream telemetry;
         DataStream commands;
 #endif
 #ifdef __HAL_USE_ENGINES__
-        EngineData* eng;
+        EngineData *eng;
 #endif
 #ifdef __HAL_USE_MPU9250__
-        MPU9250* mpu;
+        MPU9250 *mpu;
 #endif
 #ifdef __HAL_USE_RADAR__
-        RadarModule* rad;
+        RadarModule *rad;
 #endif
     protected:
         Platform();

@@ -11,9 +11,13 @@
 #include "HAL/hal.h"
 #include "libs/myLib.h"
 
-//  Integration with event log
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
+//  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
     #include "init/eventLog.h"
+    //  Simplify emitting events
     #define EMIT_EV(X, Y)  EventLog::EmitEvent(ENGINES_UID, X, Y)
 #endif  /* __HAL_USE_EVENTLOG__ */
 
@@ -35,9 +39,9 @@
  */
 void _ENG_KernelCallback(void)
 {
-    EngineData *__ed = EngineData::GetP();
+    EngineData &__ed = EngineData::GetI();
     //  Check for null-pointer
-    if (__ed->_edKer.argN == 0)
+    if (__ed._edKer.argN == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -45,7 +49,7 @@ void _ENG_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__ed->_edKer.serviceID)
+    switch (__ed._edKer.serviceID)
     {
     /*
      * Move vehicle in a single direction given by arguments
@@ -59,18 +63,18 @@ void _ENG_KernelCallback(void)
             bool blocking;
 
             memcpy((void*)&dir,
-                   (void*)__ed->_edKer.args,
+                   (void*)__ed._edKer.args,
                    1);
             memcpy((void*)&arg,
-                   (void*)(__ed->_edKer.args + 1),
+                   (void*)(__ed._edKer.args + 1),
                    sizeof(float));
             memcpy((void*)&temp,
-                   (void*)(__ed->_edKer.args + 1 + sizeof(float)),
+                   (void*)(__ed._edKer.args + 1 + sizeof(float)),
                    1);
             blocking = !(!temp);
 
             //((EngineData*)__ed)->StartEngines(dir, arg, blocking);
-            __ed->_edKer.retVal = __ed->StartEngines(dir, arg, blocking);
+            __ed._edKer.retVal = __ed.StartEngines(dir, arg, blocking);
         }
         break;
     /*
@@ -83,16 +87,16 @@ void _ENG_KernelCallback(void)
             float dist, angl, smallRad;
 
             memcpy((void*)&dist,
-                   (void*)__ed->_edKer.args,
+                   (void*)__ed._edKer.args,
                    sizeof(float));
             memcpy((void*)&angl,
-                   (void*)(__ed->_edKer.args + sizeof(float)),
+                   (void*)(__ed._edKer.args + sizeof(float)),
                    sizeof(float));
             memcpy((void*)&smallRad,
-                   (void*)(__ed->_edKer.args + 2 * sizeof(float)),
+                   (void*)(__ed._edKer.args + 2 * sizeof(float)),
                    sizeof(float));
             //((EngineData*)
-            __ed->_edKer.retVal = __ed->StartEnginesArc(dist, angl, smallRad);
+            __ed._edKer.retVal = __ed.StartEnginesArc(dist, angl, smallRad);
         }
         break;
     /*
@@ -106,16 +110,16 @@ void _ENG_KernelCallback(void)
             float percLeft, percRight;
 
             memcpy((void*)&dir,
-                   (void*)__ed->_edKer.args,
+                   (void*)__ed._edKer.args,
                    1);
             memcpy((void*)&percLeft,
-                   (void*)(__ed->_edKer.args+1),
+                   (void*)(__ed._edKer.args+1),
                    sizeof(float));
             memcpy((void*)&percRight,
-                   (void*)(__ed->_edKer.args + sizeof(float)+1),
+                   (void*)(__ed._edKer.args + sizeof(float)+1),
                    sizeof(float));
             //((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
-            __ed->_edKer.retVal = __ed->RunAtPercPWM(dir, percLeft, percRight);
+            __ed._edKer.retVal = __ed.RunAtPercPWM(dir, percLeft, percRight);
         }
         break;
     default:
@@ -123,10 +127,10 @@ void _ENG_KernelCallback(void)
     }
 
 #ifdef __HAL_USE_EVENTLOG__
-    if (__ed->_edKer.retVal == STATUS_OK)
-        EMIT_EV(__ed->_edKer.serviceID, EVENT_OK);
+    if (__ed._edKer.retVal == STATUS_OK)
+        EMIT_EV(__ed._edKer.serviceID, EVENT_OK);
     else
-        EMIT_EV(__ed->_edKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__ed._edKer.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 

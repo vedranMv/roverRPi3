@@ -4,8 +4,8 @@
  *  Created on: Mar 10, 2017
  *      Author: Vedran
  */
-#include "init/hooks.h"
 #include "init/platform.h"
+#include "init/hooks.h"
 #include "libs/myLib.h"
 #include "HAL/hal.h"
 #include "init/eventLog.h"
@@ -13,6 +13,7 @@
 #include <string>
 #include <sstream>
 
+//  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
 
 #ifdef __DEBUG_SESSION__
@@ -20,8 +21,12 @@
 
 #endif
 
-#define EMIT_EV(X, Y)  EventLog::EmitEvent(PLAT_UID, X, Y)
-
+//  Integration with event log, if it's present
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    //  Simplify emitting events
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(PLAT_UID, X, Y)
+#endif /* __HAL_USE_EVENTLOG__ */
 
 //  TODO: In test -> measure how much stack uses
 template <typename T> std::string tostr(const T& t) {
@@ -37,9 +42,9 @@ template <typename T> std::string tostr(const T& t) {
  */
 void _PLAT_KernelCallback(void)
 {
-    Platform* __plat = Platform::GetP();
+    Platform  &__plat = Platform::GetI();
     //  Check for null-pointer
-    if (__plat->_platKer.args == 0)
+    if (__plat._platKer.args == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -47,7 +52,7 @@ void _PLAT_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__plat->_platKer.serviceID)
+    switch (__plat._platKer.serviceID)
     {
     /*
      *  Pack & send telemetry frame
@@ -69,14 +74,14 @@ void _PLAT_KernelCallback(void)
             telemetryFrame = "1*:[" + tostr(msSinceStartup) + "]:";
 #ifdef __HAL_USE_MPU9250__
             //  Get RPY orientation on degrees
-            __plat->mpu->RPY(rpy, true);
+            __plat.mpu->RPY(rpy, true);
             telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
 #endif
             telemetryFrame += '\n';
             EventLog::GetI().RecordEvents(true);
             //  Send over telemetry stream
-            __plat->_platKer.retVal =
-                    __plat->telemetry.Send((uint8_t*)telemetryFrame.c_str());
+            __plat._platKer.retVal =
+                    __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
 
 #ifdef __DEBUG_SESSION__
             DEBUG_WRITE("\nSending frame(%d):%d \n  %s \n",     \
@@ -101,8 +106,8 @@ void _PLAT_KernelCallback(void)
                     telemetryFrame += tostr<uint16_t>(node->taskID) + ":";
                     telemetryFrame += tostr<uint16_t>(node->event) + ":";
                     //  Append new error code (use of OR) to not overwrite old one
-                    __plat->_platKer.retVal |=
-                            __plat->telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+                    __plat._platKer.retVal |=
+                            __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                    telemetryFrame.length());
 
 #ifdef __DEBUG_SESSION__
@@ -123,7 +128,7 @@ void _PLAT_KernelCallback(void)
     case PLAT_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
-            if (__plat->_platKer.args[0] == 0x17)
+            if (__plat._platKer.args[0] == 0x17)
             {
                 HAL_BOARD_Reset();
             }
@@ -135,10 +140,10 @@ void _PLAT_KernelCallback(void)
 
     //  Check return-value and emit event based on it
 #ifdef __HAL_USE_EVENTLOG__
-    if (__plat->_platKer.retVal == STATUS_OK)
-        EMIT_EV(__plat->_platKer.serviceID, EVENT_OK);
+    if (__plat._platKer.retVal == STATUS_OK)
+        EMIT_EV(__plat._platKer.serviceID, EVENT_OK);
     else
-        EMIT_EV(__plat->_platKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__plat._platKer.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
 }

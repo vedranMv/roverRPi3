@@ -7,24 +7,32 @@
 #include "radarGP2.h"
 
 #if defined(__HAL_USE_RADAR__)       //  Compile only if module is enabled
-#include "libs/myLib.h"
 
-//  Integration with event log
+#include "libs/myLib.h"
+#include "HAL/hal.h"
+
+//  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
     #include "init/eventLog.h"
+    //  Simplify emitting events
     #define EMIT_EV(X, Y)  EventLog::EmitEvent(RADAR_UID, X, Y)
 #endif  /* __HAL_USE_EVENTLOG__ */
 
-#include "HAL/hal.h"
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
 
+#if defined(__USE_TASK_SCHEDULER__)
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
+ */
 void _RADAR_KernelCallback(void)
 {
-    RadarModule *__rD = RadarModule::GetP();
+    RadarModule &__rD = RadarModule::GetI();
     //  Check for null-pointer
-    if (__rD->_radKer.args == 0)
+    if (__rD._radKer.args == 0)
         return;
 
     /*
@@ -33,7 +41,7 @@ void _RADAR_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch(__rD->_radKer.serviceID)
+    switch(__rD._radKer.serviceID)
     {
     /*
      * Request a radar scan by rotating horizontal axis from 0� to 160�. First
@@ -44,9 +52,9 @@ void _RADAR_KernelCallback(void)
     case RADAR_SCAN:
         {
             //  Double negation to convert any integer into boolean
-            bool fine = !(!__rD->_radKer.args[0]);
+            bool fine = !(!__rD._radKer.args[0]);
 
-            __rD->_radKer.retVal = __rD->Scan(fine, true);
+            __rD._radKer.retVal = __rD.Scan(fine, true);
         }
         break;
         /*
@@ -57,14 +65,14 @@ void _RADAR_KernelCallback(void)
     case RADAR_SETH:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD->_radKer.argN == sizeof(float))
+            if (__rD._radKer.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD->_radKer.args),
+                       (void*)( __rD._radKer.args),
                        sizeof(float));
-                __rD->SetHorAngle(angle);
+                __rD.SetHorAngle(angle);
             }
         }
         break;
@@ -76,14 +84,14 @@ void _RADAR_KernelCallback(void)
     case RADAR_SETV:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD->_radKer.argN == sizeof(float))
+            if (__rD._radKer.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD->_radKer.args),
+                       (void*)( __rD._radKer.args),
                        sizeof(float));
-                __rD->SetVerAngle(angle);
+                __rD.SetVerAngle(angle);
             }
         }
         break;
@@ -93,12 +101,13 @@ void _RADAR_KernelCallback(void)
 
     //  Check return-value and emit event based on it
 #ifdef __HAL_USE_EVENTLOG__
-    if (__rD->_radKer.retVal == STATUS_OK)
-        EMIT_EV(__rD->_radKer.serviceID, EVENT_OK);
+    if (__rD._radKer.retVal == STATUS_OK)
+        EMIT_EV(__rD._radKer.serviceID, EVENT_OK);
     else
-        EMIT_EV(__rD->_radKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__rD._radKer.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
+#endif /* __USE_TASK_SCHEDULER__ */
 
 ///-----------------------------------------------------------------------------
 ///         Functions for returning static instance                     [PUBLIC]

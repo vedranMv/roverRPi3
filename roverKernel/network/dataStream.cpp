@@ -8,11 +8,19 @@
 
 //  Makes sense to compile only if ESP module is being used
 #if defined(__HAL_USE_ESP8266__)
+
 #include "libs/myLib.h"
 #include "esp8266/esp8266.h"
 
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
+
+//  Integration with event log, if it's present
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    //  Simplify emitting events
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(DATAS_UID, X, Y)
+#endif  /* __HAL_USE_EVENTLOG__ */
 
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"

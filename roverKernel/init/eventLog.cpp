@@ -11,6 +11,7 @@
 
 #if defined(__HAL_USE_EVENTLOG__)   //  Compile only if module is enabled
 
+//  Simplify emitting events
 #define EMIT_EV(X)  EventLog::EmitEvent(EVLOG_UID, 0, X)
 
 /**
@@ -21,10 +22,10 @@
 void _EVLOG_KernelCallback()
 {
     //  Grab a pointer to singleton
-    EventLog *__evlog = EventLog::GetP();
+    EventLog &__evlog = EventLog::GetI();
 
     //  Check for null-pointer
-    if (__evlog->_evlogKer.argN == 0)
+    if (__evlog._evlogKer.argN == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -32,21 +33,20 @@ void _EVLOG_KernelCallback()
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__evlog->_evlogKer.serviceID)
+    switch (__evlog._evlogKer.serviceID)
     {
     /*
      * Drop all data in event log before given timestamp (in milliseconds)
-     * 1st data byte of args[] con
+     * First 4 bytes contain time in ms as given by the task scheduler
      * args[] = timestamp(uint32_t)
      * retVal one of myLib.h STATUS_* error codes
      */
     case EVLOG_DROP:
         {
             uint32_t timestamp;
-            memcpy(&timestamp, __evlog->_evlogKer.args, sizeof(uint32_t));
+            memcpy(&timestamp, __evlog._evlogKer.args, sizeof(uint32_t));
 
-            __evlog->_evlogKer.retVal = __evlog->DropBefore(timestamp);
-
+            __evlog._evlogKer.retVal = __evlog.DropBefore(timestamp);
         }
         break;
     default:
@@ -77,6 +77,10 @@ EventLog* EventLog::GetP()
     return &(EventLog::GetI());
 }
 
+/**
+ * Initialize software used by the event logger
+ * Registers this module with task scheduler to allow execution of remote tasks
+ */
 void EventLog::InitSW()
 {
 
@@ -278,12 +282,5 @@ EventLog::~EventLog()
    if(_entryvCount != 0)
        EMIT_EV(EVENT_ERROR);
 }
-
-
-
-///-----------------------------------------------------------------------------
-///                      Miscellaneous functions                     [PROTECTED]
-///-----------------------------------------------------------------------------
-
 
 #endif  /* __HAL_USE_EVENTLOG__ */

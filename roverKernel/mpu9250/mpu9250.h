@@ -16,7 +16,7 @@
  *  V3.0 - 29.5.2017
  *  +Completely rewriting MPU9250 class, uses built-in digital motion processor
  *  instead of reading raw sensor data.
- *  V3.0.1 - 30.6.2017
+ *  V3.0.1 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
  */

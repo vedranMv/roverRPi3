@@ -15,7 +15,7 @@
  *  +Changed EngineData class into a singleton
  *  V2.1.2 - 21.3.2017
  *  +Total distance traveled by each wheel separated(counter) from set point
- *  V2.1.3 - 30.6.2017
+ *  V2.1.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
  */
@@ -24,9 +24,6 @@
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ENGINES_H_) && defined(__HAL_USE_ENGINES__)
 #define ENGINES_H_
-
-//  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
 
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project

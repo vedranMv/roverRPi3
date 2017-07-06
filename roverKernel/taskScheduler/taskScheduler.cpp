@@ -16,9 +16,14 @@
 
 #include <ctype.h>
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
+//  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
     #include "init/eventLog.h"
-    #define EMIT_EV(X, Y, Z)  EventLog::EmitEvent(X, Y, Z)
+    //  Simplify emitting events
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(TASKSCHED_UID, X, Y)
 #endif  /* __HAL_USE_EVENTLOG__ */
 
 #ifdef __DEBUG_SESSION__
@@ -260,17 +265,17 @@ void _TSSyncCallback(void)
 void TS_GlobalCheck(void)
 {
     //  Grab a pointer to singleton
-    volatile TaskScheduler* __taskSch = TaskScheduler::GetP();
+    volatile TaskScheduler &__taskSch = TaskScheduler::GetI();
 
     //  Check if there is task scheduled to execute
-    if (!__taskSch->IsEmpty())
+    if (!__taskSch.IsEmpty())
         //  Check if the first task had to be executed already
-        while((__taskSch->PeekFront()._timestamp <= msSinceStartup) &&
-              (!__taskSch->IsEmpty()))
+        while((__taskSch.PeekFront()._timestamp <= msSinceStartup) &&
+              (!__taskSch.IsEmpty()))
         {
             // Take out first entry to process it
             TaskEntry tE;
-            tE = __taskSch->PopFront();
+            tE = __taskSch.PopFront();
 
             // Check if module is registered in task scheduler
             if ((__kernelVector + tE._libuid) == 0)
@@ -298,7 +303,7 @@ void TS_GlobalCheck(void)
                     tE._repeats--;
                 //  Change time of execution based on period
                 tE._timestamp = msSinceStartup + labs(tE._period);
-                __taskSch->SyncTask(tE);
+                __taskSch.SyncTask(tE);
             }
         }
 }
