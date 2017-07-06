@@ -43,6 +43,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
     SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C2);
 
     // Enable I2C communication interface, SCL, SDA lines
     GPIOPinConfigure(GPIO_PN4_I2C2SDA);

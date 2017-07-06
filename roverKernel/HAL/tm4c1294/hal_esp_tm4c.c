@@ -25,7 +25,6 @@
 #include "driverlib/systick.h"
 #include "driverlib/timer.h"
 
-
 /**
  * Initialize UART port communicating with ESP8266 chip - 8 data bits, no parity,
  * 1 stop bit, no flow control
@@ -164,14 +163,16 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
             HAL_ESP_InitWD(g_intHandler);
             TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(ms));
             LTM = ms;
+
         }
         else
             TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
         TimerEnable(TIMER6_BASE, TIMER_A);
     }
     else if (ms != 0)
+    {
         LTM = ms;
-
+    }
 }
 
 /**

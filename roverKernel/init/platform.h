@@ -5,8 +5,8 @@
  *      Author: Vedran Mikov
  *
  *  Platform contains high-level definition of all modules currently attached and
- *  needed on the platform. It is thought of a single module to unify low-level
- *  drivers and provide single point for initialization of platform.
+ *  needed on the platform. It is thought of as a single module to unify
+ *  low-level drivers and provide single point for initialization of platform.
  */
 
 #ifndef ROVERKERNEL_INIT_PLATFORM_H_
@@ -46,10 +46,17 @@
 
 #define TCP_SERVER_IP   (uint8_t*)"192.168.0.12\0"
 
+/*
+ * Kernel module UID and task IDs
+ */
+    //  Unique identifier of this module as registered in task scheduler
     #define PLAT_UID    5
     //  Definitions of ServiceID for service offered by this module
     #define PLAT_TEL    0   //  Send telemetry data frame
+    #define PLAT_REBOOT 1   //  Reboot the system
 
+
+//  ID of this device when exchanging messages
 const char DEVICE_ID[] = {"ROVER1"};
 
 class Platform
@@ -61,7 +68,7 @@ class Platform
 
         void InitHW();
 
-        void Execute(const uint8_t* buf, const uint16_t len);
+        void Execute(const uint8_t* buf, const uint16_t len, int *err);
 
         //  Task scheduler is a requirement for platform
         volatile TaskScheduler* ts;

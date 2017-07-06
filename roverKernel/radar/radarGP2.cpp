@@ -9,6 +9,12 @@
 #if defined(__HAL_USE_RADAR__)       //  Compile only if module is enabled
 #include "libs/myLib.h"
 
+//  Integration with event log
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(RADAR_UID, X, Y)
+#endif  /* __HAL_USE_EVENTLOG__ */
+
 #include "HAL/hal.h"
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
@@ -33,14 +39,14 @@ void _RADAR_KernelCallback(void)
      * Request a radar scan by rotating horizontal axis from 0� to 160�. First
      * data byte is either 1(fine scan) or 0(coarse scan).
      * args[] = scanType(1B)
-     * retVal none
+     * retVal one of myLib.h STATUS_* error codes
      */
     case RADAR_SCAN:
         {
             //  Double negation to convert any integer into boolean
             bool fine = !(!__rD->_radKer.args[0]);
 
-            __rD->Scan(fine, true);
+            __rD->_radKer.retVal = __rD->Scan(fine, true);
         }
         break;
         /*
@@ -85,6 +91,13 @@ void _RADAR_KernelCallback(void)
         break;
     }
 
+    //  Check return-value and emit event based on it
+#ifdef __HAL_USE_EVENTLOG__
+    if (__rD->_radKer.retVal == STATUS_OK)
+        EMIT_EV(__rD->_radKer.serviceID, EVENT_OK);
+    else
+        EMIT_EV(__rD->_radKer.serviceID, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 
 ///-----------------------------------------------------------------------------
@@ -120,6 +133,9 @@ RadarModule* RadarModule::GetP()
  */
 void RadarModule::InitHW()
 {
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
     HAL_RAD_Init();
 
     //SetHorAngle(0);
@@ -130,6 +146,10 @@ void RadarModule::InitHW()
     _radKer.callBackFunc = _RADAR_KernelCallback;
     TS_RegCallback(&_radKer, RADAR_UID);
 #endif
+
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 
 /**
@@ -149,8 +169,9 @@ void RadarModule::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
  * @param length size of the array upon finalizing radar scan
  * @param fine if true scan results will not be averaged but all 1280 points
  * 				 will be saved in [data] array
+ * @return error-code, one of STATUS_* macros from myLib.h
  */
-void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
+uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 {
 	/*	Step corresponds to 1/8� making total of ~1270 point @ 160� area
 	 * 		alternatively step=36.25 for 1� (making ~160 points @ 160� area)
@@ -235,16 +256,21 @@ void RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 
 	//  Set the flag to indicate scan is completed
 	_scanComplete = true;
+
+	return STATUS_OK;
 }
 
 /**
  * Perform radar scan but provide internal buffer to save the data to.
  * @param fine specifies whether a fine scan (1280 points) is requested or
  * a coarse scan (160 points)
+ * @param hook If true after scan passes scan data to a user-provided function
+ * @return error-code, one of STATUS_* macros from myLib.h
  */
-void RadarModule::Scan(bool fine, bool hook)
+uint32_t RadarModule::Scan(bool fine, bool hook)
 {
     uint16_t scanLen = 0;
+    uint32_t retVal;
 
     //  If there's memory already occupied, it's assumed that's from old scan
     //  and can be safely deleted -> new memory will be occupied for this scan
@@ -258,7 +284,7 @@ void RadarModule::Scan(bool fine, bool hook)
         _scanData = new uint8_t[162];
 
     //  Initiate scan
-    Scan(_scanData, &scanLen, fine);
+    retVal = Scan(_scanData, &scanLen, fine);
 
     //  Call user's function to process data from the scan
     if ((custHook != 0) && hook)
@@ -271,11 +297,12 @@ void RadarModule::Scan(bool fine, bool hook)
      * used again before the next scan. Rather, data buffered is cleared at the
      * beginning of this function.
      */
+    return retVal;
 }
 
 /**
  * Check if the current scan is completed
- * @note Function clears the flag after it has returned true!
+ * @note Function clears internal _scanComplete flag after it has returned true!
  * @return whether or not the current scan is completed
  */
 bool RadarModule::ScanReady()
@@ -323,7 +350,11 @@ void RadarModule::SetVerAngle(float angle)
 ///-----------------------------------------------------------------------------
 
 RadarModule::RadarModule() : _scanComplete(false), _scanData(0), _fineScan(false)
-{}
+{
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+}
 
 RadarModule::~RadarModule()
 {}

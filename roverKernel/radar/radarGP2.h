@@ -19,6 +19,7 @@
  *  +Changed RadarModule class into a singleton
  *  V1.2.3 - 30.6.2017
  *  +Change include paths for better portability, new way of printing to debug
+ *  +Integration with event logger
  */
 #include "hwconfig.h"
 
@@ -61,10 +62,10 @@ class RadarModule
 		void InitHW();
 		void AddHook(void((*funPoint)(uint8_t*, uint16_t*)));
 
-		void Scan(uint8_t *data, uint16_t *length, bool fine);
-		void Scan(bool fine, bool hook = false);
-		bool ScanReady();
-		void ReadBuffer(uint8_t *buffer, uint16_t *bufferLen);
+		uint32_t    Scan(uint8_t *data, uint16_t *length, bool fine);
+		uint32_t    Scan(bool fine, bool hook = false);
+		bool        ScanReady();
+		void        ReadBuffer(uint8_t *buffer, uint16_t *bufferLen);
 
 		void SetHorAngle(float angle);
         void SetVerAngle(float angle);

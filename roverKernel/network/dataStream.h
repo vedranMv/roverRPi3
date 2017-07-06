@@ -69,10 +69,10 @@ class DataStream
         DataStream(uint8_t *ip, uint16_t port);
         ~DataStream();
 
-        uint8_t BindToSocketID(uint8_t sockID);
+        uint8_t     BindToSocketID(uint8_t sockID);
 
-        void    Send(uint8_t *buffer, uint16_t bufferLen = 0);
-        bool    Receive(uint8_t *buffer, uint16_t *bufferLen);
+        uint32_t    Send(uint8_t *buffer, uint16_t bufferLen = 0);
+        bool        Receive(uint8_t *buffer, uint16_t *bufferLen);
 
         //  Socket ID as returned from ESP8266
         uint8_t     socketID;

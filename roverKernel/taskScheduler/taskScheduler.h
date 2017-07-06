@@ -64,6 +64,9 @@
 //  Enable debug information printed on serial port
 //#define __DEBUG_SESSION__
 
+//  Unique identifier of this module as registered in task scheduler
+    #define TASKSCHED_UID            7
+
 /**
  * Task scheduler class implementation
  * @note Task and its arguments are added separately. First add new task and then

@@ -14,8 +14,10 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define STATUS_OK 					 0
-#define STATUS_ARG_ERR				-1
+//  Common error codes
+#define STATUS_OK 					0
+#define STATUS_ARG_ERR			    1
+#define STATUS_PROG_ERR             2
 
 #define PI_CONST 	3.14159265f
 

@@ -10,6 +10,12 @@
 
 #include <stdio.h>
 
+//  Enable debug information printed on serial port
+#define __DEBUG_SESSION__
+
+#ifdef __DEBUG_SESSION__
+#include "serialPort/uartHW.h"
+#endif
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor                [PUBLIC]
@@ -47,7 +53,7 @@ void _espClient::operator= (const _espClient &arg)
 /**
  * Send data to a client over open TCP socket
  * @param buffer NULL-TERMINATED(!) data to send
- * @param bufferLen[optional] len of the buffer, is not provided function looks
+ * @param bufferLen[optional] len of the buffer, if not provided function looks
  * for first occurrence of \0 in buffer and takes that as length
  * @return status of send process (binary or of ESP_* flags received while sending)
  */
@@ -59,11 +65,10 @@ uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
     //  If buffer length is not provided find it by looking for \0 char in string
     if (bufferLen == 0)
     {
+        //  Dangerous, might end up in memory access violation
         while (buffer[bufLen++] != '\0');   //  Find \0
-        bufLen--;
+        bufLen--;   //Exclude \0 char from size of buffer
     }
-    //  Initiate transmission from
-    //sprintf(_commBuf, "AT+CIPSEND=%d,%d\0",_id, bufLen);
 
     memset(_commBuf, 0, sizeof(_commBuf));
     strcat(_commBuf, "AT+CIPSEND=");
@@ -77,13 +82,20 @@ uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
     if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV))
     {
         _parent->flowControl = ESP_NO_STATUS;
-        if (!_parent->_servOpen) HAL_ESP_IntEnable(true);
-        _parent->_RAWPortWrite(buffer, bufLen);
-        //  Listen for potential response
 
+        //  If ESP is not in server mode we need to manually start listening
+        //  for incoming data from ESP
+        if (!_parent->_servOpen)
+            HAL_ESP_IntEnable(true);
+
+        //  Write data we want to send
+        _parent->_RAWPortWrite(buffer, bufLen);
+
+        //  Listen for potential response
         while (_parent->flowControl == ESP_NO_STATUS);
     }
-
+    //   Stop watchdog timer (started in ISR)
+    //HAL_ESP_WDControl(false, 0);
     return _parent->flowControl;
 }
 /**
@@ -172,7 +184,6 @@ void _espClient::Done()
 uint32_t _espClient::Close()
 {
     uint8_t strNum[6] = {0};
-    //snprintf(_commBuf, sizeof(_commBuf), "AT+CIPCLOSE=%d\0", _id);
 
     memset(_commBuf, 0, sizeof(_commBuf));
     strcat(_commBuf, "AT+CIPCLOSE=");

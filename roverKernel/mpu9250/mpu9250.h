@@ -18,6 +18,7 @@
  *  instead of reading raw sensor data.
  *  V3.0.1 - 30.6.2017
  *  +Change include paths for better portability, new way of printing to debug
+ *  +Integration with event logger
  */
 #include "hwconfig.h"
 
@@ -26,9 +27,6 @@
 #define ROVERKERNEL_MPU9250_MPU9250_H_
 
 #include "registerMap.h"
-
-//  Enable debug information printed on serial port
-#define __DEBUG_SESSION__
 
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project
@@ -44,11 +42,13 @@
     //  Definitions of ServiceID for service offered by this module
     #define MPU_LISTEN          0
     #define MPU_GET_DATA        1
+    #define MPU_REBOOT          2
 #endif
 
 //Custom error codes for the library
 #define MPU_SUCCESS             0
 #define MPU_I2C_ERROR           1
+#define MPU_ERROR               2
 
 
 /**
@@ -83,6 +83,8 @@ class MPU9250
         MPU9250(MPU9250 &arg) {}              //  No definition - forbid this
         void operator=(MPU9250 const &arg) {} //  No definition - forbid this
 
+        //  States whether we're listening for MPU interrupts
+        bool           _listen;
         //  Orientation in quaternions in sensor units
         volatile float _quat[4];
         //  Yaw-Pitch-Roll orientation[Y,P,R] in radians
@@ -93,6 +95,8 @@ class MPU9250
         //  Flag set by ISR whenever new raw data is available
         volatile bool   _dataFlag;
 
+        //  Interface with task scheduler - provides memory space and function
+        //  to call in order for task scheduler to request service from this module
 #if defined(__USE_TASK_SCHEDULER__)
         _kernelEntry _mpuKer;
 #endif

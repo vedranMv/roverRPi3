@@ -13,6 +13,16 @@
 
 #include <stdio.h>
 #include <ctype.h>
+
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
+//  Integration with event log
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(ESP_UID, X, Y)
+#endif  /* __HAL_USE_EVENTLOG__ */
+
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
@@ -69,6 +79,7 @@ void _ESP_KernelCallback(void)
                 __esp->_espKer.retVal = __esp->StopTCPServer();
                 __esp->TCPListen(false);
             }
+            __esp->_espKer.retVal = ESP_STATUS_OK;
         }
         break;
     /*
@@ -131,6 +142,7 @@ void _ESP_KernelCallback(void)
             __esp->custHook(__esp->_espKer.args[0],
                             (uint8_t*)(cli->RespBody),
                             (uint16_t)((cli->RespLen)));
+            __esp->_espKer.retVal = ESP_STATUS_OK;
         }
         break;
     /*
@@ -151,6 +163,13 @@ void _ESP_KernelCallback(void)
         break;
     }
 
+    //  Report outcome to event logger
+#ifdef __HAL_USE_EVENTLOG__
+    if ((__esp->_espKer.retVal & ESP_STATUS_OK) > 0)
+        EMIT_EV(__esp->_espKer.serviceID, EVENT_OK);
+    else
+        EMIT_EV(__esp->_espKer.serviceID, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif
 
@@ -163,6 +182,11 @@ void _ESP_KernelCallback(void)
 void ESPWDISR()
 {
     ESP8266::GetP()->flowControl = ESP_STATUS_ERROR;
+
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_HANG);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
     HAL_ESP_WDClearInt();
 }
 
@@ -204,6 +228,10 @@ uint32_t ESP8266::InitHW(int32_t baud)
 {
     uint32_t retVal;
 
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
     HAL_ESP_InitPort(baud);
     HAL_ESP_RegisterIntHandler(UART7RxIntHandler);
     HAL_ESP_InitWD(ESPWDISR);
@@ -221,6 +249,10 @@ uint32_t ESP8266::InitHW(int32_t baud)
     TS_RegCallback(&_espKer, ESP_UID);
 #endif
 
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
     return retVal;
 }
 
@@ -231,7 +263,10 @@ uint32_t ESP8266::InitHW(int32_t baud)
 void ESP8266::Enable(bool enable)
 {
     HAL_ESP_HWEnable(enable);
-    while (!HAL_ESP_IsHWEnabled());
+
+    //  If enabling the chip, wait until is actually enabled
+    if (enable)
+        while (!HAL_ESP_IsHWEnabled());
 }
 
 /**
@@ -422,6 +457,10 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
     uint32_t retVal;
     uint8_t strNum[6] = {0};
 
+    //  Can't continue without valid IP address
+    if (MyIP() == 0)
+        return ESP_STATUS_ERROR;
+
     //  Check if socket with this ID already exists, if not create it, if yes
     //  fined first free socket ID and use it instead
     if (GetClientBySockID(sockID) != 0 || (sockID >= ESP_MAX_CLI))
@@ -518,7 +557,9 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     //  Pointer to char, used to temporary store return value of strstr function
     char *retTemp;
 
-    if (rxLen < 1)    return retVal;
+    //  If message is empty return here
+    if (rxLen < 1)
+        return retVal;
 
     //  IP address embedded, save pointer to its first digit(as string)
     if ((retTemp = strstr(rxBuffer,"ip:\"")) != NULL)
@@ -629,6 +670,9 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS), _tcpServPort(0),
                      _ipAddress(0), _servOpen(false)
 {
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 
 ESP8266::~ESP8266()
@@ -694,12 +738,16 @@ uint32_t ESP8266::_SendRAW(const char* txBuffer, uint32_t flags, uint32_t timeou
     //  If non-blocking mode is not enabled wait for status
     if (!(flags & ESP_NONBLOCKING_MODE))
     {
+        //  Start watchdog timer
         HAL_ESP_WDControl(true, timeout);
+
         while( !(flowControl & ESP_STATUS_OK) &&
                 !(flowControl & ESP_STATUS_ERROR) &&
                 !(flowControl & flags));
 
         HAL_DelayUS(1000);
+        //  Stop watchdog timer
+        HAL_ESP_WDControl(false, timeout);
         return flowControl;
     }
     else return ESP_NONBLOCKING_MODE;
@@ -795,7 +843,8 @@ void UART7RxIntHandler(void)
     while (HAL_ESP_CharAvail())
     {
         char temp = HAL_ESP_GetChar();
-        HAL_ESP_WDControl(true, 0);     //   Reset watchdog timer
+        //   Reset watchdog timer on every char - bus is active
+        HAL_ESP_WDControl(true, 0);
 
         rxBuffer[rxLen++] = temp;
         //  Keep in mind buffer size
@@ -806,7 +855,7 @@ void UART7RxIntHandler(void)
      * If watchdog timer times out, artificially produce terminating sequence at
      * the end of the buffer in order to trigger next if to read the content
      */
-    if (( __esp->flowControl == ESP_STATUS_ERROR) && (rxLen > 1))
+    if (( __esp->flowControl == ESP_STATUS_ERROR))
     {
         rxBuffer[rxLen++] = '\r';
         rxBuffer[rxLen++] = '\n';
@@ -817,12 +866,22 @@ void UART7RxIntHandler(void)
 
     //  Prevent parsing when buffer only contains \r\n and nothing else
     if (rxLen == 2)
+    {
         if ((rxBuffer[rxLen-2] == '\r') && (rxBuffer[rxLen-1] == '\n'))
         {
+            HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
             //  Reset receiving buffer and its size
             memset(rxBuffer, '\0', sizeof(rxBuffer));
             rxLen = 0;
+            return;
         }
+    }
+    //  No point in starting parser for messages with such small size, return
+    else if (rxLen < 2)
+    {
+        HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
+        return;
+    }
 
     /*
      *  There are 3 occasions when we want to process data in input buffer:
@@ -836,6 +895,7 @@ void UART7RxIntHandler(void)
       || ( __esp->flowControl == ESP_STATUS_ERROR) )
     {
         HAL_ESP_WDControl(false, 0);    //   Stop watchdog timer
+
 
 #ifdef __DEBUG_SESSION__
     {
@@ -877,10 +937,11 @@ void UART7RxIntHandler(void)
         //  If ESP is running in server mode or status hasn't been OK/ERROR
         //  (because after them ESP sends no more messages) then continue
         //  listening on serial port for new messages
-        if (((__esp->flowControl & ESP_STATUS_OK) ||
+        /*if (((__esp->flowControl & ESP_STATUS_OK) ||
              (__esp->flowControl & ESP_STATUS_ERROR))
             && !__esp->ServerOpened())
-            HAL_ESP_IntEnable(false);
+            HAL_ESP_IntEnable(false);*/
+
 
         //  Reset receiving buffer and its size
         memset(rxBuffer, '\0', sizeof(rxBuffer));

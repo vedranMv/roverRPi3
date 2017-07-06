@@ -11,6 +11,12 @@
 #include "HAL/hal.h"
 #include "libs/myLib.h"
 
+//  Integration with event log
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(ENGINES_UID, X, Y)
+#endif  /* __HAL_USE_EVENTLOG__ */
+
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
@@ -44,6 +50,7 @@ void _ENG_KernelCallback(void)
     /*
      * Move vehicle in a single direction given by arguments
      * args[] = direction(uint8_t)|length-or-angle(4B float)|blocking(1B)
+     * retVal one of myLib.h STATUS_* error codes
      */
     case ENG_T_MOVE_ENG:
         {
@@ -62,12 +69,14 @@ void _ENG_KernelCallback(void)
                    1);
             blocking = !(!temp);
 
-            ((EngineData*)__ed)->StartEngines(dir, arg, blocking);
+            //((EngineData*)__ed)->StartEngines(dir, arg, blocking);
+            __ed->_edKer.retVal = __ed->StartEngines(dir, arg, blocking);
         }
         break;
     /*
      * Move vehicle following an arch
      * args[] = distance(4B float)|angle(4B float)|small-radius(4B float)
+     * retVal one of myLib.h STATUS_* error codes
      */
     case ENG_T_MOVE_ARC:
         {
@@ -82,12 +91,14 @@ void _ENG_KernelCallback(void)
             memcpy((void*)&smallRad,
                    (void*)(__ed->_edKer.args + 2 * sizeof(float)),
                    sizeof(float));
-            ((EngineData*)__ed)->StartEnginesArc(dist, angl, smallRad);
+            //((EngineData*)
+            __ed->_edKer.retVal = __ed->StartEnginesArc(dist, angl, smallRad);
         }
         break;
     /*
      * Move each wheel at given percentage of full speed
      * args[] = direction(uint8_t)|leftPercent(4B float)|rightPercent(4B float)
+     * retVal one of myLib.h STATUS_* error codes
      */
     case ENG_T_MOVE_PERC:
         {
@@ -103,12 +114,20 @@ void _ENG_KernelCallback(void)
             memcpy((void*)&percRight,
                    (void*)(__ed->_edKer.args + sizeof(float)+1),
                    sizeof(float));
-            ((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
+            //((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
+            __ed->_edKer.retVal = __ed->RunAtPercPWM(dir, percLeft, percRight);
         }
         break;
     default:
         break;
     }
+
+#ifdef __HAL_USE_EVENTLOG__
+    if (__ed->_edKer.retVal == STATUS_OK)
+        EMIT_EV(__ed->_edKer.serviceID, EVENT_OK);
+    else
+        EMIT_EV(__ed->_edKer.serviceID, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 
 #endif
@@ -168,6 +187,9 @@ void EngineData::SetVehSpec(
  */
 int8_t EngineData::InitHW()
 {
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
     HAL_ENG_Init(ENG_SPEED_STOP, ENG_SPEED_FULL);
 
     //  Listen for encoder input
@@ -179,6 +201,10 @@ int8_t EngineData::InitHW()
     _edKer.callBackFunc = _ENG_KernelCallback;
     TS_RegCallback(&_edKer, ENGINES_UID);
 #endif
+
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
 	return STATUS_OK;
 }
 
@@ -243,6 +269,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	DEBUG_WRITE("Drove LEFT: %d   RIGHT: %d  \n", wheelCounter[ED_LEFT], wheelCounter[ED_RIGHT]);
 #endif
 
+
 	return STATUS_OK;	//  Successful execution
 }
 
@@ -271,6 +298,7 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 
 	if (HAL_ENG_GetHBridge(ED_BOTH) != dir)
 	    HAL_ENG_SetHBridge(ED_BOTH, dir);
+
 
 	return STATUS_OK;	//  Successful execution
 }
@@ -337,6 +365,7 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 
 	HAL_ENG_Enable(ED_BOTH, true);
 
+
 	return STATUS_OK;	//  Successful execution
 }
 
@@ -373,7 +402,12 @@ bool EngineData::_DirValid(uint8_t dir)
 ///         Class constructor and destructor                         [PROTECTED]
 ///-----------------------------------------------------------------------------
 
-EngineData::EngineData() {}
+EngineData::EngineData()
+{
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+}
 EngineData::~EngineData() {}
 
 

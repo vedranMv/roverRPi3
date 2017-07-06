@@ -17,6 +17,15 @@
 
 #define QUAT_SENS  1073741824.0f
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    #define EMIT_EV(X, Y)  EventLog::EmitEvent(MPU_UID, X, Y)
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
@@ -138,9 +147,16 @@ void _MPU_KernelCallback(void)
      */
     switch (__mpu->_mpuKer.serviceID)
     {
+    /*
+     * retVal one of MPU_* error codes
+     */
     case MPU_LISTEN:
         {
+            //  Double negation to convert any non-zero int to bool
+            bool listen = !(!(__mpu->_mpuKer.args[0]));
 
+            __mpu->Listen(listen);
+            __mpu->_mpuKer.retVal = MPU_SUCCESS;
         }
         break;
     case MPU_GET_DATA:
@@ -148,18 +164,38 @@ void _MPU_KernelCallback(void)
             if (__mpu->IsDataReady())
             {
 #ifdef __DEBUG_SESSION__
-    DEBUG_WRITE("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*1000.0f));
-    DEBUG_WRITE("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
+    //DEBUG_WRITE("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*1000.0f));
+    //DEBUG_WRITE("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
 #endif
+                __mpu->_mpuKer.retVal = MPU_SUCCESS;
             }
-#ifdef __DEBUG_SESSION__
-    DEBUG_WRITE("No data\n");
-#endif
+            else
+                __mpu->_mpuKer.retVal = MPU_ERROR;
+        }
+        break;
+        /*
+         * Restart MPU module and reload DMP firmware
+         */
+    case MPU_REBOOT:
+        {
+            if (__mpu->_mpuKer.args[0] == 0x17)
+            {
+                __mpu->Reset();
+                __mpu->_mpuKer.retVal = (int32_t)__mpu->InitSW();
+            }
         }
         break;
     default:
         break;
     }
+
+    //  Report outcome to event logger
+#ifdef __HAL_USE_EVENTLOG__
+    if (__mpu->_mpuKer.retVal == MPU_SUCCESS)
+        EMIT_EV(__mpu->_mpuKer.serviceID, EVENT_OK);
+    else
+        EMIT_EV(__mpu->_mpuKer.serviceID, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif
 
@@ -219,6 +255,17 @@ int8_t MPU9250::InitSW()
 {
     int result;
 
+    //  Emit event before initializing module
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+#if defined(__USE_TASK_SCHEDULER__)
+    //  Register module services with task scheduler
+    _mpuKer.callBackFunc = _MPU_KernelCallback;
+    TS_RegCallback(&_mpuKer, MPU_UID);
+#endif
+
     mpu_init(&int_param);
 
     //  Get/set hardware configuration. Start gyro.
@@ -242,8 +289,19 @@ int8_t MPU9250::InitSW()
             DEBUG_WRITE("%d,  ", result);
 #endif
 
-    if (result == 0)    //  If loading failed 7 times hang here, DMP not usable
-        while(1);
+    if (result <= 0)    //  If loading failed 7 times hang here, DMP not usable
+    {
+#ifdef __DEBUG_SESSION__
+        DEBUG_WRITE("   >failed\n");
+#endif
+        //  Emit error event if using event log, instead of hanging
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_ERROR);
+    return MPU_ERROR;
+#else
+    while(1);
+#endif  /* __HAL_USE_EVENTLOG__ */
+    }
 
 #ifdef __DEBUG_SESSION__
     DEBUG_WRITE(" >Firmware loaded\n");
@@ -263,11 +321,10 @@ int8_t MPU9250::InitSW()
     DEBUG_WRITE("done\n");
 #endif
 
-#if defined(__USE_TASK_SCHEDULER__)
-    //  Register module services with task scheduler
-    _mpuKer.callBackFunc = _MPU_KernelCallback;
-    TS_RegCallback(&_mpuKer, MPU_UID);
-#endif
+    //  Update status of initialization process
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
 
     return MPU_SUCCESS;
 }
@@ -279,6 +336,11 @@ void MPU9250::Reset()
 {
     HAL_MPU_WriteByteNB(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
     HAL_DelayUS(50000);
+
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
 }
 
 /**
@@ -309,6 +371,7 @@ uint8_t MPU9250::GetID()
 void MPU9250::Listen(bool enable)
 {
     HAL_MPU_IntEnable(enable);
+    _listen = enable;
 }
 
 /**
@@ -339,8 +402,12 @@ void MPU9250::RPY(float* RPY, bool inDeg)
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
-MPU9250::MPU9250() : dT(0), _dataFlag(false), userHook(0)
-{}
+MPU9250::MPU9250() : _listen(0), dT(0), _dataFlag(false), userHook(0)
+{
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+}
 
 MPU9250::~MPU9250()
 {}
@@ -360,6 +427,7 @@ MPU9250::~MPU9250()
  */
 void MPUDataHandler(void)
 {
+    static float sumOfRot = 0;
     MPU9250 &_mpu = MPU9250::GetI();
     short gyro[3], accel[3], sensors;
     unsigned char more;
@@ -408,6 +476,19 @@ void MPUDataHandler(void)
 
     //  Raise new-data flag
     MPU9250::GetI()._dataFlag = true;
+
+    //  Do data health-check -> too big change in angle(30° cumulative) between
+    //  consecutive readings points to error
+    if ((fabs(sumOfRot - fabs(_mpu._ypr[0]) - fabs(_mpu._ypr[1]) - fabs(_mpu._ypr[2])) > 0.5) && (sumOfRot != 0.0))
+    {
+        //  Emit error event to the system if consecutive sensor readings are
+        //  too far off
+#ifdef __HAL_USE_EVENTLOG__
+        EMIT_EV(-1, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
+    }
+
+    sumOfRot = fabs(_mpu._ypr[0]) + fabs(_mpu._ypr[1]) + fabs(_mpu._ypr[2]);
 
     HAL_MPU_IntClear();
 }

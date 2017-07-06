@@ -61,8 +61,6 @@ extern char _commBuf[2048];
 //  Include client library
 #include "espClient.h"
 
-//  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
 
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project
@@ -165,7 +163,7 @@ class ESP8266
 
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
 		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
-		                     uint32_t timeout = 150);
+		                     uint32_t timeout = 150);//150
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);

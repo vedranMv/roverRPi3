@@ -11,6 +11,9 @@
 #include "libs/myLib.h"
 #include "esp8266/esp8266.h"
 
+//  Enable debug information printed on serial port
+//#define __DEBUG_SESSION__
+
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
@@ -68,7 +71,6 @@ void _DATAS_KernelCallback(void)
     default:
         break;
     }
-
 }
 
 /**
@@ -81,7 +83,7 @@ void DataStream_InitHW()
     TS_RegCallback(&_dsKer, DATAS_UID);
 }
 
-#endif
+#endif  /*__USE_TASK_SCHEDULER__ */
 
 
 
@@ -125,7 +127,8 @@ DataStream::~DataStream()
  * data stream to that ID. Socket id bound to this stream is saved internally
  * and returned from this function.
  * @param sockID socket ID as returned from ESP chip (0 - 4) of a socket to bind to
- * @return socket ID to which data stream was eventually bound; 127 on error
+ * @return socket ID to which data stream was eventually bound,
+ *         STATUS_PROG_ERROR on error
  */
 uint8_t DataStream::BindToSocketID(uint8_t sockID)
 {
@@ -170,19 +173,26 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
  * @note Wrapper for low-level espClient:: function
  * @param buffer
  * @param bufferLen
+ * @return error-code, one of STATUS_* macros from myLib.h
  */
-void DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
+uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
 {
+    uint32_t retVal;
+
     _socket = ESP8266::GetI().GetClientBySockID(socketID);
 
     //  Check if the socket is still opened
     if (_socket != 0)
-        _socket->SendTCP((char*)buffer, bufferLen);
+        retVal = _socket->SendTCP((char*)buffer, bufferLen);
     //  If it isn't try to reopen it; if succeeded, send data
     else if (BindToSocketID(socketID) < ESP_MAX_CLI)
-        _socket->SendTCP((char*)buffer, bufferLen);
+        retVal = _socket->SendTCP((char*)buffer, bufferLen);
 
-
+    //  Convert ESP library error code to a common error codes from myLib.h
+    if ((retVal & ESP_STATUS_OK) > 0)
+        return STATUS_OK;
+    else
+        return STATUS_PROG_ERR;
 }
 
 /**

@@ -15,8 +15,9 @@
  *  +Changed EngineData class into a singleton
  *  V2.1.2 - 21.3.2017
  *  +Total distance traveled by each wheel separated(counter) from set point
- *  V1.2.3 - 30.6.2017
+ *  V2.1.3 - 30.6.2017
  *  +Change include paths for better portability, new way of printing to debug
+ *  +Integration with event logger
  */
 #include "hwconfig.h"
 

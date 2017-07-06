@@ -19,6 +19,8 @@
 #define ROVERKERNEL_INIT_HOOKS_H_
 
 #include "platform.h"
+#include <string.h>
+#include "libs/myLib.h"
 
 
 /**
@@ -31,24 +33,27 @@
  */
 static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint16_t len)
 {
-    //  Print received data in hex or ASCII format
-//    SerialPort::GetI().Send("%d says(%d):  %s", sockID, len, buf);
-//    for (uint8_t i = 0; i < len; i++)
-//        SerialPort::GetI().Send("0x%x ", buf[i]);
-//    SerialPort::GetI().Send("\n");
-
     //  Check which socket received data
     if (sockID == Platform::GetI().telemetry.socketID)
     {
         /// No data is expected to arrive here. Maybe ACK from server at some point
-        //  Schedule new, fine radar scan at T+2s
-        TaskScheduler::GetP()->SyncTask(RADAR_UID, RADAR_SCAN, -1000);
-        TaskScheduler::GetP()->AddArg<uint8_t>(Platform::GetI().telemetry.socketID);
     }
     else if (sockID == Platform::GetI().commands.socketID)
     {
+        int err;
+        uint8_t response[20] = {0};
+
+        strcat((char*)response, DEVICE_ID);
+        strcat((char*)response, ":");
         //  Parse incoming command and schedule its execution
-        Platform::GetI().Execute(buf, len);
+        Platform::GetI().Execute(buf, len, &err);
+        if (err == STATUS_OK)
+            strcat((char*)response, "ACK\0");
+        else
+            strcat((char*)response, "NACK\0");
+
+        Platform::GetI().commands.Send(response);
+
 //        //  Stop keeping command DataStrem alive
 //        uint32_t arg = (uint32_t)(&(Platform::GetI().commands));
 //        TaskScheduler::GetP()->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
@@ -67,21 +72,11 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
  */
 static void RADScanComplete(uint8_t* scanData, uint16_t* scanLen)
 {
-    //uint8_t message[*scanLen + sizeof(DEVICE_ID)];
-    //  Assemble message
-    //  sender:data
-    //strcat((char*)message, DEVICE_ID);
-    //strcat((char*)message, ":");
-
-    //  Copy scan data into message
-    //memcpy((void*)(message+sizeof(DEVICE_ID)+1), (void*)scanData, *scanLen);
-
     //  Once scan is completed schedule sending data to command socket
     TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
     TaskScheduler::GetP()->AddArg<uint8_t>(P_TO_SOCK(P_COMMANDS));  //Socket ID
 
     TaskScheduler::GetP()->AddArgs((void*)scanData, *scanLen);
-    //TaskScheduler::GetP()->AddArgs((void*)message, (sizeof(DEVICE_ID)+1+*scanLen));
 }
 
 #endif /* ROVERKERNEL_INIT_HOOKS_H_ */

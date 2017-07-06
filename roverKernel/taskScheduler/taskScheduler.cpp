@@ -15,6 +15,12 @@
 #include "HAL/hal.h"
 
 #include <ctype.h>
+
+#ifdef __HAL_USE_EVENTLOG__
+    #include "init/eventLog.h"
+    #define EMIT_EV(X, Y, Z)  EventLog::EmitEvent(X, Y, Z)
+#endif  /* __HAL_USE_EVENTLOG__ */
+
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 #endif
@@ -27,7 +33,7 @@
  * called when requesting a service, and memory space for arguments to be
  * transfered to module when requesting a service
  */
-static volatile struct _kernelEntry *__kernelVector[NUM_OF_MODULES];
+static volatile struct _kernelEntry *__kernelVector[NUM_OF_MODULES] = {0};
 /**
  * Register services for a kernel modules into a callback vector
  * @param arg structure with parameters for callback action
@@ -38,7 +44,8 @@ void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid)
     __kernelVector[uid] = arg;
 }
 
-//  Function prototype to an interrupt handler (declared at the bottom)
+//  Function prototype of an interrupt handler counting milliseconds since
+//  startup(declared at the bottom)
 void _TSSyncCallback();
 
 ///-----------------------------------------------------------------------------
@@ -255,7 +262,7 @@ void TS_GlobalCheck(void)
     //  Grab a pointer to singleton
     volatile TaskScheduler* __taskSch = TaskScheduler::GetP();
 
-    //  Check if there task scheduled to execute
+    //  Check if there is task scheduled to execute
     if (!__taskSch->IsEmpty())
         //  Check if the first task had to be executed already
         while((__taskSch->PeekFront()._timestamp <= msSinceStartup) &&
@@ -265,7 +272,7 @@ void TS_GlobalCheck(void)
             TaskEntry tE;
             tE = __taskSch->PopFront();
 
-            // Check if callback exists
+            // Check if module is registered in task scheduler
             if ((__kernelVector + tE._libuid) == 0)
                 return;
 
