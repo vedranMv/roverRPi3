@@ -13,7 +13,7 @@
 #include "esp8266/esp8266.h"
 
 //  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
+#define __DEBUG_SESSION__
 
 //  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
@@ -136,11 +136,12 @@ DataStream::~DataStream()
  * and returned from this function.
  * @param sockID socket ID as returned from ESP chip (0 - 4) of a socket to bind to
  * @return socket ID to which data stream was eventually bound,
- *         STATUS_PROG_ERROR on error
+ *         111 if ESP is not connected to AP
+ *         127 if cannot open socket
+ *         222 if no IP has been provided for TCP connection
  */
 uint8_t DataStream::BindToSocketID(uint8_t sockID)
 {
-
 #if defined(__USE_TASK_SCHEDULER__)
     if (!_keepAlive)
     {
@@ -150,6 +151,12 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
     _keepAlive = true;
     }
 #endif
+
+    //  Check if ESP is connected to AP before sending
+    //  This parts exists to support non-blocking connecting to AP. If ESP is in
+    //  process of connecting no error should be returned
+    if (ESP8266::GetI().wifiStatus != ESP_WIFI_CONNECTED)
+        return 111;
 
     //  Check if the socket is already opened
     _socket = ESP8266::GetI().GetClientBySockID(sockID);
@@ -185,7 +192,8 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
  */
 uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
 {
-    uint32_t retVal;
+    uint32_t retVal = ESP_STATUS_ERROR;
+
 
     _socket = ESP8266::GetI().GetClientBySockID(socketID);
 
@@ -193,8 +201,21 @@ uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
     if (_socket != 0)
         retVal = _socket->SendTCP((char*)buffer, bufferLen);
     //  If it isn't try to reopen it; if succeeded, send data
-    else if (BindToSocketID(socketID) < ESP_MAX_CLI)
-        retVal = _socket->SendTCP((char*)buffer, bufferLen);
+    else
+    {
+        //  Try to rebind socket
+        retVal = BindToSocketID(socketID);
+        DEBUG_WRITE("Rebinding returns %d \n", retVal);
+        //  If succeeded, send data
+        if (retVal < ESP_MAX_CLI)
+            retVal = _socket->SendTCP((char*)buffer, bufferLen);
+        //  If ESP is not connected to AP still return OK error message
+        else if (retVal == 111)
+            retVal = ESP_STATUS_OK;
+        //  Any other return value points to error in process of sending/binding
+        else
+            retVal = ESP_STATUS_ERROR;
+    }
 
     //  Convert ESP library error code to a common error codes from myLib.h
     if ((retVal & ESP_STATUS_OK) > 0)

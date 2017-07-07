@@ -45,6 +45,12 @@
  *  V1.4.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  V1.4.4 - 7.7.2017
+ *  +Added support for rebooting module from task scheduler
+ *  +Wifi connecting can be made as non-blocking call, member variable 'wifiStatus'
+ *  holds current status of connection. However, attempting to open a socket
+ *  while not connected still emits error event; check if connected before
+ *  opening socket from higher level modules!
  *
  *  TODO:Add interface to send UDP packet
  */
@@ -63,7 +69,6 @@ extern char _commBuf[2048];
 //  Include client library
 #include "espClient.h"
 
-
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project
 #if defined(__HAL_USE_TASKSCH__)
@@ -81,7 +86,7 @@ extern char _commBuf[2048];
     #define ESP_T_SENDTCP   2   //  Send data through socket with specific ID
     #define ESP_T_RECVSOCK  3   //  Receive data from specific socket ID
     #define ESP_T_CLOSETCP  4   //  Close socket with specific ID
-
+    #define ESP_T_REBOOT    5   //  Reboot ESP module and UART bus
 #endif
 
 /*		Communication settings	 	*/
@@ -106,6 +111,10 @@ extern char _commBuf[2048];
 #define ESP_NORESPONSE          1<<13
 #define ESP_STATUS_IPD          1<<14
 #define ESP_GOT_IP              1<<15
+
+#define ESP_WIFI_NONE           0
+#define ESP_WIFI_CONNECTING     1
+#define ESP_WIFI_CONNECTED      2
 
 //  Max number of clients allowed by ESP8266
 #define ESP_MAX_CLI     5
@@ -132,9 +141,10 @@ class ESP8266
 		uint32_t    InitHW(int32_t baud = ESP_DEF_BAUD);
         void        Enable(bool enable);
         bool        IsEnabled();
-        void        AddHook(void((*funPoint)(const uint8_t, const uint8_t*, const uint16_t)));
+        void        AddHook(void((*funPoint)(const uint8_t, const uint8_t*,
+                                             const uint16_t)));
 		//  Functions used with access points
-		uint32_t    ConnectAP(char* APname, char* APpass);
+		uint32_t    ConnectAP(char* APname, char* APpass, bool nonBlocking=false);
 		bool        IsConnected();
 		uint32_t    DisconnectAP();
 		uint32_t    MyIP();
@@ -156,6 +166,8 @@ class ESP8266
 
 		//  Status variable for error codes returned by ESP
 		volatile uint32_t	flowControl;
+		//  Status of connecting to AP
+		volatile uint32_t    wifiStatus;
 
 	protected:
         ESP8266();

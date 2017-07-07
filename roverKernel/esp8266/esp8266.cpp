@@ -160,6 +160,30 @@ void _ESP_KernelCallback(void)
                                               ->Close();
         }
         break;
+    case ESP_T_REBOOT:
+        {
+            //  Set initial error status
+            __esp._espKer.retVal = ESP_STATUS_ERROR;
+            //  Reboot only if 0x17 was sent as argument
+            if (__esp._espKer.args[0] != 0x17)
+                return;
+            //  Start by closing all opened sockets
+            for (uint8_t i = 0; i < ESP_MAX_CLI; i++)
+                if (__esp._clients[i] != 0)
+                    ((_espClient*)__esp._clients[i])->Close();
+            //  Power down ESP chip
+            __esp.Enable(false);
+#ifdef __HAL_USE_EVENTLOG__
+            EMIT_EV(__esp._espKer.serviceID, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+            //  Rerun initialization sequence
+            __esp._espKer.retVal = __esp.InitHW();
+            __esp.wifiStatus = ESP_WIFI_CONNECTING;
+
+            //  ESP is now connecting to AP on its own, based on data stored in
+            //  its flash memory. Result is picked up through ISR asynchronously
+        }
+        break;
     default:
         break;
     }
@@ -244,6 +268,18 @@ uint32_t ESP8266::InitHW(int32_t baud)
     retVal = _SendRAW("AT\0");
     retVal = _SendRAW("ATE0\0");
 
+    //  Allow for multiple connections
+    retVal |= _SendRAW("AT+CIPMUX=1\0");
+
+    //  Reset internal parameters
+    _ipAddress = 0;
+    memset(_ipStr, 0, sizeof(_ipStr));
+    _servOpen = false;
+    _tcpServPort = 0;
+    wifiStatus = ESP_WIFI_NONE;
+    for (uint8_t i = 0; i < ESP_MAX_CLI; i++)
+        _clients[i] = 0;
+
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
     _espKer.callBackFunc = _ESP_KernelCallback;
@@ -265,9 +301,9 @@ void ESP8266::Enable(bool enable)
 {
     HAL_ESP_HWEnable(enable);
 
-    //  If enabling the chip, wait until is actually enabled
+    //  If enabling the chip, wait 70ms it's started
     if (enable)
-        while (!HAL_ESP_IsHWEnabled());
+        HAL_DelayUS(70000);
 }
 
 /**
@@ -299,19 +335,23 @@ void ESP8266::AddHook(void((*funPoint)(const uint8_t, const uint8_t*, const uint
  * Connected to AP using provided credentials
  * @param APname name of AP to connect to
  * @param APpass password of AP connecting to
+ * @param nonBlocking Doesn't wait for connection event, but picks it up async.
+ * as it comes through interrupt
  * @return error code, depending on the outcome
  */
-uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
+uint32_t ESP8266::ConnectAP(char* APname, char* APpass, bool nonBlocking)
 {
     int8_t retVal = ESP_NO_STATUS;
 
     //  Set ESP in client mode
-    retVal = _SendRAW("AT+CWMODE_CUR=1\0");
+    retVal = _SendRAW("AT+CWMODE_DEF=1\0");
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
+
+    wifiStatus = ESP_WIFI_CONNECTING;
 
     //  Assemble command & send it
     memset((void*)_commBuf, 0, sizeof(_commBuf));
-    strcat(_commBuf, "AT+CWJAP_CUR=\"");
+    strcat(_commBuf, "AT+CWJAP_DEF=\"");
     strcat(_commBuf, APname);
     strcat(_commBuf, "\",\"");
     strcat(_commBuf, APpass);
@@ -319,15 +359,12 @@ uint32_t ESP8266::ConnectAP(char* APname, char* APpass)
 
     //  Use standard send function but increase timeout to 6s as acquiring IP
     //  address might take time
-    retVal = _SendRAW(_commBuf, 0, 16000);
+    retVal = _SendRAW(_commBuf, (nonBlocking?ESP_NONBLOCKING_MODE:0), 16000);
     if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
+    wifiStatus = ESP_WIFI_CONNECTED;
 
     //  Read acquired IP address and save it locally
     MyIP();
-
-    //  Allow for multiple connections, in case of error return
-    retVal = _SendRAW("AT+CIPMUX=1\0");
-    if (!_InStatus(retVal, ESP_STATUS_OK)) return retVal;
 
     return retVal;
 }
@@ -356,7 +393,8 @@ uint32_t ESP8266::DisconnectAP()
 }
 
 /**
- * Get IP address assigned to device when connected to AP
+ * Get IP address assigned to device when connected to AP. IP address is saved
+ * to private member variable from within UART ISR
  * @return IP address of ESP in integer form
  */
 uint32_t ESP8266::MyIP()
@@ -458,8 +496,8 @@ uint32_t ESP8266::OpenTCPSock(char *ipAddr, uint16_t port,
     uint32_t retVal;
     uint8_t strNum[6] = {0};
 
-    //  Can't continue without valid IP address
-    if (MyIP() == 0)
+    //  Can't continue if ESP is not connected
+    if (wifiStatus != ESP_WIFI_CONNECTED)
         return ESP_STATUS_ERROR;
 
     //  Check if socket with this ID already exists, if not create it, if yes
@@ -575,6 +613,15 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     }
 
     //  Look for general status messages returned by ESP
+    if (strstr(rxBuffer,"WIFI CONN") != NULL)
+    {
+        retVal |= ESP_STATUS_CONNECTED;
+        wifiStatus = ESP_WIFI_CONNECTING;
+    }
+    if (strstr(rxBuffer,"WIFI GOT IP") != NULL)
+        wifiStatus = ESP_WIFI_CONNECTED;
+    if (strstr(rxBuffer,"WIFI DISCONN") != NULL)
+        retVal |= ESP_STATUS_DISCN;
     if (strstr(rxBuffer,"OK") != NULL)
         retVal |= ESP_STATUS_OK;
     if (strstr(rxBuffer,"busy...") != NULL)
@@ -585,12 +632,6 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         retVal |= ESP_STATUS_ERROR;
     if (strstr(rxBuffer,"READY") != NULL)
         retVal |= ESP_STATUS_READY;
-
-    if (strstr(rxBuffer,"WIFI CONN") != NULL)
-        retVal |= ESP_STATUS_CONNECTED;
-    if (strstr(rxBuffer,"WIFI DISCONN") != NULL)
-        retVal |= ESP_STATUS_CONNECTED;
-
     if (strstr(rxBuffer,"SEND OK") != NULL)
         retVal |= ESP_STATUS_SENDOK;
     if (strstr(rxBuffer,"SUCCESS") != NULL)
@@ -669,7 +710,7 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
 ///-----------------------------------------------------------------------------
 
 ESP8266::ESP8266() : custHook(0), flowControl(ESP_NO_STATUS), _tcpServPort(0),
-                     _ipAddress(0), _servOpen(false)
+                     _ipAddress(0), _servOpen(false), wifiStatus(0)
 {
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_UNINITIALIZED);

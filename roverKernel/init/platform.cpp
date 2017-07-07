@@ -61,6 +61,12 @@ void _PLAT_KernelCallback(void)
      */
     case PLAT_TEL:
         {
+//            //  No point in sending if connection is down
+//            if(__plat.esp->wifiStatus != ESP_WIFI_CONNECTED)
+//            {
+//                __plat._platKer.retVal = STATUS_OK;
+//                return;
+//            }
             /*
              * Telemetry frame has the following format:
              * @note numbers are represented as strings not byte values
@@ -103,7 +109,7 @@ void _PLAT_KernelCallback(void)
                     telemetryFrame =  "2*:" + tostr<uint16_t>(EventLog::GetI().EventCount()-nodesSent) + ":";
                     telemetryFrame += "[" + tostr<uint32_t>(node->timestamp) + "]:";
                     telemetryFrame += tostr<uint16_t>(node->libUID) + ":";
-                    telemetryFrame += tostr<uint16_t>(node->taskID) + ":";
+                    telemetryFrame += tostr<int16_t>(node->taskID) + ":";
                     telemetryFrame += tostr<uint16_t>(node->event) + ":";
                     //  Append new error code (use of OR) to not overwrite old one
                     __plat._platKer.retVal |=
@@ -194,6 +200,19 @@ void Platform::InitHW()
         ts = TaskScheduler::GetP();
         ts->InitHW(1);
 #endif
+//  If using ESP chip, get handle and connect to access point
+#ifdef __HAL_USE_ESP8266__
+        esp = ESP8266::GetP();
+        esp->InitHW();
+        esp->AddHook(ESPDataReceived);
+        //  Connect to AP in non-blocking mode, allowing everything else to
+        //  be initialized while ESP establishes connection
+        esp->ConnectAP("sgvfyj7a", "7vxy3b5d", false);
+        //  Initialize data streams and bind them to sockets
+        DataStream_InitHW();
+        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
+        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
+#endif
 #ifdef __HAL_USE_ENGINES__
         eng = EngineData::GetP();
         eng->SetVehSpec(7.0f, 14.3f, 25.0f, 40);
@@ -209,17 +228,7 @@ void Platform::InitHW()
         rad->InitHW();
         rad->AddHook(RADScanComplete);
 #endif
-//  If using ESP chip, get handle and connect to access point
-#ifdef __HAL_USE_ESP8266__
-        esp = ESP8266::GetP();
-        esp->InitHW();
-        esp->AddHook(ESPDataReceived);
-        esp->ConnectAP("sgvfyj7a", "7vxy3b5d");
-        //  Initialize data streams and bind them to sockets
-        DataStream_InitHW();
-        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
-        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
-#endif
+
 
 #ifdef __HAL_USE_EVENTLOG__
     EventLog::GetI().InitSW();
