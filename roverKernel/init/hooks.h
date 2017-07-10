@@ -33,10 +33,28 @@
  */
 static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint16_t len)
 {
+    Platform &plat = Platform::GetI();
     //  Check which socket received data
-    if (sockID == Platform::GetI().telemetry.socketID)
+    if (sockID == plat.telemetry.socketID)
     {
-        /// No data is expected to arrive here. Maybe ACK from server at some point
+        //  Stop keeping command DataStrem alive
+//        uint32_t arg = (uint32_t)(&(plat.commands));
+//        plat.ts->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
+//
+//        //  Close TCP socket as soon as possible
+//        plat.ts->SyncTask(DATAS_UID, DATAS_T_KA, T_ASAP, false, 1);
+//        plat.ts->AddArg<uint8_t>(plat.commands.socketID);
+//
+//        //  Reschedule keep-alive task of 'commands' data stream
+//        plat.ts->SyncTask(DATAS_UID, DATAS_T_KA, -4000, true, T_PERIODIC);
+//        plat.ts->AddArg<uint32_t>((uint32_t)(&(plat.commands)));
+
+        //  Receiving data through this stream happens exclusively when there
+        //  is a communication has problems through 'commands' stream. Received
+        //  data here triggers reboot of communications module
+        plat.ts->SyncTask(ESP_UID, ESP_T_REBOOT, T_ASAP, false, 1);
+        plat.ts->AddArg<uint8_t>(0x17);
+
     }
     else if (sockID == Platform::GetI().commands.socketID)
     {

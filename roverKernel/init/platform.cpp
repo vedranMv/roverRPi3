@@ -61,12 +61,6 @@ void _PLAT_KernelCallback(void)
      */
     case PLAT_TEL:
         {
-//            //  No point in sending if connection is down
-//            if(__plat.esp->wifiStatus != ESP_WIFI_CONNECTED)
-//            {
-//                __plat._platKer.retVal = STATUS_OK;
-//                return;
-//            }
             /*
              * Telemetry frame has the following format:
              * @note numbers are represented as strings not byte values
@@ -90,8 +84,8 @@ void _PLAT_KernelCallback(void)
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
 
 #ifdef __DEBUG_SESSION__
-            DEBUG_WRITE("\nSending frame(%d):%d \n  %s \n",     \
-                    __plat->_platKer.retVal, telemetryFrame.length(),   \
+            DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
+                    __plat._platKer.retVal, telemetryFrame.length(),   \
                     telemetryFrame.c_str());
 #endif
 
@@ -111,24 +105,29 @@ void _PLAT_KernelCallback(void)
                     telemetryFrame += tostr<uint16_t>(node->libUID) + ":";
                     telemetryFrame += tostr<int16_t>(node->taskID) + ":";
                     telemetryFrame += tostr<uint16_t>(node->event) + ":";
-                    //  Append new error code (use of OR) to not overwrite old one
-                    __plat._platKer.retVal |=
-                            __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+
+                    __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                    telemetryFrame.length());
 
 #ifdef __DEBUG_SESSION__
-                    DEBUG_WRITE("\nSending frame(%d):\n  %s \n", telemetryFrame.length(), telemetryFrame.c_str());
+                    DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
+                            __plat._platKer.retVal, telemetryFrame.length(),   \
+                            telemetryFrame.c_str());
 #endif
 
                     node = node->next;
                     nodesSent++;
                 }
             }
+
+            //  Telemetry doesn't affect status, if it fails, software
+            //  does best-effort to try and resend it
+            __plat._platKer.retVal = STATUS_OK;
         }
         break;
     /*
      * Reboot microcontroller
-     * args[] = rebootCode(1B)
+     * args[] = rebootCode(0x17)
      * retVal none
      */
     case PLAT_REBOOT:
@@ -140,6 +139,92 @@ void _PLAT_KernelCallback(void)
             }
         }
         break;
+    /*
+     * Send only highest priority events emitted until now
+     * args[] = none
+     * retVal STATUS_OK
+     */
+    case PLAT_EVLOG_DUMP:
+        {
+            std::string telemetryFrame;
+
+            for (uint8_t i = 0; i < NUM_OF_MODULES; i++)
+            {
+                struct _eventEntry ee = EventLog::GetI().GetHigPrioEvAt(i);
+
+                //  (-1) is default initialization value, means there's no entry
+                //  yet for this module in event log
+                if (ee.libUID == (-1))
+                    continue;
+
+                //  Construct standard telemetry frame with event log data, format:
+                //  2*:numOfEvents:[time]:libUID:taskUID:event
+                telemetryFrame =  "2*:" + tostr<uint16_t>(5) + ":";
+                telemetryFrame += "[" + tostr<uint32_t>(ee.timestamp) + "]:";
+                telemetryFrame += tostr<uint16_t>(ee.libUID) + ":";
+                telemetryFrame += tostr<int16_t>(ee.taskID) + ":";
+                telemetryFrame += tostr<uint16_t>(ee.event) + ":";
+
+                //  Send telemetry frame
+                __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+                                               telemetryFrame.length());
+            }
+            //  Telemetry can't affect status, it's only a best-effort to
+            //  deliver data
+            __plat._platKer.retVal = STATUS_OK;
+        }
+        break;
+    /*
+     * Perform soft reset of platform module, reset only event log state
+     * args[] = rebootCode(0x17)
+     * retVal STATUS_OK
+     */
+    case PLAT_SOFT_REBOOT:
+        {
+            //  Reboot only if 0x17 was sent as argument
+            if (__plat._platKer.args[0] == 0x17)
+            {
+#ifdef __HAL_USE_EVENTLOG__
+                EMIT_EV(__plat._platKer.serviceID, EVENT_STARTUP);
+                EMIT_EV(__plat._platKer.serviceID, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+            }
+            //  There's nothing that can affect outcome of this task
+            __plat._platKer.retVal = STATUS_OK;
+        }
+        break;
+        /*
+         * Send data about task scheduler performance and load
+         * args[] = none
+         * retVal STATUS_OK
+         */
+        case PLAT_TS_DUMP:
+            {
+                std::string telemetryFrame;
+                uint32_t Ntasks = __plat.ts->NumOfTasks();
+
+                for (uint8_t i = 0; i < Ntasks; i++)
+                {
+                    const TaskEntry *task = __plat.ts->FetchNextTask(i==0);
+
+                    //  Construct standard telemetry frame with event log data, format:
+                    //  3*:[time]:pendingTasks
+                    telemetryFrame =  "3*:";
+                    telemetryFrame += "[" + tostr<uint32_t>((uint32_t)task->_timestamp) + "]:";
+                    telemetryFrame += tostr<uint16_t>(task->_libuid) + ":";
+                    telemetryFrame += tostr<uint16_t>(task->_task) + ":";
+                    telemetryFrame += tostr<int32_t>(task->_period) + ":";
+
+                    //  Send telemetry frame
+                    __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+                                                   telemetryFrame.length());
+                }
+                //  Telemetry can't affect status, it's only a best-effort to
+                //  deliver data
+                __plat._platKer.retVal = STATUS_OK;
+            }
+            break;
     default:
         break;
     }
@@ -186,6 +271,7 @@ Platform* Platform::GetP()
  */
 void Platform::InitHW()
 {
+
     //  Emit status of platform
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_STARTUP);
@@ -229,12 +315,10 @@ void Platform::InitHW()
         rad->AddHook(RADScanComplete);
 #endif
 
-
-#ifdef __HAL_USE_EVENTLOG__
-    EventLog::GetI().InitSW();
-    EMIT_EV(-1, EVENT_INITIALIZED);
-#endif  /* __HAL_USE_EVENTLOG__ */
-
+        //  Run initialization of event logger
+    #ifdef __HAL_USE_EVENTLOG__
+        EventLog::GetI().InitSW();
+    #endif  /* __HAL_USE_EVENTLOG__ */
         //  Run post-initialization stuff
         _PostInit();
 }
