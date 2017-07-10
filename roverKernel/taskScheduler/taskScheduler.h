@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  Task scheduler library
- *  @version 2.5.1
+ *  @version 2.6.0
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -42,6 +42,8 @@
  *  V2.5.1 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  V2.6.0 - 10.7.2017
+ *  +Added member functions to access internal task list and number of tasks on it
  *
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
@@ -86,10 +88,13 @@ class TaskScheduler
         volatile static TaskScheduler& GetI();
         volatile static TaskScheduler* GetP();
 
-		void InitHW(uint32_t timeSteMS = 100) volatile;
-		void Reset() volatile;
-		bool IsEmpty() volatile;
-		//  Adding new task
+		void                InitHW(uint32_t timeSteMS = 100) volatile;
+		void                Reset() volatile;
+		bool                IsEmpty() volatile;
+		uint32_t            NumOfTasks() volatile;
+		const TaskEntry*    FetchNextTask(bool fromStart) volatile;
+
+		//  Adding new tasks
 		void SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
 		void SyncTask(TaskEntry te) volatile;

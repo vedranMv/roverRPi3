@@ -19,6 +19,7 @@ class TaskEntry
     friend void TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
     friend class LinkedList;
+    friend void _PLAT_KernelCallback(void);
     public:
         TaskEntry();
         TaskEntry(const TaskEntry& arg);

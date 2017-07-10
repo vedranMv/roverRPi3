@@ -90,9 +90,17 @@ volatile TaskScheduler* TaskScheduler::GetP()
  */
 void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
 {
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
     //  Initialize & start systick => keeps internal time reference
     HAL_TS_InitSysTick(timeStepMS, _TSSyncCallback);
     HAL_TS_StartSysTick();
+
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_INITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
 }
 
 ///-----------------------------------------------------------------------------
@@ -115,6 +123,37 @@ void TaskScheduler::Reset() volatile
 bool TaskScheduler::IsEmpty() volatile
 {
     return _taskLog.Empty();
+}
+
+/**
+ * Return number of tasks currently pending execution
+ * @return
+ */
+uint32_t TaskScheduler::NumOfTasks() volatile
+{
+    return _taskLog.size;
+}
+
+/**
+ * This is implemented solely for the purpose of printing out task in task
+ * scheduler. First call should be made with argument true and all consecutive
+ * calls with arg false in order to get all tasks on the list out.
+ * @param fromStart True to start returning from head of linked list, false to
+ * return next element
+ * @return TaskEntry element from the list
+ */
+const TaskEntry* TaskScheduler::FetchNextTask(bool fromStart) volatile
+{
+    static _llnode *task = 0;
+
+
+    //
+    if (fromStart)
+        task = (_llnode*)(_taskLog.head);
+    else if (task->_next != 0)
+        task = (_llnode*)(task->_next);
+
+    return (TaskEntry*)(&(task->data));
 }
 
 /**
@@ -229,7 +268,12 @@ volatile TaskEntry& TaskScheduler::PeekFront() volatile
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
-TaskScheduler::TaskScheduler() : _lastIndex(0) {}
+TaskScheduler::TaskScheduler() : _lastIndex(0)
+{
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_UNINITIALIZED);
+#endif  /* __HAL_USE_EVENTLOG__ */
+}
 
 TaskScheduler::~TaskScheduler()
 {
