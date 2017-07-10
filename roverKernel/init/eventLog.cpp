@@ -12,7 +12,7 @@
 #if defined(__HAL_USE_EVENTLOG__)   //  Compile only if module is enabled
 
 //  Simplify emitting events
-#define EMIT_EV(X)  EventLog::EmitEvent(EVLOG_UID, 0, X)
+#define EMIT_EV(X, Y)  EventLog::EmitEvent(EVLOG_UID, X, Y)
 
 /**
  * Callback routine to invoke service offered by this module from task scheduler
@@ -49,9 +49,30 @@ void _EVLOG_KernelCallback()
             __evlog._evlogKer.retVal = __evlog.DropBefore(timestamp);
         }
         break;
+    /*
+     * Perform full reboot of event log, completely deleting all data in it
+     * args[] = 0x17
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case EVLOG_REBOOT:
+        {
+            //  Reboot only if 0x17 was sent as argument
+            if (__evlog._evlogKer.args[0] != 0x17)
+                return;
+            __evlog._evlogKer.retVal = __evlog.Reset();
+
+            EMIT_EV(__evlog._evlogKer.serviceID, EVENT_INITIALIZED);
+        }
+        break;
     default:
         break;
     }
+
+    //  Emit event corresponding to result of task execution
+    if (__evlog._evlogKer.retVal != STATUS_OK)
+        EMIT_EV(__evlog._evlogKer.serviceID, EVENT_ERROR);
+    else
+        EMIT_EV(__evlog._evlogKer.serviceID, EVENT_OK);
 }
 
 ///-----------------------------------------------------------------------------
@@ -83,12 +104,13 @@ EventLog* EventLog::GetP()
  */
 void EventLog::InitSW()
 {
-
+    EMIT_EV(-1, EVENT_STARTUP);
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
     _evlogKer.callBackFunc = _EVLOG_KernelCallback;
     TS_RegCallback(&_evlogKer, EVLOG_UID);
 #endif
+    EMIT_EV(-1, EVENT_INITIALIZED);
 }
 
 ///-----------------------------------------------------------------------------
@@ -229,6 +251,56 @@ uint32_t EventLog::DropBefore(uint32_t timestamp)
    return retVal;
 }
 
+/**
+ * Perform full reset of event log, clear all logs, reset all saved states that
+ * are usually not deleter with DropBefore() function call
+ * @return One of myLib.h STATUS_* error codes
+ */
+uint32_t EventLog::Reset()
+{
+    uint32_t retVal = STATUS_OK;
+
+    //  Delete dynamically allocated list
+   volatile struct _eventEntry *node = _entryVectorHead;
+
+   //   Loop through the list until node is null pointer
+   while (node != 0)
+   {
+       //   Save pointer to next element
+       volatile struct _eventEntry *tmp = node->next;
+       //   Delete current element
+       delete node;
+       //    Set next as new current element
+       node = tmp;
+       //   Decrease number of entries in list
+       _entryvCount--;
+   }
+
+   //   If we've reached end of the list but number of items in the list is !=0
+   //   we have memory leakage, raise event
+   if(_entryvCount != 0)
+   {
+       EMIT_EV(-1, EVENT_ERROR);
+       retVal = STATUS_PROG_ERR;
+   }
+
+   //   Construct empty task entry for resetting event arrays
+   struct _eventEntry empty;
+   empty.event = EVENT_UNINITIALIZED;
+   empty.timestamp = 0;
+   empty.libUID = -1;
+   empty.taskID = -1;
+   //   Reset also arrays keeping events when main log is deleted
+   for (uint8_t i = 0; i < NUM_OF_MODULES; i++)
+   {
+       _lastEvent[i] = empty;
+       _highestPrioEv[i] = empty;
+       _prioInvOcc[i] = false;
+   }
+
+   return retVal;
+}
+
 ///-----------------------------------------------------------------------------
 ///         Functions for accessing event log                           [PUBLIC]
 ///-----------------------------------------------------------------------------
@@ -250,37 +322,38 @@ volatile struct _eventEntry* EventLog::GetHead()
 {
     return _entryVectorHead;
 }
+
+struct _eventEntry EventLog::GetLastEvAt(uint8_t index)
+{
+        return _lastEvent[index];
+}
+struct _eventEntry EventLog::GetHigPrioEvAt(uint8_t index)
+{
+        return _highestPrioEv[index];
+}
+bool EventLog::GetPrioInvAt(uint8_t index)
+{
+        return _prioInvOcc[index];
+}
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
 EventLog::EventLog() : _entryVectorHead(0), _entryvCount(0), _enSig(true)
 {
+    //EMIT_EV(-1, EVENT_UNINITIALIZED);
+
     for (int i = 0; i < NUM_OF_MODULES; i++)
+    {
+        _lastEvent[i].libUID = -1;
+        _highestPrioEv[i].libUID = -1;
         _prioInvOcc[i] = false;
+    }
 }
 
 EventLog::~EventLog()
 {
-    //  Delete dynamically allocated list
-   volatile struct _eventEntry *node = _entryVectorHead;
-
-   //   Loop through the list until node is null pointer
-   while (node != 0)
-   {
-       //   Save pointer to next element
-       volatile struct _eventEntry *tmp = node->next;
-       //   Delete current element
-       delete node;
-       //    Set next as new current element
-       node = tmp;
-       //   Decrease number of entries in list
-       _entryvCount--;
-   }
-
-   //   We have memory leakage, raise event
-   if(_entryvCount != 0)
-       EMIT_EV(EVENT_ERROR);
+    Reset();
 }
 
 #endif  /* __HAL_USE_EVENTLOG__ */

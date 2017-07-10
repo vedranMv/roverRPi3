@@ -16,7 +16,7 @@
  *  event and appearance of priority inversion) about events from each module
  *  get remembered even after dropping the log.
  *
- *  @version 1.1.0
+ *  @version 1.1.1
  *  V1.0.0 - 2.7.2017
  *  +Support 6 events that can be emitted by different libraries
  *  +Integrated with task scheduler for remote emptying of log
@@ -25,13 +25,18 @@
  *  +Prevent spamming of events by logging same, consecutive events only after
  *  a fixed period of time has passed. (only for same, consecutive events
  *  within the same library; taskID doesn't matter)
- *  +Event log can exclusively transmit priority-inversion event when module
- *  transmits low-priority event after a higher-priority event has already been
+ *  +Event log can exclusively emit priority-inversion event when module
+ *  emits low-priority event after a higher-priority event has already been
  *  logged since last start-up event. Reemitting startup event clears any
  *  previous event of higher priority
  *  +Fixed log length. Log is dropped when limit is reached (last event from
  *  each module is saved, together with priority inversion occurrence and highest
  *  priority event since startup in each module)
+ *  V1.1.1 - 9.7.2017
+ *  +Added more tasks accessible from task scheduler
+ *  +Exposed arrays with last logged event, highest prio. event and prio. inversion
+ *  through EventLog member functions
+ *  +Added 'Reboot' task to completely clear event logger through task scheduler
  *
  */
 #include "hwconfig.h"
@@ -53,13 +58,15 @@
     #define EVLOG_UID            6
     //  Definitions of ServiceID for service offered by this module
     #define EVLOG_DROP           0
+    #define EVLOG_REBOOT         1
 #endif
 
 //  Defines minimum time difference between two same events of a single module
-//  to be logged
-#define REP_TIME_DIFF_MS    120000
+//  to be logged - prevents unnecessary logging of same events happening fast
+#define REP_TIME_DIFF_MS    300000      //  5 minutes
 //  After reaching max number of entries log is dropped to save memory
-#define MAX_LOG_ENTRIES     500
+//  max 200*(64+8+8+8)=17600bytes on the heap
+#define MAX_LOG_ENTRIES     100
 
 /**
  * Events that modules can transmit
@@ -76,14 +83,15 @@ enum Events {EVENT_UNINITIALIZED,   //Module is not yet initialized
              EVENT_ERROR,           //Module experienced error
              EVENT_PRIOINV };       //Priority inversion event
 
-/*
+/**
+ * Single event entry in event log
  * Event log implemented as a linked list, 'next' points to next element in list
  */
 struct _eventEntry
 {
         uint64_t timestamp; //  Time in ms since startup when event was emitted
-        uint8_t libUID;     //  Module that emitted event
-        uint8_t taskID;     //  Task within module that emitted event (not used)
+        int8_t libUID;      //  Module that emitted event
+        int8_t taskID;      //  Task within module that emitted event
         Events  event;      //  Emitted event
 
         volatile struct _eventEntry *next;
@@ -109,9 +117,13 @@ class EventLog
         void            RecordEvents(bool enable);
         static void     EmitEvent(uint8_t libUID, int8_t taskID, Events event);
         uint32_t        DropBefore(uint32_t timestamp);
+        uint32_t        Reset();
         //  Functions for accessing event log
         uint16_t                        EventCount();
         volatile struct _eventEntry*    GetHead();
+        struct _eventEntry              GetLastEvAt(uint8_t index);
+        struct _eventEntry              GetHigPrioEvAt(uint8_t index);
+        bool                            GetPrioInvAt(uint8_t index);
 
     protected:
         EventLog();
