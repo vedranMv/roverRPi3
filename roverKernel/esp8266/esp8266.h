@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.4.3
+ *  @version 1.4.4
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -47,10 +47,11 @@
  *  +Integration with event logger
  *  V1.4.4 - 7.7.2017
  *  +Added support for rebooting module from task scheduler
- *  +Wifi connecting can be made as non-blocking call, member variable 'wifiStatus'
+ *  +AP connecting can be made as non-blocking call, member variable 'wifiStatus'
  *  holds current status of connection. However, attempting to open a socket
  *  while not connected still emits error event; check if connected before
  *  opening socket from higher level modules!
+ *  +Stability improvements, different placement of watchdog resets
  *
  *  TODO:Add interface to send UDP packet
  */
@@ -177,7 +178,7 @@ class ESP8266
 
 		bool        _InStatus(const uint32_t status, const uint32_t flag);
 		uint32_t	_SendRAW(const char* txBuffer, uint32_t flags = 0,
-		                     uint32_t timeout = 150);//150
+		                     uint32_t timeout = 250);//150
 		void        _RAWPortWrite(const char* buffer, uint16_t bufLen);
 		void	    _FlushUART();
 		uint32_t    _IPtoInt(char *ipAddr);

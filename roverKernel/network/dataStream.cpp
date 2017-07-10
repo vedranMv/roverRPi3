@@ -13,7 +13,7 @@
 #include "esp8266/esp8266.h"
 
 //  Enable debug information printed on serial port
-#define __DEBUG_SESSION__
+//#define __DEBUG_SESSION__
 
 //  Integration with event log, if it's present
 #ifdef __HAL_USE_EVENTLOG__
@@ -205,7 +205,9 @@ uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
     {
         //  Try to rebind socket
         retVal = BindToSocketID(socketID);
+#ifdef __DEBUG_SESSION__
         DEBUG_WRITE("Rebinding returns %d \n", retVal);
+#endif /* __DEBUG_SESSION__ */
         //  If succeeded, send data
         if (retVal < ESP_MAX_CLI)
             retVal = _socket->SendTCP((char*)buffer, bufferLen);
