@@ -41,7 +41,7 @@ void _ENG_KernelCallback(void)
 {
     EngineData &__ed = EngineData::GetI();
     //  Check for null-pointer
-    if (__ed._edKer.argN == 0)
+    if (__ed._edKer.args == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -120,6 +120,20 @@ void _ENG_KernelCallback(void)
                    sizeof(float));
             //((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
             __ed._edKer.retVal = __ed.RunAtPercPWM(dir, percLeft, percRight);
+        }
+        break;
+    /*
+     * Move each wheel at given percentage of full speed
+     * args[] = direction(uint8_t)|leftPercent(4B float)|rightPercent(4B float)
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case ENG_T_REBOOT:
+        {
+            //  Reboot only if 0x17 was sent as argument
+            if (__ed._edKer.args[0] != 0x17)
+                return;
+
+            __ed._edKer.retVal = __ed.InitHW();
         }
         break;
     default:

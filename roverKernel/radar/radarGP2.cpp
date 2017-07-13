@@ -52,9 +52,9 @@ void _RADAR_KernelCallback(void)
     case RADAR_SCAN:
         {
             //  Double negation to convert any integer into boolean
-            bool fine = !(!__rD._radKer.args[0]);
+            //bool fine = !(!__rD._radKer.args[0]);
 
-            __rD._radKer.retVal = __rD.Scan(fine, true);
+            __rD._radKer.retVal = __rD.Scan(false, true);
         }
         break;
         /*

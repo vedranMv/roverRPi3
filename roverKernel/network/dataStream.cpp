@@ -146,7 +146,7 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
     if (!_keepAlive)
     {
     //  Schedule periodic check for health of the underlying socket, period 4s
-    TaskScheduler::GetI().SyncTask(DATAS_UID, DATAS_T_KA, -4000, true, T_PERIODIC);
+    TaskScheduler::GetI().SyncTaskPer(DATAS_UID, DATAS_T_KA, -4000, 4000, T_PERIODIC);
     TaskScheduler::GetI().AddArg<uint32_t>((uint32_t)this);
     _keepAlive = true;
     }

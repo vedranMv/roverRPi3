@@ -275,7 +275,7 @@ int8_t MPU9250::InitSW()
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
     // Push accel and quaternion data into the FIFO.
     mpu_configure_fifo(INV_XYZ_ACCEL);
-    mpu_set_sample_rate(50);
+    mpu_set_sample_rate(20);//50
 
     // Initialize HAL state variables.
     memset(&hal, 0, sizeof(hal));
@@ -316,7 +316,7 @@ int8_t MPU9250::InitSW()
         DMP_FEATURE_GYRO_CAL;
     dmp_enable_feature(hal.dmp_features);
 
-    dmp_set_fifo_rate(50);
+    dmp_set_fifo_rate(20);//50
     mpu_set_dmp_state(1);
     hal.dmp_on = 1;
 #ifdef __DEBUG_SESSION__

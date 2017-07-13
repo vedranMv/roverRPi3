@@ -28,7 +28,7 @@ int main(void)
 
     //  Register data-dump kernel module
     dataDump.callBackFunc = dataDumpCallback;
-    TS_RegCallback(&dataDump, 7);
+    //TS_RegCallback(&dataDump, 7);
 
     rover.InitHW();
     DEBUG_WRITE("Board initialized!\r\n");

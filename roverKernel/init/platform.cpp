@@ -82,12 +82,12 @@ void _PLAT_KernelCallback(void)
             //  Send over telemetry stream
             __plat._platKer.retVal =
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
-
+/*
 #ifdef __DEBUG_SESSION__
             DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
                     __plat._platKer.retVal, telemetryFrame.length(),   \
                     telemetryFrame.c_str());
-#endif
+#endif*/
 
             //  If there are any unsent events, ship them off now
             if (EventLog::GetI().EventCount() > 0)
@@ -108,12 +108,12 @@ void _PLAT_KernelCallback(void)
 
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                    telemetryFrame.length());
-
+/*
 #ifdef __DEBUG_SESSION__
                     DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
                             __plat._platKer.retVal, telemetryFrame.length(),   \
                             telemetryFrame.c_str());
-#endif
+#endif*/
 
                     node = node->next;
                     nodesSent++;
@@ -194,37 +194,37 @@ void _PLAT_KernelCallback(void)
             __plat._platKer.retVal = STATUS_OK;
         }
         break;
-        /*
-         * Send data about task scheduler performance and load
-         * args[] = none
-         * retVal STATUS_OK
-         */
-        case PLAT_TS_DUMP:
+    /*
+     * Send data about task scheduler performance and load
+     * args[] = none
+     * retVal STATUS_OK
+     */
+    case PLAT_TS_DUMP:
+        {
+            std::string telemetryFrame;
+            uint32_t Ntasks = __plat.ts->NumOfTasks();
+
+            for (uint8_t i = 0; i < Ntasks; i++)
             {
-                std::string telemetryFrame;
-                uint32_t Ntasks = __plat.ts->NumOfTasks();
+                const TaskEntry *task = __plat.ts->FetchNextTask(i==0);
 
-                for (uint8_t i = 0; i < Ntasks; i++)
-                {
-                    const TaskEntry *task = __plat.ts->FetchNextTask(i==0);
+                //  Construct standard telemetry frame with event log data, format:
+                //  3*:[time]:pendingTasks
+                telemetryFrame =  "3*:";
+                telemetryFrame += "[" + tostr<uint32_t>((uint32_t)task->_timestamp) + "]:";
+                telemetryFrame += tostr<uint16_t>(task->_libuid) + ":";
+                telemetryFrame += tostr<uint16_t>(task->_task) + ":";
+                telemetryFrame += tostr<int32_t>(task->_period) + ":";
 
-                    //  Construct standard telemetry frame with event log data, format:
-                    //  3*:[time]:pendingTasks
-                    telemetryFrame =  "3*:";
-                    telemetryFrame += "[" + tostr<uint32_t>((uint32_t)task->_timestamp) + "]:";
-                    telemetryFrame += tostr<uint16_t>(task->_libuid) + ":";
-                    telemetryFrame += tostr<uint16_t>(task->_task) + ":";
-                    telemetryFrame += tostr<int32_t>(task->_period) + ":";
-
-                    //  Send telemetry frame
-                    __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
-                                                   telemetryFrame.length());
-                }
-                //  Telemetry can't affect status, it's only a best-effort to
-                //  deliver data
-                __plat._platKer.retVal = STATUS_OK;
+                //  Send telemetry frame
+                __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+                                               telemetryFrame.length());
             }
-            break;
+            //  Telemetry can't affect status, it's only a best-effort to
+            //  deliver data
+            __plat._platKer.retVal = STATUS_OK;
+        }
+        break;
     default:
         break;
     }
@@ -352,7 +352,7 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
     for (uint16_t i = 0; i < len; i++)
         if (buf[i] == ':')
             cnt++;
-    if (cnt < 7)
+    if (cnt < 8)
     {
         *err = STATUS_ARG_ERR;
 #ifdef __DEBUG_SESSION__
@@ -391,17 +391,16 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
 
 
 #ifdef __DEBUG_SESSION__
-    DEBUG_WRITE("Task has %d arguments, requests service %d from \
-            library %d \nArguments: ", argv[4], argv[1], argv[0]);
+    DEBUG_WRITE("Task has %d arguments, requests service %d from library %d \nArguments: ", argv[4], argv[1], argv[0]);
     for (int i = it; i < len; i++)
         DEBUG_WRITE("0x%X ", buf[i]);
     DEBUG_WRITE("\n");
 #endif
-    //  Schedule non-periodic task based on data provided
-    ts->SyncTask(argv[0], argv[1], argv[2], (argv[3]!=0)?true:false, argv[3]);
 
+    //  Schedule task based on data provided
+    ts->SyncTaskPer(argv[0], argv[1], argv[2], argv[3], argv[4]);
     //  Pass location and size of arguments
-    ts->AddArgs((void*)(buf+it), argv[4]);
+    ts->AddArgs((void*)(buf+it), argv[5]);
 }
 
 /**

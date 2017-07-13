@@ -40,8 +40,8 @@
     #define RADAR_UID       1
     //  Definitions of ServiceID for service offered by this module
     #define RADAR_SCAN      0   //  Initiate radar scan
-    #define RADAR_SETH      2   //  Set horizontal angle for radar
-    #define RADAR_SETV      3   //  Set vertical angle of radar
+    #define RADAR_SETH      1   //  Set horizontal angle for radar
+    #define RADAR_SETV      2   //  Set vertical angle of radar
 
 #endif /* __USE_TASK_SCHEDULER__ */
 

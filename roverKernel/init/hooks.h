@@ -50,7 +50,7 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
 //        plat.ts->AddArg<uint32_t>((uint32_t)(&(plat.commands)));
 
         //  Receiving data through this stream happens exclusively when there
-        //  is a communication has problems through 'commands' stream. Received
+        //  is a communication problem through 'commands' stream. Received
         //  data here triggers reboot of communications module
         plat.ts->SyncTask(ESP_UID, ESP_T_REBOOT, T_ASAP, false, 1);
         plat.ts->AddArg<uint8_t>(0x17);

@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  Task scheduler library
- *  @version 2.6.0
+ *  @version 2.7.0
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -44,6 +44,11 @@
  *  +Integration with event logger
  *  V2.6.0 - 10.7.2017
  *  +Added member functions to access internal task list and number of tasks on it
+ *  +Added member function for easier scheduling of remote tasks. SyncTaskPer()
+ *  should be preferred way of scheduling tasks
+ *  V2.7.0 13.7.2017
+ *  +Periodic tasks are rescheduled before their execution to keep time
+ *  punctuality
  *
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
@@ -97,6 +102,8 @@ class TaskScheduler
 		//  Adding new tasks
 		void SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
+		void SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
+		                      int32_t period, int32_t rep) volatile;
 		void SyncTask(TaskEntry te) volatile;
 		//  Add arguments for the last task added
 		void AddArgs(void* arg, uint16_t argLen) volatile;

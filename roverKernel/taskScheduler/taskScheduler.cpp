@@ -165,6 +165,8 @@ const TaskEntry* TaskScheduler::FetchNextTask(bool fromStart) volatile
  * @param taskID task ID within the library to execute
  * @param time time-stamp at which to execute the task. If >0 its absolute time
  * in ms since startup of task scheduler. If <=0 its relative time from NOW
+ * @param periodic If true, schedules periodic task with provided number of
+ * repeats. Period is absolute value of 'time' parameter
  * @param rep repeat counter. Number of times to repeat the periodic task before
  * killing it. Set to a negative number for indefinite repeat. When scheduled,
  * task WILL BE repeated at least once.
@@ -191,6 +193,44 @@ void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
     TaskEntry teTemp(libUID, taskID, time, (periodic?period:0), rep);
+    _lastIndex = _taskLog.AddSort(teTemp);
+}
+
+/**
+ * Add periodic task to the task list in a sorted fashion (ascending sort). Tasks
+ * that need to be executed sooner appear at the beginning of the list. If new
+ * task has the same execution time as the task already in the list, it's placed
+ * behind the existing task.
+ * @param libUID UID of library to call
+ * @param taskID task ID within the library to execute
+ * @param time time-stamp at which to execute the task. If >0 its absolute time
+ * in ms since startup of task scheduler. If <=0 its relative time from NOW
+ * @param period Period at which to repeat task
+ * @param rep repeat counter. Number of times to repeat the periodic task before
+ * killing it. Set to a negative number for indefinite repeat. When scheduled,
+ * task WILL BE repeated at least once.
+ */
+void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
+                      int32_t period, int32_t rep) volatile
+{
+    /*
+     * If time is a positive number it represent time in milliseconds from
+     * start-up of the microcontroller. If time is a negative number or 0 it
+     * represents a time in milliseconds from current time as provided by SysTick
+     */
+    if (time <= 0)
+        time = (uint32_t)(-time) + msSinceStartup;
+    else
+        time = (uint32_t)time;
+
+    //  Subtract 1 from number of repetition as 0 counts as actual repetition
+    //  e.g. To repeat task 3 times (rep from arguments) task will be
+    //  executed with index 2, 1 and 0
+    if (rep > 0) rep--;
+
+    //  Save pointer to newly added task so additional arguments can be appended
+    //  to it through AddArgs function call
+    TaskEntry teTemp(libUID, taskID, time, period, rep);
     _lastIndex = _taskLog.AddSort(teTemp);
 }
 
@@ -321,6 +361,17 @@ void TS_GlobalCheck(void)
             TaskEntry tE;
             tE = __taskSch.PopFront();
 
+            //  If there's a period specified reschedule task
+            if ((tE._period != 0) && (tE._repeats != 0))
+            {
+                //  If using repeat counter decrease it
+                if (tE._repeats > 0)
+                    tE._repeats--;
+                //  Change time of execution based on period
+                tE._timestamp = msSinceStartup + labs(tE._period);
+                __taskSch.SyncTask(tE);
+            }
+
             // Check if module is registered in task scheduler
             if ((__kernelVector + tE._libuid) == 0)
                 return;
@@ -338,17 +389,6 @@ void TS_GlobalCheck(void)
 #endif
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();
-
-            //  If there's a period specified reschedule task
-            if ((tE._period != 0) && (tE._repeats != 0))
-            {
-                //  If using repeat counter decrease it
-                if (tE._repeats > 0)
-                    tE._repeats--;
-                //  Change time of execution based on period
-                tE._timestamp = msSinceStartup + labs(tE._period);
-                __taskSch.SyncTask(tE);
-            }
         }
 }
 

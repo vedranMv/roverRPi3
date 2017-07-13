@@ -40,6 +40,7 @@
     #define ENG_T_MOVE_ENG        0
     #define ENG_T_MOVE_ARC        1
     #define ENG_T_MOVE_PERC       2
+    #define ENG_T_REBOOT          3
 
 #endif
 
