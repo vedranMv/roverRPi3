@@ -156,7 +156,11 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
     //  This parts exists to support non-blocking connecting to AP. If ESP is in
     //  process of connecting no error should be returned
     if (ESP8266::GetI().wifiStatus != ESP_WIFI_CONNECTED)
+    {
+        //  Save socket ID for next try and return
+        socketID = sockID;
         return 111;
+    }
 
     //  Check if the socket is already opened
     _socket = ESP8266::GetI().GetClientBySockID(sockID);
@@ -166,14 +170,23 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
     else
     {   // Attempt to open a socket if IP address exists
         if (_serverip[0] == 0)
+        {
+            //  Save socket ID for next try and return
+            socketID = sockID;
             return 222;
+        }
         //  Attempt to open the socket and check for error codes (> max clients)
         uint32_t status;
         status = ESP8266::GetI().OpenTCPSock((char*)_serverip, _port, 1, sockID);
         if (status < ESP_MAX_CLI)
             socketID = status;
         else
+        {
+            //  Save socket ID for next try and return
+            socketID = sockID;
             return 127;
+        }
+
         //  Get reference to opened socket
         _socket = ESP8266::GetI().GetClientBySockID(sockID);
     }

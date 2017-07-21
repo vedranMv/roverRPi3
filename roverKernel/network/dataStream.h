@@ -30,6 +30,9 @@
  *  +Support for non-blocking AP connecting in ESP library: Updated bind
  *  function to not return an error when attempting to open socket while ESP is
  *  in process of connecting to AP
+ *  V1.3.1 - 22.7.2017
+ *  *Bugfix: Fixed bug that caused data stream to not rebind to socket if it
+ *  failed first attempt at binding (caused by not saving socketID on failure)
  *
  */
 #include "hwconfig.h"
