@@ -79,7 +79,7 @@ uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
     itoa(bufLen, numStr);
     strcat(_commBuf, (char*)numStr);
 
-    if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV))
+    if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV, 1000))
     {
         _parent->flowControl = ESP_NO_STATUS;
 

@@ -8,14 +8,120 @@
 Platform& rover = Platform::GetI();
 
 /**
- * Small kernel module for scheduling periodic print-out of data
+ * Small kernel module for testing PID loop on rover motors
+ * Implementation tested here before merging with engines.h/cpp
  */
-struct _kernelEntry dataDump;
+#define ENG_PID_UID         9
+#define ENG_PID_T_DUMP      0   //  Dump wheel counters
+#define ENG_PID_T_LOOP      1   //  PID loop for both wheels
+#define ENG_PID_T_CHCOEF    2   //  Tweak PID coefficients
+#define ENG_PID_T_WREVERSE  3   //  Detect change of direction
+
+
+struct _kernelEntry engPID;
 void dataDumpCallback(void)
 {
-    EngineData& eng = EngineData::GetI();
-    DEBUG_WRITE("%6d::: LEFT: %d   RIGHT: %d  \n", msSinceStartup, eng.wheelCounter[0], eng.wheelCounter[1]);
+    static float Kp[] = {0.7, 0.7}, Ki[] = {0.5, 0.5}, Kd[] = {0.0, 0.0};
+    EngineData &__ed = EngineData::GetI();
+
+
+    /*
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
+     */
+    switch (engPID.serviceID)
+    {
+    /*
+     * args[] = none
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case ENG_PID_T_DUMP:
+        {
+            static int32_t oldWC[2] = {0,0};
+
+            if ((oldWC[0] != __ed.wheelCounter[0]) || (oldWC[1] != __ed.wheelCounter[1]))
+                DEBUG_WRITE("%6d::: LEFT: %d/%d   RIGHT: %d/%d  \n", msSinceStartup, __ed.wheelCounter[0], __ed.wheelSetPoint[0], __ed.wheelCounter[1], __ed.wheelSetPoint[1]);
+
+            oldWC[0] = __ed.wheelCounter[0];
+            oldWC[1] = __ed.wheelCounter[1];
+        }
+        break;
+    /*
+     * args[] = none
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case ENG_PID_T_LOOP:
+        {
+            //  Variables from last entry to this loop
+            static int32_t RoldE = 0, LoldE = 0;
+            static float LP = 0, RP = 0;
+            static const float dTLoop = 0.1;
+
+            /// PID loop for position control - LEFT
+            //  Calculate error
+            int32_t error = __ed.wheelSetPoint[0]-__ed.wheelCounter[0];
+            uint8_t dir;
+
+            if (error < 0)
+                dir = ENG_DIR_FW;  //  Lower 2 bits are left eng. config.
+            else
+                dir = ENG_DIR_BW;  //  Lower 2 bits are left eng. config.
+            HAL_ENG_SetHBridge(0, dir);
+
+            //  New, corrective PWM value
+            float corr;
+            LP += ((float)(error))*dTLoop;  //  Add error to sum for integral component
+            corr = Kp[0]*((float)(error)) + Ki[0]*LP;
+            HAL_ENG_SetPWM(0, corr);
+
+        }
+        break;
+    /*
+     * args[] = Kp(float)|Ki(float)|Kd(float)
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case ENG_PID_T_CHCOEF:
+        {
+            //  Check for null-pointer for data
+            if (engPID.args == 0) return;
+            //  Check for sufficient data length
+            if (engPID.argN != 24) return;
+
+            //  Copy data into internal coefficients
+            memcpy((float*)(Kp), (void*)engPID.args, sizeof(float));
+            memcpy((float*)(Ki), (void*)(engPID.args+1*sizeof(float)), sizeof(float));
+            memcpy((float*)(Kd), (void*)(engPID.args+2*sizeof(float)), sizeof(float));
+            memcpy((float*)(Kp+1), (void*)(engPID.args+3*sizeof(float)), sizeof(float));
+            memcpy((float*)(Ki+1), (void*)(engPID.args+4*sizeof(float)), sizeof(float));
+            memcpy((float*)(Kd+1), (void*)(engPID.args+5*sizeof(float)), sizeof(float));
+
+        }
+        break;
+    /*
+     * args[] = none
+     * retVal one of myLib.h STATUS_* error codes
+     */
+    case ENG_PID_T_WREVERSE:
+        {
+            static int32_t oldWC[] = {0, 0};
+            static float oldSpeed[] = {0.0, 0.0};
+            const static float dT = 0.01;   //  Called every 10 ms
+
+            float speedL = (float)(__ed.wheelCounter[0]-oldWC[0])/dT;
+
+            oldWC[0] = __ed.wheelCounter[0];
+            oldWC[1] = __ed.wheelCounter[1];
+        }
+        break;
+
+    default:
+        break;
+    }
+
 }
+
 
 int main(void)
 {
@@ -27,11 +133,14 @@ int main(void)
     DEBUG_WRITE("Debug port initialized \n");
 
     //  Register data-dump kernel module
-    dataDump.callBackFunc = dataDumpCallback;
-    //TS_RegCallback(&dataDump, 7);
+    //engPID.callBackFunc = dataDumpCallback;
+    //TS_RegCallback(&engPID, ENG_PID_UID);
 
     rover.InitHW();
     DEBUG_WRITE("Board initialized!\r\n");
+
+    //  Schedule PID loop on the wheels every dT=100 ms
+    //rover.ts->SyncTaskPer(ENG_PID_UID, ENG_PID_T_DUMP, -100, 100, -1);
 
     //  Schedule radar scan at T+2s
     //rover.ts->SyncTask(RADAR_UID, RADAR_SCAN, -2000);

@@ -154,6 +154,7 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
 {
     //  Record last value for timeout, use it when timeout argument is 0
     static uint32_t LTM;
+    HAL_DelayUS(2);
     TimerDisable(TIMER6_BASE, TIMER_A);
 
     if (enable)

@@ -158,7 +158,7 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
     if (ESP8266::GetI().wifiStatus != ESP_WIFI_CONNECTED)
     {
         //  Save socket ID for next try and return
-        socketID = sockID;
+        //socketID = sockID;
         return 111;
     }
 
@@ -172,7 +172,7 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
         if (_serverip[0] == 0)
         {
             //  Save socket ID for next try and return
-            socketID = sockID;
+            //socketID = sockID;
             return 222;
         }
         //  Attempt to open the socket and check for error codes (> max clients)
@@ -183,7 +183,7 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
         else
         {
             //  Save socket ID for next try and return
-            socketID = sockID;
+            //socketID = sockID;
             return 127;
         }
 

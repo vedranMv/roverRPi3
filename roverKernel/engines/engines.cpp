@@ -244,6 +244,9 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	    return STATUS_ARG_ERR;
 
 	HAL_ENG_Enable(ED_BOTH, true);
+	//  Reset setpoints
+	wheelSetPoint[0] = wheelCounter[0];
+	wheelSetPoint[1] = wheelCounter[1];
 
  	/*
  	 * Configure PWM generators, H-bridges and set conditions to be evaluated
@@ -277,7 +280,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL);	//  Set right engine speed
 
 
-    HAL_DelayUS(1000000);
+    HAL_DelayUS(100000);
 
 	while ( blocking && IsDriving() )
 	    HAL_DelayUS(700000);
@@ -454,7 +457,9 @@ void PP0ISR(void)
     {
         HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
     }
-    else*/ if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
+    else*/
+    //  todo: COMMENT-OUT WHEN TESTING PID
+    if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
     {
         HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_STOP);
         HAL_ENG_Enable(ED_LEFT, false);
@@ -481,7 +486,10 @@ void PP1ISR(void)
     {
         HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
     }
-    else*/ if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)
+    else*/
+
+    //  todo: COMMENT-OUT WHEN TESTING PID
+    if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)
     {
         HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_STOP);
         HAL_ENG_Enable(ED_RIGHT, false);
