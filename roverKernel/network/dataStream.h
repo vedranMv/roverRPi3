@@ -10,7 +10,7 @@
  *  can be integrated with task scheduler to periodically check if the stream is
  *  opened and try to reconnect in case of a failure.
  *
- *  @version 1.3.0
+ *  @version 1.3.1
  *  V1.0 - 17.3.2017
  *  +Created document
  *  +Functionality: Initialize data stream with server IP & port, bind to opened

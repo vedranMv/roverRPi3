@@ -250,14 +250,13 @@ NmiSR(void)
 static void
 FaultISR(void)
 {
-    static int cnt = 0;
     //
     // Enter an infinite loop.
     //
-//    while(1)
-//    {
-//    }
-    cnt++;
+    while(1)
+    {
+    }
+
 }
 
 //*****************************************************************************
