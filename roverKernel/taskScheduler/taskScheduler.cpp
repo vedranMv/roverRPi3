@@ -5,9 +5,7 @@
  *      Author: Vedran
  */
 #include "taskScheduler.h"
-
-//  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
+#include "driverlib/interrupt.h"
 
 #if defined(__HAL_USE_TASKSCH__)   //  Compile only if module is enabled
 
@@ -30,7 +28,6 @@
 #include "serialPort/uartHW.h"
 #endif
 
-
 /**
  * Callback vector for all available kernel modules
  * Once a new kernel module is initialized it has a possibility to register its
@@ -39,6 +36,8 @@
  * transfered to module when requesting a service
  */
 static volatile struct _kernelEntry *__kernelVector[NUM_OF_MODULES] = {0};
+
+
 /**
  * Register services for a kernel modules into a callback vector
  * @param arg structure with parameters for callback action
@@ -112,7 +111,14 @@ void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
  */
 void TaskScheduler::Reset() volatile
 {
-    _taskLog.Drop();
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
+    if (_taskLog.Drop())
+        EMIT_EV(-1, EVENT_ERROR);
+
+    //  Sensitive task done, enable interrupts again
+    IntMasterEnable();
 }
 
 /**
@@ -120,10 +126,10 @@ void TaskScheduler::Reset() volatile
  * @return	true: if there's nothing in queue
  * 		   false: if queue contains data
  */
-bool TaskScheduler::IsEmpty() volatile
-{
-    return _taskLog.Empty();
-}
+//bool TaskScheduler::IsEmpty() volatile
+//{
+//    return ((_taskLog.head==_taskLog.tail) && (_taskLog.head == 0));
+//}
 
 /**
  * Return number of tasks currently pending execution
@@ -140,7 +146,9 @@ uint32_t TaskScheduler::NumOfTasks() volatile
  * calls with arg false in order to get all tasks on the list out.
  * @param fromStart True to start returning from head of linked list, false to
  * return next element
- * @return TaskEntry element from the list
+ * @return TaskEntry element from the list; index corresponds to a number of
+ * calls to this function since last fromStart was 'true'. If index is out of
+ * boundaries, 0 (check for null pointer on exit)
  */
 const TaskEntry* TaskScheduler::FetchNextTask(bool fromStart) volatile
 {
@@ -152,6 +160,8 @@ const TaskEntry* TaskScheduler::FetchNextTask(bool fromStart) volatile
         task = (_llnode*)(_taskLog.head);
     else if (task->_next != 0)
         task = (_llnode*)(task->_next);
+//    else
+//        return 0;
 
     return (TaskEntry*)(&(task->data));
 }
@@ -174,6 +184,9 @@ const TaskEntry* TaskScheduler::FetchNextTask(bool fromStart) volatile
 void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
                              int64_t time, bool periodic, int32_t rep) volatile
 {
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
     int32_t period = (int32_t)time;
     /*
      * If time is a positive number it represent time in milliseconds from
@@ -193,7 +206,33 @@ void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
     TaskEntry teTemp(libUID, taskID, time, (periodic?period:0), rep);
+#if defined(__DEBUG_SESSION2__)
+        volatile uint32_t siz = _taskLog.size;
+#endif
     _lastIndex = _taskLog.AddSort(teTemp);
+#if defined(__DEBUG_SESSION2__)
+        if ((_taskLog.size-siz) != 1)
+        {
+            DEBUG_WRITE("\nNow is %d, STA\n", msSinceStartup);
+            DEBUG_WRITE("  Adding %d(%d) \n", libUID, taskID);
+            DEBUG_WRITE("  Size before %d \n", siz);
+            DEBUG_WRITE("  Size after %d \n", _taskLog.size);
+
+            int i = 0;
+            while(i < _taskLog.size)
+            {
+                const TaskEntry *task = FetchNextTask(i==0);
+                if (task == 0)
+                    break;
+                DEBUG_WRITE("    %d.[%u]: %d(%d)\n", i,(uint32_t)task->_timestamp, task->_libuid, task->_task);
+
+                i++;
+            }
+            EMIT_EV(-1, EVENT_ERROR);
+        }
+#endif
+        //  Sensitive task done, enable interrupts again
+        IntMasterEnable();
 }
 
 /**
@@ -213,6 +252,8 @@ void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
 void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
                       int32_t period, int32_t rep) volatile
 {
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
     /*
      * If time is a positive number it represent time in milliseconds from
      * start-up of the microcontroller. If time is a negative number or 0 it
@@ -231,7 +272,33 @@ void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
     //  Save pointer to newly added task so additional arguments can be appended
     //  to it through AddArgs function call
     TaskEntry teTemp(libUID, taskID, time, period, rep);
+#if defined(__DEBUG_SESSION2__)
+        volatile uint32_t siz = _taskLog.size;
+#endif
     _lastIndex = _taskLog.AddSort(teTemp);
+#if defined(__DEBUG_SESSION2__)
+        if ((_taskLog.size-siz) != 1)
+        {
+            DEBUG_WRITE("\nNow is %d, STA\n", msSinceStartup);
+            DEBUG_WRITE("  Adding %d(%d) \n", libUID, taskID);
+            DEBUG_WRITE("  Size before %d \n", siz);
+            DEBUG_WRITE("  Size after %d \n", _taskLog.size);
+
+            int i = 0;
+            while(i < _taskLog.size)
+            {
+                const TaskEntry *task = FetchNextTask(i==0);
+                if (task == 0)
+                    break;
+                DEBUG_WRITE("    %d.[%u]: %d(%d)\n", i,(uint32_t)task->_timestamp, task->_libuid, task->_task);
+
+                i++;
+            }
+            EMIT_EV(-1, EVENT_ERROR);
+        }
+#endif
+        //  Sensitive task done, enable interrupts again
+        IntMasterEnable();
 }
 
 /**
@@ -243,9 +310,38 @@ void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
  */
 void TaskScheduler::SyncTask(TaskEntry te) volatile
 {
-    //  Save pointer to newly added task so additional arguments can be appended
-    //  to it through AddArgs function call
-    _lastIndex = _taskLog.AddSort(te);
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
+#if defined(__DEBUG_SESSION2__)
+        volatile uint32_t siz = _taskLog.size;
+#endif
+        //  Save pointer to newly added task so additional arguments can be appended
+        //  to it through AddArgs function call
+        _lastIndex = _taskLog.AddSort(te);
+#if defined(__DEBUG_SESSION2__)
+        if ((_taskLog.size-siz) != 1)
+        {
+            DEBUG_WRITE("\nNow is %d, ST\n", msSinceStartup);
+            DEBUG_WRITE("  Adding %d(%d) \n", te._libuid, te._task);
+            DEBUG_WRITE("  Size before %d \n", siz);
+            DEBUG_WRITE("  Size after %d \n", _taskLog.size);
+
+            int i = 0;
+            while(i < _taskLog.size)
+            {
+                const TaskEntry *task = FetchNextTask(i==0);
+                if (task == 0)
+                    break;
+                DEBUG_WRITE("    %d.[%u]: %d(%d)\n", i,(uint32_t)task->_timestamp, task->_libuid, task->_task);
+
+                i++;
+            }
+            EMIT_EV(-1, EVENT_ERROR);
+        }
+#endif
+        //  Sensitive task done, enable interrupts again
+        IntMasterEnable();
 }
 
 /**
@@ -259,8 +355,14 @@ void TaskScheduler::SyncTask(TaskEntry te) volatile
  */
 void TaskScheduler::AddArgs(void* arg, uint16_t argLen) volatile
 {
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
     if (_lastIndex != 0)
         _lastIndex->data.AddArg(arg, argLen);
+
+    //  Sensitive task done, enable interrupts again
+    IntMasterEnable();
 }
 
 /**
@@ -273,9 +375,15 @@ void TaskScheduler::AddArgs(void* arg, uint16_t argLen) volatile
 void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
                                void* arg, uint16_t argLen) volatile
 {
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
     TaskEntry delT(libUID, taskID, 0);
     delT.AddArg(arg, argLen);
     _taskLog.RemoveEntry(delT);
+
+    //  Sensitive task done, enable interrupts again
+    IntMasterEnable();
 }
 
 
@@ -288,22 +396,22 @@ void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
  * @return first element from task queue and delete it (by moving iterators).
  *          If the queue is empty it resets the queue.
  */
- TaskEntry TaskScheduler::PopFront() volatile
-{
-    TaskEntry retVal;
-    retVal = _taskLog.PopFront();
-    _lastIndex = 0;
-    return retVal;
-}
+//inline TaskEntry TaskScheduler::PopFront() volatile
+//{
+//    TaskEntry retVal;
+//    retVal = _taskLog.PopFront();
+//    _lastIndex = 0;
+//    return retVal;
+//}
 
 /**
  * Peek at the first element of task list but leave it in the list
  * @return reference to first task in task list
  */
-volatile TaskEntry& TaskScheduler::PeekFront() volatile
-{
-    return _taskLog.head->data;
-}
+//inline volatile TaskEntry& TaskScheduler::PeekFront() volatile
+//{
+//    return _taskLog.head->data;
+//}
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
@@ -348,7 +456,9 @@ void _TSSyncCallback(void)
  */
 void TS_GlobalCheck(void)
 {
-    //  Grab a pointer to singleton
+    //  Disable interrupt for several cycles until task list is accessed
+    //IntMasterDisable();
+    //  Grab reference to singleton
     volatile TaskScheduler &__taskSch = TaskScheduler::GetI();
 
     //  Check if there is task scheduled to execute
@@ -357,6 +467,8 @@ void TS_GlobalCheck(void)
         while((__taskSch.PeekFront()._timestamp <= msSinceStartup) &&
               (!__taskSch.IsEmpty()))
         {
+            //  Keep interrupts disabled when entering from loop
+            //IntMasterDisable();
             // Take out first entry to process it
             TaskEntry tE;
             tE = __taskSch.PopFront();
@@ -372,24 +484,31 @@ void TS_GlobalCheck(void)
                 __taskSch.SyncTask(tE);
             }
 
+            //  It is safe to continue using interrupts from here onwards
+            //IntMasterEnable();
+
             // Check if module is registered in task scheduler
-            if ((__kernelVector + tE._libuid) == 0)
+            if ((__kernelVector[tE._libuid]) == 0)
                 return;
+
+//#if defined(__DEBUG_SESSION__)
+//            DEBUG_WRITE("Now is %d \n", msSinceStartup);
+//
+//            DEBUG_WRITE("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
+//            DEBUG_WRITE("-(%d)> %s\n", tE._argN, tE._args);
+//#endif
 
             // Make task data available to kernel
             __kernelVector[tE._libuid]->serviceID = tE._task;
             __kernelVector[tE._libuid]->argN = tE._argN;
             __kernelVector[tE._libuid]->args = (uint8_t*)tE._args;
 
-#if defined(__DEBUG_SESSION__)
-            DEBUG_WRITE("Now is %d \n", msSinceStartup);
-
-            DEBUG_WRITE("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
-            DEBUG_WRITE("-(%d)> %s\n", tE._argN, tE._args);
-#endif
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();
         }
+    //  Resume interrupts
+    //IntMasterEnable();
 }
+
 
 #endif  /* __HAL_USE_TASKSCH__ */

@@ -55,6 +55,7 @@
  *  actual time is it can save it and maintain real UTC time reference
  */
 #include "hwconfig.h"
+#include "driverlib/interrupt.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_) \
@@ -70,6 +71,16 @@
 
 //  Unique identifier of this module as registered in task scheduler
     #define TASKSCHED_UID            7
+
+//  Enable debug information printed on serial port
+#define __DEBUG_SESSION2__
+
+#ifdef __DEBUG_SESSION2__
+#include "serialPort/uartHW.h"
+#endif
+
+//  Internal time since TaskScheduler startup (in ms)
+extern volatile uint64_t msSinceStartup;
 
 /**
  * Task scheduler class implementation
@@ -89,20 +100,24 @@ class TaskScheduler
     //  Functions & classes needing direct access to all members
     friend void _TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
+
 	public:
         volatile static TaskScheduler& GetI();
         volatile static TaskScheduler* GetP();
 
 		void                InitHW(uint32_t timeSteMS = 100) volatile;
-		void                Reset() volatile;
-		bool                IsEmpty() volatile;
+		inline void         Reset() volatile;
+		 bool         IsEmpty() volatile
+		        {
+		            return ((_taskLog.head==_taskLog.tail) && (_taskLog.head == 0));
+		        }
 		uint32_t            NumOfTasks() volatile;
 		const TaskEntry*    FetchNextTask(bool fromStart) volatile;
 
 		//  Adding new tasks
-		void SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
+		void        SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
-		void SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
+		void        SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
 		                      int32_t period, int32_t rep) volatile;
 		void SyncTask(TaskEntry te) volatile;
 		//  Add arguments for the last task added
@@ -121,12 +136,55 @@ class TaskScheduler
 		template<typename T>
 		void AddArg(T arg) volatile
 		{
+            //  Sensitive task, disable all interrupts
+            IntMasterDisable();
+
 		    if (_lastIndex != 0)
 		        _lastIndex->data.AddArg((void*)&arg, sizeof(arg));
+
+		    //  Sensitive task done, enable interrupts again
+		    IntMasterEnable();
 		}
 		//  View/get first elements of the task list
-        TaskEntry            PopFront() volatile;
-		volatile TaskEntry&  PeekFront() volatile;
+         TaskEntry            PopFront() volatile
+        {
+            //  Sensitive task, disable all interrupts
+            IntMasterDisable();
+
+            TaskEntry retVal;
+
+
+#if defined(__DEBUG_SESSION2__)
+        volatile uint32_t siz = _taskLog.size;
+#endif
+            retVal = _taskLog.PopFront();
+#if defined(__DEBUG_SESSION2__)
+        if ((siz-_taskLog.size) != 1)
+        {
+            DEBUG_WRITE("\nNow is %d, POP\n", msSinceStartup);
+            DEBUG_WRITE("  Size before %d \n", siz);
+            DEBUG_WRITE("  Size after %d \n  TL dump: \n", _taskLog.size);
+
+            int i = 0;
+            while(i < _taskLog.size)
+            {
+                const TaskEntry *task = FetchNextTask(i==0);
+                if (task == 0)
+                    break;
+                DEBUG_WRITE("    %d.[%u]: %d(%d)\n", i,(uint32_t)task->_timestamp, task->_libuid, task->_task);
+
+                i++;
+            }
+        }
+#endif
+            _lastIndex = 0;
+            IntMasterEnable();
+            return retVal;
+        }
+		 volatile TaskEntry&  PeekFront() volatile
+        {
+            return _taskLog.head->data;
+        }
 
 	private:
         TaskScheduler();
@@ -149,8 +207,6 @@ class TaskScheduler
 extern void TS_GlobalCheck(void);
 extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
 
-//  Internal time since TaskScheduler startup (in ms)
-extern volatile uint64_t msSinceStartup;
 
 /**
  * Callback entry into the Task scheduler from individual kernel module
@@ -169,5 +225,6 @@ struct _kernelEntry
     uint16_t argN;                  // Length of *args array
     int32_t  retVal;                // (Optional) Return variable of service exec
 };
+
 
 #endif /* TASKSCHEDULER_H_ */
