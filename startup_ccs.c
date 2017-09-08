@@ -26,6 +26,178 @@
 #include "inc/hw_nvic.h"
 #include "inc/hw_types.h"
 
+
+//*****************************************************************************
+//
+// fault_decoder.c - A fault handler with decoder, to assist with debug.
+//
+//*****************************************************************************
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_nvic.h"
+#include "inc/hw_types.h"
+#include "utils/uartstdio.h"
+
+//*****************************************************************************
+//
+// A structure to map fault bit IDs with a human readable text string.
+//
+//*****************************************************************************
+typedef struct
+{
+    unsigned long ulFaultBits;
+    char *cFaultText;
+}
+tFaultMap;
+
+//*****************************************************************************
+//
+// Text mapping for the usage, bus, and memory faults.
+//
+//*****************************************************************************
+tFaultMap sUsageFaultMap[6] =
+{
+    { NVIC_FAULT_STAT_DIV0,     "Divide by 0"           },
+    { NVIC_FAULT_STAT_UNALIGN,  "Unaligned access"      },
+    { NVIC_FAULT_STAT_NOCP,     "No coprocessor"        },
+    { NVIC_FAULT_STAT_INVPC,    "Invalid PC"            },
+    { NVIC_FAULT_STAT_INVSTAT,  "Invalid state (EPSR)"  },
+    { NVIC_FAULT_STAT_UNDEF,    "Undefined instruction" }
+};
+tFaultMap sBusFaultMap[5] =
+{
+    { NVIC_FAULT_STAT_BSTKE,    "Exception stacking bus error"      },
+    { NVIC_FAULT_STAT_BUSTKE,   "Exception return unstacking error" },
+    { NVIC_FAULT_STAT_IMPRE,    "Imprecise error"                   },
+    { NVIC_FAULT_STAT_PRECISE,  "Precise error"                     },
+    { NVIC_FAULT_STAT_IBUS,     "Instruction bus error"             }
+};
+tFaultMap sMemFaultMap[4] =
+{
+    { NVIC_FAULT_STAT_MSTKE,    "Exception stacking memory access error"   },
+    { NVIC_FAULT_STAT_MUSTKE,   "Exception return unstacking access error" },
+    { NVIC_FAULT_STAT_DERR,     "Data access violation"                    },
+    { NVIC_FAULT_STAT_IERR,     "Instruction access violation"             }
+};
+//*****************************************************************************
+//
+// Reads the NVIC fault status register and prints human readable strings
+// for the bits that are set.  Also dumps the exception frame.
+//
+// Assumes that UART0 is already configured for use with the UARTStdio module
+// and that UARTStdio is NOT configured in it's interrupt-driven mode (that is,
+// UART_BUFFERED is not defined).
+//
+//*****************************************************************************
+//void FaultDecoder(unsigned long *pulExceptionFrame)
+void FaultDecoder()
+{
+    unsigned long ulFaultStatus;
+    unsigned int uIdx;
+
+    //
+    // Read the fault status register.
+    //
+    ulFaultStatus = HWREG(NVIC_FAULT_STAT);
+
+    //
+    // Check for any bits set in the usage fault field.  Print a human
+    // readable string for any bits that are set.
+    //
+    if(ulFaultStatus & 0xffff0000)
+    {
+        UARTprintf("\nUSAGE FAULT:\n");
+        for(uIdx = 0; uIdx < 6; uIdx++)
+        {
+            if(ulFaultStatus & sUsageFaultMap[uIdx].ulFaultBits)
+            {
+                UARTprintf(" %s\n", sUsageFaultMap[uIdx].cFaultText);
+            }
+        }
+    }
+
+    //
+    // Check for any bits set in the bus fault field.  Print a human
+    // readable string for any bits that are set.
+    //
+    if(ulFaultStatus & 0x0000ff00)
+    {
+        UARTprintf("\nBUS FAULT:\n");
+        for(uIdx = 0; uIdx < 5; uIdx++)
+        {
+            if(ulFaultStatus & sBusFaultMap[uIdx].ulFaultBits)
+            {
+                UARTprintf(" %s\n", sBusFaultMap[uIdx].cFaultText);
+            }
+        }
+
+        //
+        // Also print the faulting address if it is available.
+        //
+        if(ulFaultStatus & NVIC_FAULT_STAT_BFARV)
+        {
+            UARTprintf("BFAR = %08X\n", HWREG(NVIC_FAULT_ADDR));
+        }
+    }
+
+    //
+    // Check for any bits set in the memory fault field.  Print a human
+    // readable string for any bits that are set.
+    //
+    if(ulFaultStatus & 0x000000ff)
+    {
+        UARTprintf("\nMEMORY MANAGE FAULT:\n");
+        for(uIdx = 0; uIdx < 4; uIdx++)
+        {
+            if(ulFaultStatus & sMemFaultMap[uIdx].ulFaultBits)
+            {
+                UARTprintf(" %s\n", sMemFaultMap[uIdx].cFaultText);
+            }
+        }
+
+        //
+        // Also print the faulting address if it is available.
+        //
+        if(ulFaultStatus & NVIC_FAULT_STAT_MMARV)
+        {
+            UARTprintf("MMAR = %08X\n", HWREG(NVIC_MM_ADDR));
+        }
+    }
+
+    //
+    // Print the context of the exception stack frame.
+    //
+//    UARTprintf("\nException Frame\n---------------\n");
+//    UARTprintf("R0   = %08X\n", pulExceptionFrame[0]);
+//    UARTprintf("R1   = %08X\n", pulExceptionFrame[1]);
+//    UARTprintf("R2   = %08X\n", pulExceptionFrame[2]);
+//    UARTprintf("R3   = %08X\n", pulExceptionFrame[3]);
+//    UARTprintf("R12  = %08X\n", pulExceptionFrame[4]);
+//    UARTprintf("LR   = %08X\n", pulExceptionFrame[5]);
+//    UARTprintf("PC   = %08X\n", pulExceptionFrame[6]);
+//    UARTprintf("xPSR = %08X\n", pulExceptionFrame[7]);
+
+//Reboot
+    //SysCtlReset();
+}
+
+//
+// For CCS implement this function in pure assembly.  This prevents the TI
+// compiler from doing funny things with the optimizer.
+//
+//#if defined(ccs)
+//    __asm("    .sect \".text:FaultHandlerDecoder\"\n"
+//          "    .clink\n"
+//          "    .thumbfunc FaultHandlerDecoder\n"
+//          "    .thumb\n"
+//          "    .global FaultHandlerDecoder\n"
+//          "    .global FaultDecoder\n"
+//          "FaultHandlerDecoder:\n"
+//          "    bl   FaultDecoder\n"
+//          "    bx lr\n");
+//#endif
+
 //*****************************************************************************
 //
 // Forward declaration of the default fault handlers.
@@ -250,13 +422,16 @@ NmiSR(void)
 static void
 FaultISR(void)
 {
+    uint32_t i = 0;
+    FaultDecoder();
     //
     // Enter an infinite loop.
     //
-    while(1)
-    {
-    }
-
+//    while(1)
+//    {
+//    }
+    i++;
+    UARTprintf("Faults occurred: %u\n", i);
 }
 
 //*****************************************************************************

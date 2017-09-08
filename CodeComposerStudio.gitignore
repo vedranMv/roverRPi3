@@ -1,7 +1,7 @@
 # Ignore everything
-*
+**
 
 # But not these files
 !.gitignore
 !roverRPi3.cpp
-!roverKernel/*
+!roverKernel/**
