@@ -34,6 +34,7 @@
 
 //  Function prototype to an interrupt handler (declared at the bottom)
 void MPUDataHandler(void);
+static volatile bool dF = false;
 
 ///-----------------------------------------------------------------------------
 ///         DMP related structs --  Start
@@ -138,8 +139,11 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
 void _MPU_KernelCallback(void)
 {
     MPU9250 &__mpu = MPU9250::GetI();
+    static float sumOfRot = 0;
+
+
     //  Check for null-pointer
-    if (__mpu._mpuKer.argN == 0)
+    if (__mpu._mpuKer.args == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -161,18 +165,89 @@ void _MPU_KernelCallback(void)
             __mpu._mpuKer.retVal = MPU_SUCCESS;
         }
         break;
+
+    /*
+     *  Once new data is available, read it from FIFO and store in data structure
+     */
     case MPU_GET_DATA:
         {
-            if (__mpu.IsDataReady())
+            if (__mpu._dataFlag)
             {
-#ifdef __DEBUG_SESSION__
-    //DEBUG_WRITE("RPY: %d  %d %d %dms \n", lroundf(__mpu->_ypr[2]*180.0f/3.1415926f), lroundf(__mpu->_ypr[1]*180.0f/3.1415926f), lroundf(__mpu->_ypr[0]*180.0f/3.1415926f), lroundf(__mpu->dT*1000.0f));
-    //DEBUG_WRITE("Gravity vector pointing: %d %d %d \n", lroundf(__mpu->_gv[0]), lroundf(__mpu->_gv[1]), lroundf(__mpu->_gv[2]));
-#endif
-                __mpu._mpuKer.retVal = MPU_SUCCESS;
+                short gyro[3], accel[3], sensors;
+                unsigned char more;
+                long quat[4];
+                unsigned long sensor_timestamp;
+
+            #ifdef __USE_TASK_SCHEDULER__
+                //  Calculate dT in seconds!
+                static uint64_t oldms = 0;
+                __mpu.dT = (float)(msSinceStartup-oldms)/1000.0f;
+                oldms = (int32_t)msSinceStartup;
+            #endif /* __HAL_USE_TASKSCH__ */
+
+                /* This function gets new data from the FIFO when the DMP is in
+                 * use. The FIFO can contain any combination of gyro, accel,
+                 * quaternion, and gesture data. The sensors parameter tells the
+                 * caller which data fields were actually populated with new data.
+                 * For example, if sensors == (INV_XYZ_GYRO | INV_WXYZ_QUAT), then
+                 * the FIFO isn't being filled with accel data.
+                 * The driver parses the gesture data to determine if a gesture
+                 * event has occurred; on an event, the application will be notified
+                 * via a callback (assuming that a callback function was properly
+                 * registered). The more parameter is non-zero if there are
+                 * leftover packets in the FIFO.
+                 */
+                if (dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more) != 0)
+                {
+            #ifdef __HAL_USE_EVENTLOG__
+                    EMIT_EV(MPU_GET_DATA, EVENT_HANG);
+            #endif  /* __HAL_USE_EVENTLOG__ */
+                    return;
+                }
+
+                Quaternion qt;
+                qt.x = (float)quat[0]/QUAT_SENS;
+                qt.y = (float)quat[1]/QUAT_SENS;
+                qt.z = (float)quat[2]/QUAT_SENS;
+                qt.w = (float)quat[3]/QUAT_SENS;
+
+                VectorFloat v;
+                dmp_GetGravity(&v, &qt);
+
+                dmp_GetYawPitchRoll((float*)(__mpu._ypr), &qt, &v);
+
+                __mpu._quat[0] = qt.x;
+                __mpu._quat[1] = qt.y;
+                __mpu._quat[2] = qt.z;
+                __mpu._quat[3] = qt.w;
+
+                //  Copy to MPU class
+                __mpu._gv[0] = v.x;
+                __mpu._gv[1] = v.y;
+                __mpu._gv[2] = v.z;
+
+                //  Do data health-check -> too big change in angle(30° cumulative)
+                //  between consecutive readings points to error
+                if ((fabs(sumOfRot - fabs(__mpu._ypr[0]) - fabs(__mpu._ypr[1]) -
+                          fabs(__mpu._ypr[2])) > 0.5) && (sumOfRot != 0.0))
+                {
+                    //  Emit error event to the system if consecutive sensor
+                    //   readings are too far off
+#ifdef __HAL_USE_EVENTLOG__
+                    EMIT_EV(MPU_GET_DATA, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
+                    __mpu._mpuKer.retVal = MPU_ERROR;
+                }
+                else
+                    __mpu._mpuKer.retVal = MPU_SUCCESS;
+
+                //  Clear flag
+                //dF = false;
+                __mpu._dataFlag = false;
+
+                sumOfRot = fabs(__mpu._ypr[0]) + fabs(__mpu._ypr[1]) + fabs(__mpu._ypr[2]);
             }
-            else
-                __mpu._mpuKer.retVal = MPU_ERROR;
+
         }
         break;
         /*
@@ -182,8 +257,22 @@ void _MPU_KernelCallback(void)
         {
             if (__mpu._mpuKer.args[0] == 0x17)
             {
+                sumOfRot = 0.0; //Prevents error for big change in value after reboot
                 __mpu.Reset();
                 __mpu._mpuKer.retVal = (int32_t)__mpu.InitSW();
+            }
+        }
+        break;
+        /*
+         * Soft reboot of MPU -> only reset status in event logger
+         */
+    case MPU_SOFT_REBOOT:
+        {
+            if (__mpu._mpuKer.args[0] == 0x17)
+            {
+#ifdef __HAL_USE_EVENTLOG__
+                EventLog::SoftReboot(MPU_UID);
+#endif  /* __HAL_USE_EVENTLOG__ */
             }
         }
         break;
@@ -245,7 +334,6 @@ MPU9250* MPU9250::GetP()
 int8_t MPU9250::InitHW()
 {
     HAL_MPU_Init(MPUDataHandler);
-    HAL_TIM_Init();
 
     return MPU_SUCCESS;
 }
@@ -275,7 +363,7 @@ int8_t MPU9250::InitSW()
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
     // Push accel and quaternion data into the FIFO.
     mpu_configure_fifo(INV_XYZ_ACCEL);
-    mpu_set_sample_rate(20);//50
+    mpu_set_sample_rate(10);//50
 
     // Initialize HAL state variables.
     memset(&hal, 0, sizeof(hal));
@@ -421,78 +509,18 @@ MPU9250::~MPU9250()
 
 /**
  * On interrupt pin going high(PA2) this function gets called and does:
- *  1. clear TM4C interrupt status
- *  2. reads MPU interrupt status register to see what triggered
- *  3. if 'raw data available' flag is set, clear it and read raw sensor data
- *  Additionally: measures the time between interrupt calls to provide time
- *      reference for integration
+ *  1. Clear TM4C interrupt status
+ *  2. Set data-ready flag
+ *  3. Schedule reading data from FIFO through task scheduler
  */
 void MPUDataHandler(void)
 {
-    static float sumOfRot = 0;
-    MPU9250 &_mpu = MPU9250::GetI();
-    short gyro[3], accel[3], sensors;
-    unsigned char more;
-    long quat[4];
-    unsigned long sensor_timestamp;
-
-#ifdef __USE_TASK_SCHEDULER__
-    //  Calculate dT in seconds!
-    static uint64_t oldms = 0;
-    _mpu.dT = (float)(msSinceStartup-oldms)/1000.0f;
-    oldms = (int32_t)msSinceStartup;
-#endif /* __HAL_USE_TASKSCH__ */
-
-    /* This function gets new data from the FIFO when the DMP is in
-     * use. The FIFO can contain any combination of gyro, accel,
-     * quaternion, and gesture data. The sensors parameter tells the
-     * caller which data fields were actually populated with new data.
-     * For example, if sensors == (INV_XYZ_GYRO | INV_WXYZ_QUAT), then
-     * the FIFO isn't being filled with accel data.
-     * The driver parses the gesture data to determine if a gesture
-     * event has occurred; on an event, the application will be notified
-     * via a callback (assuming that a callback function was properly
-     * registered). The more parameter is non-zero if there are
-     * leftover packets in the FIFO.
-     */
-    dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
-    Quaternion qt;
-    qt.x = (float)quat[0]/QUAT_SENS;
-    qt.y = (float)quat[1]/QUAT_SENS;
-    qt.z = (float)quat[2]/QUAT_SENS;
-    qt.w = (float)quat[3]/QUAT_SENS;
-
-    VectorFloat v;
-    dmp_GetGravity(&v, &qt);
-
-    dmp_GetYawPitchRoll((float*)(_mpu._ypr), &qt, &v);
-    //  Copy to MPU class
-    _mpu._quat[0] =  qt.x;
-    _mpu._quat[1] =  qt.y;
-    _mpu._quat[2] =  qt.z;
-    _mpu._quat[3] =  qt.w;
-
-    _mpu._gv[0] = v.x;
-    _mpu._gv[1] = v.y;
-    _mpu._gv[2] = v.z;
-
-    //  Raise new-data flag
-    MPU9250::GetI()._dataFlag = true;
-
-    //  Do data health-check -> too big change in angle(30° cumulative) between
-    //  consecutive readings points to error
-    if ((fabs(sumOfRot - fabs(_mpu._ypr[0]) - fabs(_mpu._ypr[1]) - fabs(_mpu._ypr[2])) > 0.5) && (sumOfRot != 0.0))
-    {
-        //  Emit error event to the system if consecutive sensor readings are
-        //  too far off
-#ifdef __HAL_USE_EVENTLOG__
-        EMIT_EV(-1, EVENT_ERROR);
-#endif  /* __HAL_USE_EVENTLOG__ */
-    }
-
-    sumOfRot = fabs(_mpu._ypr[0]) + fabs(_mpu._ypr[1]) + fabs(_mpu._ypr[2]);
+    MPU9250 &__mpu = MPU9250::GetI();
 
     HAL_MPU_IntClear();
+
+    //  Raise new-data flag
+    __mpu._dataFlag = true;
 }
 
 #endif  /* __HAL_USE_MPU9250__ */

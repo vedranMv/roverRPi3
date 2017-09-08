@@ -4,7 +4,7 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran Mikov
  *
- *  @version V3.0.1
+ *  @version V3.0.2
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
  *  V1.1 - 25.6.2016
@@ -19,6 +19,9 @@
  *  V3.0.1 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  V3.0.2 - 2.9.2017
+ *  +Added soft-reboot for resetting only event logger status
+ *  +Moved data processing from ISR to task-scheduler callback
  */
 #include "hwconfig.h"
 
@@ -43,9 +46,10 @@
     #define MPU_LISTEN          0
     #define MPU_GET_DATA        1
     #define MPU_REBOOT          2
+    #define MPU_SOFT_REBOOT     3
 #endif
 
-//Custom error codes for the library
+//  Custom error codes for the library
 #define MPU_SUCCESS             0
 #define MPU_I2C_ERROR           1
 #define MPU_ERROR               2
