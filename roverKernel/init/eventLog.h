@@ -16,7 +16,7 @@
  *  event and appearance of priority inversion) about events from each module
  *  get remembered even after dropping the log.
  *
- *  @version 1.1.1
+ *  @version 1.2.1
  *  V1.0.0 - 2.7.2017
  *  +Support 6 events that can be emitted by different libraries
  *  +Integrated with task scheduler for remote emptying of log
@@ -37,7 +37,8 @@
  *  +Exposed arrays with last logged event, highest prio. event and prio. inversion
  *  through EventLog member functions
  *  +Added 'Reboot' task to completely clear event logger through task scheduler
- *
+ *  V1.2.1 - 2.9.2017
+ *  +Added interface for soft-reboot of kernel module
  */
 #include "hwconfig.h"
 #if !defined(ROVERKERNEL_INIT_EVENTLOG_H_) \
@@ -118,6 +119,7 @@ class EventLog
         static void     EmitEvent(uint8_t libUID, int8_t taskID, Events event);
         uint32_t        DropBefore(uint32_t timestamp);
         uint32_t        Reset();
+        static void     SoftReboot(uint8_t libUID);
         //  Functions for accessing event log
         uint16_t                        EventCount();
         volatile struct _eventEntry*    GetHead();

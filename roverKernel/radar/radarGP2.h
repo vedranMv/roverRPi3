@@ -20,6 +20,9 @@
  *  V1.2.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  TODO: Remove fine scanning -> not needed
+ *        Implement sweeping the radar through task scheduler, periodic task
+ *        repeated 160 times, every 5 to 7ms
  */
 #include "hwconfig.h"
 
@@ -42,6 +45,7 @@
     #define RADAR_SCAN      0   //  Initiate radar scan
     #define RADAR_SETH      1   //  Set horizontal angle for radar
     #define RADAR_SETV      2   //  Set vertical angle of radar
+    #define RADAR_SWEEPSTEP 3   //  Change of angle and measurement
 
 #endif /* __USE_TASK_SCHEDULER__ */
 

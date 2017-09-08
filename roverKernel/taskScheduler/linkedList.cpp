@@ -139,6 +139,7 @@ bool LinkedList::RemoveEntry(TaskEntry &arg) volatile
         if (tail == node)
             tail == node->_prev;
         delete node;
+        size--;
         //  Node has been found and deleted, return true
         return true;
     }
@@ -152,7 +153,7 @@ bool LinkedList::RemoveEntry(TaskEntry &arg) volatile
  * @return true: list is empty
  *        false: list contains data
  */
-bool LinkedList::Empty() volatile
+inline bool LinkedList::Empty() volatile
 {
     return (head == tail) && (head == 0);
 }
@@ -161,10 +162,11 @@ bool LinkedList::Empty() volatile
  * Delete content of the list.
  * Traverses all nodes in the list and erases them from free store.
  */
-void LinkedList::Drop() volatile
+bool LinkedList::Drop() volatile
 {
     //  Check if list is already empty
-    if (LinkedList::Empty()) return;
+    if (LinkedList::Empty())
+        return false;
 
     //  Delete node by node
     while (head != 0)
@@ -182,6 +184,7 @@ void LinkedList::Drop() volatile
         //  Decrease size of complete list
         size--;
     }
+    return (size != 0);
 }
 
 /**

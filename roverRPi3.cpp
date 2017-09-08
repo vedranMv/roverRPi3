@@ -3,9 +3,9 @@
 #include "serialPort/uartHW.h"
 #include "HAL/hal.h"
 
+
 //  Rover platform
 Platform& rover = Platform::GetI();
-
 
 int main(void)
 {
@@ -22,5 +22,5 @@ int main(void)
 
     while(1)
         TS_GlobalCheck();
-}
 
+}

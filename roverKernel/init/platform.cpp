@@ -29,7 +29,7 @@
 #endif /* __HAL_USE_EVENTLOG__ */
 
 //  TODO: In test -> measure how much stack uses
-template <typename T> std::string tostr(const T& t) {
+template <typename T> inline std::string tostr(const T& t) {
    std::ostringstream os;
    os<<t;
    return os.str();
@@ -43,9 +43,11 @@ template <typename T> std::string tostr(const T& t) {
 void _PLAT_KernelCallback(void)
 {
     Platform  &__plat = Platform::GetI();
+
     //  Check for null-pointer
     if (__plat._platKer.args == 0)
         return;
+    //__plat.mpu.Listen(false);
     /*
      *  Data in args[] contains bytes that constitute arguments for function
      *  calls. The exact representation(i.e. whether bytes represent ints, floats)
@@ -76,9 +78,11 @@ void _PLAT_KernelCallback(void)
             //  Get RPY orientation on degrees
             __plat.mpu->RPY(rpy, true);
             telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
+#else
+            telemetryFrame += tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|";
 #endif
             telemetryFrame += '\n';
-            EventLog::GetI().RecordEvents(true);
+
             //  Send over telemetry stream
             __plat._platKer.retVal =
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
@@ -88,6 +92,10 @@ void _PLAT_KernelCallback(void)
                     __plat._platKer.retVal, telemetryFrame.length(),   \
                     telemetryFrame.c_str());
 #endif*/
+
+            //  If previous sending failed, no need to force next sending, pass
+            if (__plat._platKer.retVal != STATUS_OK)
+                return;
 
             //  If there are any unsent events, ship them off now
             if (EventLog::GetI().EventCount() > 0)
@@ -123,8 +131,8 @@ void _PLAT_KernelCallback(void)
             //  Telemetry doesn't affect status, if it fails, software
             //  does best-effort to try and resend it
             __plat._platKer.retVal = STATUS_OK;
+            return; //  No need to report status, telemetry is not important
         }
-        break;
     /*
      * Reboot microcontroller
      * args[] = rebootCode(0x17)
@@ -185,8 +193,7 @@ void _PLAT_KernelCallback(void)
             if (__plat._platKer.args[0] == 0x17)
             {
 #ifdef __HAL_USE_EVENTLOG__
-                EMIT_EV(__plat._platKer.serviceID, EVENT_STARTUP);
-                EMIT_EV(__plat._platKer.serviceID, EVENT_INITIALIZED);
+                EventLog::SoftReboot(PLAT_UID);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
             }
@@ -207,6 +214,8 @@ void _PLAT_KernelCallback(void)
             for (uint8_t i = 0; i < Ntasks; i++)
             {
                 const TaskEntry *task = __plat.ts->FetchNextTask(i==0);
+                if (task == 0)
+                    break;
 
                 //  Construct standard telemetry frame with event log data, format:
                 //  3*:[time]:pendingTasks
@@ -272,6 +281,18 @@ Platform* Platform::GetP()
 void Platform::InitHW()
 {
 
+    //  Run initialization of event logger
+#ifdef __HAL_USE_EVENTLOG__
+    EventLog::GetI().InitSW();
+    EventLog::GetI().RecordEvents(true);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+    //  If using task scheduler get handle and start systick every 1ms
+#ifdef __HAL_USE_TASKSCH__
+        ts = TaskScheduler::GetP();
+        ts->InitHW(1);
+#endif
+
     //  Emit status of platform
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_STARTUP);
@@ -281,11 +302,6 @@ void Platform::InitHW()
     _platKer.callBackFunc = _PLAT_KernelCallback;
     TS_RegCallback(&_platKer, PLAT_UID);
 
-    //  If using task scheduler get handle and start systick every 1ms
-#ifdef __HAL_USE_TASKSCH__
-        ts = TaskScheduler::GetP();
-        ts->InitHW(1);
-#endif
 //  If using ESP chip, get handle and connect to access point
 #ifdef __HAL_USE_ESP8266__
         esp = ESP8266::GetP();
@@ -293,11 +309,11 @@ void Platform::InitHW()
         esp->AddHook(ESPDataReceived);
         //  Connect to AP in non-blocking mode, allowing everything else to
         //  be initialized while ESP establishes connection
-        esp->ConnectAP("sgvfyj7a", "7vxy3b5d", false);
+        esp->ConnectAP("sgvfyj7a", "7vxy3b5d", true);
         //  Initialize data streams and bind them to sockets
         DataStream_InitHW();
-        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY));
-        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS));
+        telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY), true);
+        commands.BindToSocketID(P_TO_SOCK(P_COMMANDS), true);
 #endif
 #ifdef __HAL_USE_ENGINES__
         eng = EngineData::GetP();
@@ -315,10 +331,6 @@ void Platform::InitHW()
         rad->AddHook(RADScanComplete);
 #endif
 
-        //  Run initialization of event logger
-    #ifdef __HAL_USE_EVENTLOG__
-        EventLog::GetI().InitSW();
-    #endif  /* __HAL_USE_EVENTLOG__ */
         //  Run post-initialization stuff
         _PostInit();
 }
@@ -347,7 +359,7 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
     DEBUG_WRITE("Received message(%d):\n  |>%s \n", len, buf);
 #endif
 
-    //  Count number of colons in message, if it's less than 7 message is corrupted
+    //  Count number of colons in message, if it's less than 8 message is corrupted
     uint8_t cnt = 0;
     for (uint16_t i = 0; i < len; i++)
         if (buf[i] == ':')
@@ -410,8 +422,10 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
 void Platform::_PostInit()
 {
 #ifdef __HAL_USE_MPU9250__
-    //  Start listening for sensor data
+    //  Start listening for sensor data, create periodic task that will check
+    //  sensor data-flag for new data
     mpu->Listen(true);
+    ts->SyncTaskPer(MPU_UID, MPU_GET_DATA, -20, 20, T_PERIODIC);
 #endif
 
     //  Schedule periodic telemetry sending every 1.5s

@@ -39,17 +39,18 @@ class _llnode
 class LinkedList
 {
     friend class TaskScheduler;
+
     public:
         ~LinkedList();
     private:
         LinkedList();
 
-        volatile _llnode*       AddSort(TaskEntry &arg) volatile;
-        bool                    RemoveEntry(TaskEntry &arg) volatile;
-        bool                    Empty() volatile;
-        void                    Drop() volatile;
-        TaskEntry               PopFront() volatile;
-        volatile TaskEntry&     PeekFront() volatile;
+        volatile _llnode*   AddSort(TaskEntry &arg) volatile;
+        bool                RemoveEntry(TaskEntry &arg) volatile;
+        bool                Empty() volatile;
+        bool                Drop() volatile;
+        TaskEntry           PopFront() volatile;
+        volatile TaskEntry& PeekFront() volatile;
 
     private:
         //  Volatile pointers as they might change inside ISRs

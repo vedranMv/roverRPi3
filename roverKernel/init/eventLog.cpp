@@ -301,6 +301,16 @@ uint32_t EventLog::Reset()
    return retVal;
 }
 
+/**
+ * Perform soft-reboot sequence on a given kernel module
+ * @param libUID
+ */
+void EventLog::SoftReboot(uint8_t libUID)
+{
+    EmitEvent(libUID, -1, EVENT_STARTUP);
+    EmitEvent(libUID, -1, EVENT_INITIALIZED);
+}
+
 ///-----------------------------------------------------------------------------
 ///         Functions for accessing event log                           [PUBLIC]
 ///-----------------------------------------------------------------------------

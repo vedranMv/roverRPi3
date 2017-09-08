@@ -95,6 +95,16 @@ void _RADAR_KernelCallback(void)
             }
         }
         break;
+        /*
+         * Measures current distance and sets new angle
+         * args[] = angle(4B)
+         * retVal none
+         */
+    case RADAR_SWEEPSTEP:
+    {
+
+    }
+        break;
     default:
         break;
     }
