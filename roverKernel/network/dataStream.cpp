@@ -44,7 +44,7 @@ static _kernelEntry _dsKer;
 void _DATAS_KernelCallback(void)
 {
     //  Check for null-pointer
-    if (_dsKer.argN == 0)
+    if (_dsKer.args == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -135,15 +135,16 @@ DataStream::~DataStream()
  * data stream to that ID. Socket id bound to this stream is saved internally
  * and returned from this function.
  * @param sockID socket ID as returned from ESP chip (0 - 4) of a socket to bind to
+ * @param sched  true if we want to schedule keep-alive task from this call
  * @return socket ID to which data stream was eventually bound,
  *         111 if ESP is not connected to AP
  *         127 if cannot open socket
  *         222 if no IP has been provided for TCP connection
  */
-uint8_t DataStream::BindToSocketID(uint8_t sockID)
+uint8_t DataStream::BindToSocketID(uint8_t sockID, bool sched)
 {
 #if defined(__USE_TASK_SCHEDULER__)
-    if (!_keepAlive)
+    if (!_keepAlive && sched)
     {
     //  Schedule periodic check for health of the underlying socket, period 4s
     TaskScheduler::GetI().SyncTaskPer(DATAS_UID, DATAS_T_KA, -4000, 4000, T_PERIODIC);
@@ -201,9 +202,10 @@ uint8_t DataStream::BindToSocketID(uint8_t sockID)
  * @note Wrapper for low-level espClient:: function
  * @param buffer
  * @param bufferLen
+ * @param reopen set if true function also tries to reopen socket if it's closed
  * @return error-code, one of STATUS_* macros from myLib.h
  */
-uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
+uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen, bool reopen)
 {
     uint32_t retVal = ESP_STATUS_ERROR;
 
@@ -214,23 +216,24 @@ uint32_t DataStream::Send(uint8_t *buffer, uint16_t bufferLen)
     if (_socket != 0)
         retVal = _socket->SendTCP((char*)buffer, bufferLen);
     //  If it isn't try to reopen it; if succeeded, send data
-    else
-    {
-        //  Try to rebind socket
-        retVal = BindToSocketID(socketID);
-#ifdef __DEBUG_SESSION__
-        DEBUG_WRITE("Rebinding returns %d \n", retVal);
-#endif /* __DEBUG_SESSION__ */
-        //  If succeeded, send data
-        if (retVal < ESP_MAX_CLI)
-            retVal = _socket->SendTCP((char*)buffer, bufferLen);
-        //  If ESP is not connected to AP still return OK error message
-        else if (retVal == 111)
-            retVal = ESP_STATUS_OK;
-        //  Any other return value points to error in process of sending/binding
-        else
-            retVal = ESP_STATUS_ERROR;
-    }
+//    else
+//    {
+//        if (!reopen) return ESP_STATUS_ERROR;
+//        //  Try to rebind socket
+//        retVal = BindToSocketID(socketID);
+//#ifdef __DEBUG_SESSION__
+//        DEBUG_WRITE("Rebinding returns %d \n", retVal);
+//#endif /* __DEBUG_SESSION__ */
+//        //  If succeeded, send data
+//        if (retVal < ESP_MAX_CLI)
+//            retVal = _socket->SendTCP((char*)buffer, bufferLen);
+//        //  If ESP is not connected to AP still return OK error message
+//        else if (retVal == 111)
+//            retVal = ESP_STATUS_OK;
+//        //  Any other return value points to error in process of sending/binding
+//        else
+//            retVal = ESP_STATUS_ERROR;
+//    }
 
     //  Convert ESP library error code to a common error codes from myLib.h
     if ((retVal & ESP_STATUS_OK) > 0)

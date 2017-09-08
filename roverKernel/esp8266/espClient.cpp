@@ -82,6 +82,7 @@ uint32_t _espClient::SendTCP(char *buffer, uint16_t bufferLen)
     if (_parent->_SendRAW(_commBuf, ESP_STATUS_RECV, 600))
     {
         _parent->flowControl = ESP_NO_STATUS;
+        HAL_ESP_WDControl(true, 600);
 
         //  If ESP is not in server mode we need to manually start listening
         //  for incoming data from ESP

@@ -10,7 +10,7 @@
  *  can be integrated with task scheduler to periodically check if the stream is
  *  opened and try to reconnect in case of a failure.
  *
- *  @version 1.3.1
+ *  @version 1.3.2
  *  V1.0 - 17.3.2017
  *  +Created document
  *  +Functionality: Initialize data stream with server IP & port, bind to opened
@@ -33,6 +33,9 @@
  *  V1.3.1 - 22.7.2017
  *  *Bugfix: Fixed bug that caused data stream to not rebind to socket if it
  *  failed first attempt at binding (caused by not saving socketID on failure)
+ *  V1.3.2 - 2.9.2017
+ *  DataStream::Send function now offers user to choose whether to attempt to
+ *  rebind closed socket
  *
  */
 #include "hwconfig.h"
@@ -80,9 +83,9 @@ class DataStream
         DataStream(uint8_t *ip, uint16_t port);
         ~DataStream();
 
-        uint8_t     BindToSocketID(uint8_t sockID);
+        uint8_t     BindToSocketID(uint8_t sockID, bool sched = false);
 
-        uint32_t    Send(uint8_t *buffer, uint16_t bufferLen = 0);
+        uint32_t    Send(uint8_t *buffer, uint16_t bufferLen = 0, bool reopen = true);
         bool        Receive(uint8_t *buffer, uint16_t *bufferLen);
 
         //  Socket ID as returned from ESP8266

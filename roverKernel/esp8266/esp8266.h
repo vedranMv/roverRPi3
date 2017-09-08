@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  ESP8266 WiFi module communication library
- *  @version 1.4.4
+ *  @version 1.4.5
  *  V1.1.4
  *  +Connect/disconnect from AP, get acquired IP as string/int
  *	+Start TCP server and allow multiple connections, keep track of
@@ -52,6 +52,8 @@
  *  while not connected still emits error event; check if connected before
  *  opening socket from higher level modules!
  *  +Stability improvements, different placement of watchdog resets
+ *  V1.4.5 - 2.9.2017
+ *  +Bugfix in parser, fixed problem with multiple sockets closing at the same time
  *
  *  TODO:Add interface to send UDP packet
  */
@@ -88,6 +90,7 @@ extern char _commBuf[2048];
     #define ESP_T_RECVSOCK  3   //  Receive data from specific socket ID
     #define ESP_T_CLOSETCP  4   //  Close socket with specific ID
     #define ESP_T_REBOOT    5   //  Reboot ESP module and UART bus
+    #define ESP_T_PARSE     6
 #endif
 
 /*		Communication settings	 	*/

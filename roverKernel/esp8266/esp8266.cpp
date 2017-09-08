@@ -28,7 +28,7 @@
 #include "serialPort/uartHW.h"
 #endif
 
-//  Function prototype to an interrupt handler (declared at the bottom)
+//  Function prototype for an interrupt handler (declared at the bottom)
 void UART7RxIntHandler(void);
 
 //  Buffer used to assemble commands (shared between all functions )
@@ -182,6 +182,11 @@ void _ESP_KernelCallback(void)
 
             //  ESP is now connecting to AP on its own, based on data stored in
             //  its flash memory. Result is picked up through ISR asynchronously
+        }
+        break;
+    case ESP_T_PARSE:
+        {
+
         }
         break;
     default:
@@ -643,12 +648,31 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
     if ((retTemp =strstr(rxBuffer,",CONNECT")) != NULL)
     {
         sockOflag = retTemp - rxBuffer - 1; //Sock ID position
+        //  Socket got opened, create new client for it
+        if (sockOflag >= 0)
+            _clients[rxBuffer[sockOflag] - 48] =
+                    new _espClient(rxBuffer[sockOflag] - 48, this);
+
         retVal |= ESP_STATUS_SOCKOPEN;
     }
     //  If socket is closed save socket id
     if ((retTemp =strstr(rxBuffer,",CLOSED")) != NULL)
     {
-        sockCflag = retTemp - rxBuffer - 1; //Sock ID position
+        //  Handles a case when multiple sockets are closed at the same time
+        //  e.g. when few sockets are opened to the same server, and server
+        //  goes down
+        while (retTemp != NULL)
+        {
+            sockCflag = retTemp - rxBuffer - 1; //Sock ID position
+            //  Socket got closed, find client with this ID and delete it
+            if (sockCflag >= 0)
+            {
+                delete _clients[rxBuffer[sockCflag] - 48];
+                _clients[rxBuffer[sockCflag] - 48] = 0;
+            }
+
+            retTemp =strstr(retTemp+1,",CLOSED");
+        }
         retVal |= ESP_STATUS_SOCKCLOSE;
     }
 
@@ -693,16 +717,8 @@ uint32_t ESP8266::ParseResponse(char* rxBuffer, uint16_t rxLen)
         //  Set flag that new response has been received
         cli->_respRdy = true;
     }
-    //  Socket got opened, create new client for it
-    if (sockOflag >= 0)
-        _clients[rxBuffer[sockOflag] - 48] = new _espClient(rxBuffer[sockOflag] - 48, this);
-    //  Socket got closed, find client with this ID and delete it
-    if (sockCflag >= 0)
-    {
-        delete _clients[rxBuffer[sockCflag] - 48];
-        _clients[rxBuffer[sockCflag] - 48] = 0;
-    }
-        return retVal;
+
+    return retVal;
 }
 
 ///-----------------------------------------------------------------------------
