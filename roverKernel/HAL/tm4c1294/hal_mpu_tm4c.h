@@ -34,11 +34,11 @@ extern "C"
     extern void        HAL_MPU_IntEnable(bool enable);
     extern bool        HAL_MPU_IntClear();
 /**     MPU9250(timer) - related API    */
-    extern void        HAL_TIM_Init();
-    extern void        HAL_TIM_Start(uint32_t load);
-    extern void        HAL_TIM_Stop();
-    extern uint32_t    HAL_TIM_GetValue();
-    extern float       HAL_TIM_GetS();
+//    extern void        HAL_TIM_Init();
+//    extern void        HAL_TIM_Start(uint32_t load);
+//    extern void        HAL_TIM_Stop();
+//    extern uint32_t    HAL_TIM_GetValue();
+//    extern float       HAL_TIM_GetS();
 
 #ifdef __cplusplus
 }

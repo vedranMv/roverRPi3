@@ -39,7 +39,8 @@ void HAL_BOARD_CLOCK_Init()
                                         SYSCTL_CFG_VCO_480), 120000000);
     //  Enable Floating-point unit (FPU)
     FPUEnable();
-    FPULazyStackingEnable();
+    //FPULazyStackingEnable();
+    FPUStackingEnable();
     //  Enable interrupt handler
     IntMasterEnable();
 }

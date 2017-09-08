@@ -54,7 +54,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
     I2CMasterEnable(MPU9250_I2C_BASE);
 
     // Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, false);
+    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
     //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
     /*//  Taken from TivaWare library!
@@ -89,7 +89,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
         GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
     }
 
-    HAL_TIM_Init();
+    //HAL_TIM_Init();
 }
 /**
  * Write one byte of data to I2C bus and wait until transmission is over (blocking)
@@ -242,12 +242,12 @@ void HAL_MPU_IntEnable(bool enable)
 {
     if (enable)
     {
-        HAL_TIM_Start(0);
+        //HAL_TIM_Start(0);
         IntEnable(INT_GPIOA);
     }
     else
     {
-        HAL_TIM_Stop();
+        //HAL_TIM_Stop();
         IntDisable(INT_GPIOA);
     }
 }
