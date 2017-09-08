@@ -409,6 +409,13 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
     DEBUG_WRITE("\n");
 #endif
 
+    //  This one is special: Radar scan task needs to be repeated 160 times,
+    //  with period of 40ms(to reposition radar head)
+    if ((argv[0] == RADAR_UID) && (argv[1] == RADAR_SCAN))
+    {
+        argv[3] = 40;
+        argv[4] = 160;
+    }
     //  Schedule task based on data provided
     ts->SyncTaskPer(argv[0], argv[1], argv[2], argv[3], argv[4]);
     //  Pass location and size of arguments

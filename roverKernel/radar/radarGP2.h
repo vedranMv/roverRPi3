@@ -20,6 +20,10 @@
  *  V1.2.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  V1.3.0 - 8.9.2017
+ *  -Removed fine scanning option
+ *  *Radar scan implemented through series of periodic tasks in task scheduler
+ *  in order to avoid long hangs while scanning
  *  TODO: Remove fine scanning -> not needed
  *        Implement sweeping the radar through task scheduler, periodic task
  *        repeated 160 times, every 5 to 7ms
@@ -45,7 +49,7 @@
     #define RADAR_SCAN      0   //  Initiate radar scan
     #define RADAR_SETH      1   //  Set horizontal angle for radar
     #define RADAR_SETV      2   //  Set vertical angle of radar
-    #define RADAR_SWEEPSTEP 3   //  Change of angle and measurement
+    #define RADAR_BLOCKINGSCAN 3   //  Change of angle and measurement
 
 #endif /* __USE_TASK_SCHEDULER__ */
 
@@ -66,8 +70,8 @@ class RadarModule
 		void InitHW();
 		void AddHook(void((*funPoint)(uint8_t*, uint16_t*)));
 
-		uint32_t    Scan(uint8_t *data, uint16_t *length, bool fine);
-		uint32_t    Scan(bool fine, bool hook = false);
+		uint32_t    Scan(uint8_t *data, uint16_t *length);
+		uint32_t    Scan(bool hook = false);
 		bool        ScanReady();
 		void        ReadBuffer(uint8_t *buffer, uint16_t *bufferLen);
 

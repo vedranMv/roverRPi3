@@ -46,15 +46,65 @@ void _RADAR_KernelCallback(void)
     /*
      * Request a radar scan by rotating horizontal axis from 0� to 160�. First
      * data byte is either 1(fine scan) or 0(coarse scan).
-     * args[] = scanType(1B)
+     * args[] = none
      * retVal one of myLib.h STATUS_* error codes
      */
     case RADAR_SCAN:
         {
-            //  Double negation to convert any integer into boolean
-            //bool fine = !(!__rD._radKer.args[0]);
+            static float horAngle = 0.0;
+            static uint16_t scanLen = 0;
 
-            __rD._radKer.retVal = __rD.Scan(false, true);
+            if (horAngle < 160)
+            {
+                uint32_t dist;
+
+                //  Trigger AD conversion, wait for data-ready flag and read data
+                dist = HAL_RAD_ADCTrigger();
+
+                //  Convert ADC readout to cm (according to datasheet graph)
+                if ( dist>2860 ) dist=10;
+                else if ( (dist<=2860) && (dist>2020) )
+                    dist = interpolate(2860,10,2020,15,dist);
+                else if ( (dist<=2020) && (dist>1610) )
+                    dist = interpolate(2020,15,1610,20,dist);
+                else if ( (dist<=1610) && (dist>1340) )
+                    dist = interpolate(1610,20,1340,25,dist);
+                else if ( (dist<=1340) && (dist>1140) )
+                    dist = interpolate(1340,25,1140,30,dist);
+                else if ( (dist<=1140) && (dist>910) )
+                    dist = interpolate(1140,30,910,40,dist);
+                else if ( (dist<=910) && (dist>757) )
+                    dist = interpolate(910,40,757,50,dist);
+                else if ( (dist<=757) && (dist>640) )
+                    dist = interpolate(757,50,640,60,dist);
+                else if ( (dist<=640) && (dist>540) )
+                    dist = interpolate(640,60,540,70,dist);
+                else if ( (dist<=540) && (dist>508) )
+                    dist = interpolate(540,70,508,80,dist);
+                else if ( (dist<=508)) dist=80;
+
+                __rD._scanData[scanLen] = (uint8_t)(dist & 0xFF);
+
+                scanLen++;
+                horAngle+=1.0;
+            }
+
+            if (horAngle < 160.0)
+            {
+                HAL_RAD_SetHorAngle(horAngle);
+                return; //  Return so we don't emit any event
+            }
+            else
+            {
+                __rD.custHook(__rD._scanData, &scanLen);
+                __rD._scanComplete = true;
+                horAngle = 0.0;
+                scanLen = 0;
+
+                //  Return radar to starting position after completing the scan
+                HAL_RAD_SetHorAngle(horAngle);
+                __rD._radKer.retVal = STATUS_OK;
+            }
         }
         break;
         /*
@@ -100,9 +150,9 @@ void _RADAR_KernelCallback(void)
          * args[] = angle(4B)
          * retVal none
          */
-    case RADAR_SWEEPSTEP:
+    case RADAR_BLOCKINGSCAN:
     {
-
+            __rD._radKer.retVal = __rD.Scan(true);
     }
         break;
     default:
@@ -159,6 +209,8 @@ void RadarModule::InitHW()
 
     //SetHorAngle(0);
     SetVerAngle(100);
+    //  Reserve memory space to fit measurements
+    _scanData = new uint8_t[162];
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
@@ -190,7 +242,7 @@ void RadarModule::AddHook(void((*funPoint)(uint8_t*, uint16_t*)))
  * 				 will be saved in [data] array
  * @return error-code, one of STATUS_* macros from myLib.h
  */
-uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
+uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length)
 {
 	/*	Step corresponds to 1/8� making total of ~1270 point @ 160� area
 	 * 		alternatively step=36.25 for 1� (making ~160 points @ 160� area)
@@ -227,7 +279,7 @@ uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	{
 		//  Change the angle of radar
 	    HAL_RAD_SetHorAngle(angle);
-	    HAL_DelayUS(7000);	//  Settling time
+	    HAL_DelayUS(40000);	//  Settling time 40ms/1deg
 
 		//  Trigger AD conversion, wait for data-ready flag and read data
 	    dist = HAL_RAD_ADCTrigger();
@@ -259,19 +311,17 @@ uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
 	    angleCount++;	//  Increase measurement counter
 
 	    //  Check if the distance is to be saved to array
-	    if (!fine && ((angleCount % 8) == 0))
+	    if ((angleCount % 8) == 0)
 	    {
 	    	data[(angleCount/8)-1] = (angleAvg / 8) & 0xFF;
 	    	angleAvg = 0;
 	    }
-	    else if (fine) data[angleCount] = dist;
 
 	    angle += step;	//  Move radar to the next measurement point
 	}
 
 	//  Update length argument
-	if (!fine) *length = angleCount / 8;
-	else *length = angleCount;
+	*length = angleCount / 8;
 
 	//  Set the flag to indicate scan is completed
 	_scanComplete = true;
@@ -286,36 +336,24 @@ uint32_t RadarModule::Scan(uint8_t *data, uint16_t *length, bool fine)
  * @param hook If true after scan passes scan data to a user-provided function
  * @return error-code, one of STATUS_* macros from myLib.h
  */
-uint32_t RadarModule::Scan(bool fine, bool hook)
+uint32_t RadarModule::Scan(bool hook)
 {
     uint16_t scanLen = 0;
     uint32_t retVal;
 
-    //  If there's memory already occupied, it's assumed that's from old scan
-    //  and can be safely deleted -> new memory will be occupied for this scan
-    if (_scanData != 0)
-        delete [] _scanData;
-
-    //  Reserve memory space to fit measurements
-    if (fine)
-        _scanData = new uint8_t[1282];
-    else
-        _scanData = new uint8_t[162];
 
     //  Initiate scan
-    retVal = Scan(_scanData, &scanLen, fine);
+    retVal = Scan(_scanData, &scanLen);
 
     //  Call user's function to process data from the scan
     if ((custHook != 0) && hook)
+    {
         custHook(_scanData, &scanLen);
 
-    //  After hooked function has processed data clear the flag
-    _scanComplete = false;
-    /*
-     * Delete function on [_scanData] is not called here as this data might be
-     * used again before the next scan. Rather, data buffered is cleared at the
-     * beginning of this function.
-     */
+        //  After hooked function has processed data clear the flag
+        _scanComplete = false;
+    }
+
     return retVal;
 }
 
