@@ -1,7 +1,27 @@
-# Ignore everything
-**
+# Created by https://www.gitignore.io/api/codecomposerstudio
 
-# But not these files
-!.gitignore
-!roverRPi3.cpp
-!roverKernel/**
+### CodeComposerStudio ###
+
+tmp/
+*.tmp
+*.bak
+# Generated build artifact directories
+Debug/
+Release/
+Flash/
+RAM/
+# Generated build artifacts
+makefile
+*.map
+*.mk
+*.opt
+*.pp
+*.xml
+# Generated directories
+.config/
+.launches/
+# Generated file used to help display error messages in the problems view
+.xdchelp
+# Uniflash session files
+*.uniflashsession
+# End of https://www.gitignore.io/api/codecomposerstudio
