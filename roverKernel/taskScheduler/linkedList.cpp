@@ -148,24 +148,17 @@ bool LinkedList::RemoveEntry(TaskEntry &arg) volatile
     return false;
 }
 
-/**
- * Check whether the linked list is empty
- * @return true: list is empty
- *        false: list contains data
- */
-inline bool LinkedList::Empty() volatile
-{
-    return (head == tail) && (head == 0);
-}
 
 /**
  * Delete content of the list.
  * Traverses all nodes in the list and erases them from free store.
+ * @return false: success
+ *          true: otherwise
  */
 bool LinkedList::Drop() volatile
 {
     //  Check if list is already empty
-    if (LinkedList::Empty())
+    if (LinkedList::IsEmpty())
         return false;
 
     //  Delete node by node
@@ -194,7 +187,7 @@ bool LinkedList::Drop() volatile
 TaskEntry LinkedList::PopFront() volatile
 {
     //  Check if list is empty
-    if (LinkedList::Empty()) return nullNode;
+    if (LinkedList::IsEmpty()) return nullNode;
     //  Check if there's only one element in this list
     if (head == tail) tail = 0;
     //  Extract data from node before it's deleted
@@ -215,12 +208,4 @@ TaskEntry LinkedList::PopFront() volatile
     return retVal;
 }
 
-/**
- * Returns reference to the ->data content of first element of the list but it
- * remains in the list (it's not deleted as with PopFront)
- * @return reference to ->data content of first object of the list
- */
-volatile TaskEntry& LinkedList::PeekFront() volatile
-{
-    return head->data;
-}
+

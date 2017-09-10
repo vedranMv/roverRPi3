@@ -6,7 +6,7 @@
  *
  *  IR-sensor based radar (on 2D gimbal)
  *  (library Infrared Proximity Sensor, Sharp GP2Y0A21YK)
- *  @version 1.2.3
+ *  @version 1.3.0
  *  v1.1
  *  +Packed sensor functions and data into a C++ object
  *  V1.2
@@ -24,9 +24,6 @@
  *  -Removed fine scanning option
  *  *Radar scan implemented through series of periodic tasks in task scheduler
  *  in order to avoid long hangs while scanning
- *  TODO: Remove fine scanning -> not needed
- *        Implement sweeping the radar through task scheduler, periodic task
- *        repeated 160 times, every 5 to 7ms
  */
 #include "hwconfig.h"
 
@@ -46,10 +43,10 @@
     //  Unique identifier of this module as registered in task scheduler
     #define RADAR_UID       1
     //  Definitions of ServiceID for service offered by this module
-    #define RADAR_SCAN      0   //  Initiate radar scan
-    #define RADAR_SETH      1   //  Set horizontal angle for radar
-    #define RADAR_SETV      2   //  Set vertical angle of radar
-    #define RADAR_BLOCKINGSCAN 3   //  Change of angle and measurement
+    #define RADAR_T_SCAN      0   //  Initiate radar scan
+    #define RADAR_T_SETH      1   //  Set horizontal angle for radar
+    #define RADAR_T_SETV      2   //  Set vertical angle of radar
+    #define RADAR_T_BLOCKINGSCAN 3   //  Change of angle and measurement
 
 #endif /* __USE_TASK_SCHEDULER__ */
 

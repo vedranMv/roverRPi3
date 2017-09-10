@@ -1,12 +1,13 @@
+
 # Created by https://www.gitignore.io/api/codecomposerstudio
 
 ### CodeComposerStudio ###
-
+**.obj
 tmp/
 *.tmp
 *.bak
 # Generated build artifact directories
-Debug/
+/Debug/
 Release/
 Flash/
 RAM/

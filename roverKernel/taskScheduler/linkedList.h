@@ -47,10 +47,30 @@ class LinkedList
 
         volatile _llnode*   AddSort(TaskEntry &arg) volatile;
         bool                RemoveEntry(TaskEntry &arg) volatile;
-        bool                Empty() volatile;
         bool                Drop() volatile;
         TaskEntry           PopFront() volatile;
-        volatile TaskEntry& PeekFront() volatile;
+
+        ///---------------------------------------------------------------------
+        ///                      Inline functions                       [PUBLIC]
+        ///---------------------------------------------------------------------
+        /**
+         * Check whether the linked list is empty
+         * @return true: list is empty
+         *        false: list contains data
+         */
+        inline bool IsEmpty() volatile
+        {
+            return (head == tail) && (head == 0);
+        }
+        /**
+         * Returns reference to the ->data content of first element of the list but it
+         * remains in the list (it's not deleted as with PopFront)
+         * @return reference to ->data content of first object of the list
+         */
+        inline volatile TaskEntry& PeekFront() volatile
+        {
+            return head->data;
+        }
 
     private:
         //  Volatile pointers as they might change inside ISRs

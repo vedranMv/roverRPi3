@@ -37,18 +37,6 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
     //  Check which socket received data
     if (sockID == plat.telemetry.socketID)
     {
-        //  Stop keeping command DataStrem alive
-//        uint32_t arg = (uint32_t)(&(plat.commands));
-//        plat.ts->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
-//
-//        //  Close TCP socket as soon as possible
-//        plat.ts->SyncTask(DATAS_UID, DATAS_T_KA, T_ASAP, false, 1);
-//        plat.ts->AddArg<uint8_t>(plat.commands.socketID);
-//
-//        //  Reschedule keep-alive task of 'commands' data stream
-//        plat.ts->SyncTask(DATAS_UID, DATAS_T_KA, -4000, true, T_PERIODIC);
-//        plat.ts->AddArg<uint32_t>((uint32_t)(&(plat.commands)));
-
         //  Receiving data through this stream happens exclusively when there
         //  is a communication problem through 'commands' stream. Received
         //  data here triggers reboot of communications module

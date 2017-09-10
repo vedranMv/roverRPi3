@@ -53,11 +53,11 @@
     //  Unique identifier of this module as registered in task scheduler
     #define PLAT_UID    5
     //  Definitions of ServiceID for service offered by this module
-    #define PLAT_TEL            0   //  Send telemetry data frame
-    #define PLAT_REBOOT         1   //  Reboot the system
-    #define PLAT_EVLOG_DUMP     2   //  Report events saved in event log
-    #define PLAT_SOFT_REBOOT    3   //  Perform soft reboot, only reset states
-    #define PLAT_TS_DUMP        4   //  Report task scheduler data
+    #define PLAT_T_TEL            0   //  Send telemetry data frame
+    #define PLAT_T_REBOOT         1   //  Reboot the system
+    #define PLAT_T_EVLOG_DUMP     2   //  Report events saved in event log
+    #define PLAT_T_SOFT_REBOOT    3   //  Perform soft reboot, only reset states
+    #define PLAT_T_TS_DUMP        4   //  Report task scheduler data
 
 //  ID of this device when exchanging messages
 const char DEVICE_ID[] = {"ROVER1"};

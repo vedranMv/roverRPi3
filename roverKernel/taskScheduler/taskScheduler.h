@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  Task scheduler library
- *  @version 2.7.0
+ *  @version 2.7.1
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -49,6 +49,9 @@
  *  V2.7.0 13.7.2017
  *  +Periodic tasks are rescheduled before their execution to keep time
  *  punctuality
+ *  V2.7.1 - 9.9.2017
+ *  +Added static member function for checking validity of kernel module UID
+ *  +Periodically called functions switched to inline, declared in header
  *
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
@@ -105,26 +108,40 @@ class TaskScheduler
         volatile static TaskScheduler& GetI();
         volatile static TaskScheduler* GetP();
 
+        static bool ValidKernModule(uint8_t libUID);
+
 		void                InitHW(uint32_t timeSteMS = 100) volatile;
 		inline void         Reset() volatile;
-		 bool         IsEmpty() volatile
-		        {
-		            return ((_taskLog.head==_taskLog.tail) && (_taskLog.head == 0));
-		        }
+
 		uint32_t            NumOfTasks() volatile;
 		const TaskEntry*    FetchNextTask(bool fromStart) volatile;
 
 		//  Adding new tasks
-		void        SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
+		void SyncTask(uint8_t libUID, uint8_t taskID, int64_t time,
 		              bool periodic = false, int32_t rep = 0) volatile;
-		void        SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
-		                      int32_t period, int32_t rep) volatile;
+		void SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
+		                 int32_t period, int32_t rep) volatile;
 		void SyncTask(TaskEntry te) volatile;
+
 		//  Add arguments for the last task added
 		void AddArgs(void* arg, uint16_t argLen) volatile;
+
+		//  Remove task for task list
 		void RemoveTask(uint8_t libUID, uint8_t taskID,
 		                void* arg, uint16_t argLen) volatile;
 
+		///---------------------------------------------------------------------
+		///                      Inline functions                       [PUBLIC]
+		///---------------------------------------------------------------------
+		/**
+		 * Return status of Task scheduler queue
+		 * @return  true: if there's nothing in queue
+		 *         false: if queue contains data
+		 */
+		inline bool IsEmpty() volatile
+        {
+            return _taskLog.IsEmpty();
+        }
 		/**
 		 ****Template member function needs to be defined in the header file
 		 * Add a single argument through the template function
@@ -145,8 +162,16 @@ class TaskScheduler
 		    //  Sensitive task done, enable interrupts again
 		    IntMasterEnable();
 		}
-		//  View/get first elements of the task list
-         TaskEntry            PopFront() volatile
+		/**
+		 * Return first element from task queue
+		 * @note Once this function is called, _lastIndex pointer, that points to last
+		 * added task is set to 0 (because it's not possible to know whether that task
+		 * got deleted or no). This prevents calling AddArgs function until new task
+		 * is added
+		 * @return first element from task queue and delete it (by moving iterators).
+		 *          If the queue is empty it resets the queue.
+		 */
+		TaskEntry PopFront() volatile
         {
             //  Sensitive task, disable all interrupts
             IntMasterDisable();
@@ -181,7 +206,12 @@ class TaskScheduler
             IntMasterEnable();
             return retVal;
         }
-		 volatile TaskEntry&  PeekFront() volatile
+
+		/**
+		 * Peek at the first element of task list but leave it in the list
+		 * @return reference to first task in task list
+		 */
+		volatile TaskEntry&  PeekFront() volatile
         {
             return _taskLog.head->data;
         }
@@ -193,12 +223,12 @@ class TaskScheduler
         void operator=(TaskScheduler const &arg) {} //  No definition - forbid this
 
 
-		//  Queue of tasks to be executed
+		//  Queue of tasks to be executed, implemented as doubly linked list
 		volatile LinkedList	_taskLog;
 		/*
-		 *  Pointer to last added item (need to be able to append arguments)
+		 *  Pointer to last added item (to be able to append arguments to it)
 		 *  ->Is being reset to zero after calling PopFront() function
-		 *  volatile pointer (because it can change from within interrupt) to a
+		 *  ->volatile pointer (because it can change from within interrupt) to
 		 *  a volatile object (object can be removed from within interrupt)
 		 */
 		volatile _llnode    * volatile _lastIndex;
@@ -206,7 +236,6 @@ class TaskScheduler
 
 extern void TS_GlobalCheck(void);
 extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
-
 
 /**
  * Callback entry into the Task scheduler from individual kernel module
@@ -225,6 +254,5 @@ struct _kernelEntry
     uint16_t argN;                  // Length of *args array
     int32_t  retVal;                // (Optional) Return variable of service exec
 };
-
 
 #endif /* TASKSCHEDULER_H_ */

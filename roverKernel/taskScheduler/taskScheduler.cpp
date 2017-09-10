@@ -79,6 +79,15 @@ volatile TaskScheduler* TaskScheduler::GetP()
 ///                      Class member function definitions              [PUBLIC]
 ///-----------------------------------------------------------------------------
 
+/**
+ * Validate that a kernel module with libUID is registered within kernel
+ * @param libUID UID of a kernel module to validate
+ * @return true if registered, false otherwise
+ */
+bool TaskScheduler::ValidKernModule(uint8_t libUID)
+{
+    return (__kernelVector[libUID] != 0);
+}
 
 /**
  * Used to initialize hardware used by task scheduler (systick and interrupt)
@@ -114,6 +123,7 @@ void TaskScheduler::Reset() volatile
     //  Sensitive task, disable all interrupts
     IntMasterDisable();
 
+    //  If Drop() return true, there was an error deleting tasks
     if (_taskLog.Drop())
         EMIT_EV(-1, EVENT_ERROR);
 
@@ -122,18 +132,8 @@ void TaskScheduler::Reset() volatile
 }
 
 /**
- * Return status of Task scheduler queue
- * @return	true: if there's nothing in queue
- * 		   false: if queue contains data
- */
-//bool TaskScheduler::IsEmpty() volatile
-//{
-//    return ((_taskLog.head==_taskLog.tail) && (_taskLog.head == 0));
-//}
-
-/**
  * Return number of tasks currently pending execution
- * @return
+ * @return Current number of tasks in task list
  */
 uint32_t TaskScheduler::NumOfTasks() volatile
 {
@@ -385,33 +385,6 @@ void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
     //  Sensitive task done, enable interrupts again
     IntMasterEnable();
 }
-
-
-/**
- * Return first element from task queue
- * @note Once this function is called, _lastIndex pointer, that points to last
- * added task is set to 0 (because it's not possible to know whether that task
- * got deleted or no). This prevents calling AddArgs function until new task
- * is added
- * @return first element from task queue and delete it (by moving iterators).
- *          If the queue is empty it resets the queue.
- */
-//inline TaskEntry TaskScheduler::PopFront() volatile
-//{
-//    TaskEntry retVal;
-//    retVal = _taskLog.PopFront();
-//    _lastIndex = 0;
-//    return retVal;
-//}
-
-/**
- * Peek at the first element of task list but leave it in the list
- * @return reference to first task in task list
- */
-//inline volatile TaskEntry& TaskScheduler::PeekFront() volatile
-//{
-//    return _taskLog.head->data;
-//}
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]

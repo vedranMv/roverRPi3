@@ -61,7 +61,7 @@ void _PLAT_KernelCallback(void)
      *  args[] = none
      *  retVal on of myLib.h STATUS_* macros
      */
-    case PLAT_TEL:
+    case PLAT_T_TEL:
         {
             /*
              * Telemetry frame has the following format:
@@ -138,7 +138,7 @@ void _PLAT_KernelCallback(void)
      * args[] = rebootCode(0x17)
      * retVal none
      */
-    case PLAT_REBOOT:
+    case PLAT_T_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
             if (__plat._platKer.args[0] == 0x17)
@@ -152,7 +152,7 @@ void _PLAT_KernelCallback(void)
      * args[] = none
      * retVal STATUS_OK
      */
-    case PLAT_EVLOG_DUMP:
+    case PLAT_T_EVLOG_DUMP:
         {
             std::string telemetryFrame;
 
@@ -187,7 +187,7 @@ void _PLAT_KernelCallback(void)
      * args[] = rebootCode(0x17)
      * retVal STATUS_OK
      */
-    case PLAT_SOFT_REBOOT:
+    case PLAT_T_SOFT_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
             if (__plat._platKer.args[0] == 0x17)
@@ -206,7 +206,7 @@ void _PLAT_KernelCallback(void)
      * args[] = none
      * retVal STATUS_OK
      */
-    case PLAT_TS_DUMP:
+    case PLAT_T_TS_DUMP:
         {
             std::string telemetryFrame;
             uint32_t Ntasks = __plat.ts->NumOfTasks();
@@ -411,7 +411,7 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
 
     //  This one is special: Radar scan task needs to be repeated 160 times,
     //  with period of 40ms(to reposition radar head)
-    if ((argv[0] == RADAR_UID) && (argv[1] == RADAR_SCAN))
+    if ((argv[0] == RADAR_UID) && (argv[1] == RADAR_T_SCAN))
     {
         argv[3] = 40;
         argv[4] = 160;
@@ -432,11 +432,11 @@ void Platform::_PostInit()
     //  Start listening for sensor data, create periodic task that will check
     //  sensor data-flag for new data
     mpu->Listen(true);
-    ts->SyncTaskPer(MPU_UID, MPU_GET_DATA, -20, 20, T_PERIODIC);
+    ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -20, 20, T_PERIODIC);
 #endif
 
     //  Schedule periodic telemetry sending every 1.5s
-    ts->SyncTask(PLAT_UID, PLAT_TEL, 1500, true, T_PERIODIC);
+    ts->SyncTask(PLAT_UID, PLAT_T_TEL, 1500, true, T_PERIODIC);
 
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_OK);

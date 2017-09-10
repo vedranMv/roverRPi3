@@ -43,10 +43,10 @@
     //  Unique identifier of this module as registered in task scheduler
     #define MPU_UID             3
     //  Definitions of ServiceID for service offered by this module
-    #define MPU_LISTEN          0
-    #define MPU_GET_DATA        1
-    #define MPU_REBOOT          2
-    #define MPU_SOFT_REBOOT     3
+    #define MPU_T_LISTEN          0
+    #define MPU_T_GET_DATA        1
+    #define MPU_T_REBOOT          2
+    #define MPU_T_SOFT_REBOOT     3
 #endif
 
 //  Custom error codes for the library

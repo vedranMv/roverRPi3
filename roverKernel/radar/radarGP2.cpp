@@ -49,7 +49,7 @@ void _RADAR_KernelCallback(void)
      * args[] = none
      * retVal one of myLib.h STATUS_* error codes
      */
-    case RADAR_SCAN:
+    case RADAR_T_SCAN:
         {
             static float horAngle = 0.0;
             static uint16_t scanLen = 0;
@@ -112,7 +112,7 @@ void _RADAR_KernelCallback(void)
          * args[] = angle(4B)
          * retVal none
          */
-    case RADAR_SETH:
+    case RADAR_T_SETH:
         {
             //  Only allowed to have 4 bytes of data (float)
             if (__rD._radKer.argN == sizeof(float))
@@ -131,7 +131,7 @@ void _RADAR_KernelCallback(void)
          * args[] = angle(4B)
          * retVal none
          */
-    case RADAR_SETV:
+    case RADAR_T_SETV:
         {
             //  Only allowed to have 4 bytes of data (float)
             if (__rD._radKer.argN == sizeof(float))
@@ -150,7 +150,7 @@ void _RADAR_KernelCallback(void)
          * args[] = angle(4B)
          * retVal none
          */
-    case RADAR_BLOCKINGSCAN:
+    case RADAR_T_BLOCKINGSCAN:
     {
             __rD._radKer.retVal = __rD.Scan(true);
     }

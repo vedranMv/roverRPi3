@@ -39,6 +39,7 @@
  *  +Added 'Reboot' task to completely clear event logger through task scheduler
  *  V1.2.1 - 2.9.2017
  *  +Added interface for soft-reboot of kernel module
+ *  +Moved soft reboot of all other modules to event logger kernel callback
  */
 #include "hwconfig.h"
 #if !defined(ROVERKERNEL_INIT_EVENTLOG_H_) \
@@ -60,6 +61,7 @@
     //  Definitions of ServiceID for service offered by this module
     #define EVLOG_DROP           0
     #define EVLOG_REBOOT         1
+    #define EVLOG_SOFT_REBOOT    2
 #endif
 
 //  Defines minimum time difference between two same events of a single module

@@ -156,7 +156,7 @@ void _MPU_KernelCallback(void)
     /*
      * retVal one of MPU_* error codes
      */
-    case MPU_LISTEN:
+    case MPU_T_LISTEN:
         {
             //  Double negation to convert any non-zero int to bool
             bool listen = !(!(__mpu._mpuKer.args[0]));
@@ -169,7 +169,7 @@ void _MPU_KernelCallback(void)
     /*
      *  Once new data is available, read it from FIFO and store in data structure
      */
-    case MPU_GET_DATA:
+    case MPU_T_GET_DATA:
         {
             if (__mpu._dataFlag)
             {
@@ -200,7 +200,7 @@ void _MPU_KernelCallback(void)
                 if (dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more) != 0)
                 {
             #ifdef __HAL_USE_EVENTLOG__
-                    EMIT_EV(MPU_GET_DATA, EVENT_HANG);
+                    EMIT_EV(MPU_T_GET_DATA, EVENT_HANG);
             #endif  /* __HAL_USE_EVENTLOG__ */
                     return;
                 }
@@ -234,7 +234,7 @@ void _MPU_KernelCallback(void)
                     //  Emit error event to the system if consecutive sensor
                     //   readings are too far off
 #ifdef __HAL_USE_EVENTLOG__
-                    EMIT_EV(MPU_GET_DATA, EVENT_ERROR);
+                    EMIT_EV(MPU_T_GET_DATA, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
                     __mpu._mpuKer.retVal = MPU_ERROR;
                 }
@@ -253,7 +253,7 @@ void _MPU_KernelCallback(void)
         /*
          * Restart MPU module and reload DMP firmware
          */
-    case MPU_REBOOT:
+    case MPU_T_REBOOT:
         {
             if (__mpu._mpuKer.args[0] == 0x17)
             {
@@ -266,7 +266,7 @@ void _MPU_KernelCallback(void)
         /*
          * Soft reboot of MPU -> only reset status in event logger
          */
-    case MPU_SOFT_REBOOT:
+    case MPU_T_SOFT_REBOOT:
         {
             if (__mpu._mpuKer.args[0] == 0x17)
             {

@@ -51,17 +51,33 @@ void _EVLOG_KernelCallback()
         break;
     /*
      * Perform full reboot of event log, completely deleting all data in it
-     * args[] = 0x17
+     * args[] = accessCode(0x17)
      * retVal one of myLib.h STATUS_* error codes
      */
     case EVLOG_REBOOT:
         {
-            //  Reboot only if 0x17 was sent as argument
+            //  Reboot only if 0x17 was sent as access code
             if (__evlog._evlogKer.args[0] != 0x17)
                 return;
             __evlog._evlogKer.retVal = __evlog.Reset();
 
             EMIT_EV(__evlog._evlogKer.serviceID, EVENT_INITIALIZED);
+        }
+        break;
+        /*
+         * Perform soft reboot (only event logger status) for specified module
+         * args[] = accessCode(0xCF)|libUID
+         * retVal one of myLib.h STATUS_* error codes
+         */
+    case EVLOG_SOFT_REBOOT:
+        {
+            //  Soft reboot access code is 0xCF, skip if it's not valid
+            if (__evlog._evlogKer.args[0] != 0xCF)
+                return;
+            //  Perform soft reboot only if the module exists, otherwise we risk
+            //  fault
+            if (TaskScheduler::ValidKernModule(__evlog._evlogKer.args[1]));
+                EventLog::SoftReboot(__evlog._evlogKer.args[1]);
         }
         break;
     default:
