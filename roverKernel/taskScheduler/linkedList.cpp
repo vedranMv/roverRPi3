@@ -9,6 +9,10 @@
 #include "serialPort/uartHW.h"
 #endif
 
+//  Ever increasing variable, counts number of created tasks in order to uniquely
+//  identify each task in the system (never decreases, but overflows at 65536)
+static volatile uint16_t _pidCount = 1;
+
 /*******************************************************************************
   *********         Linked list node - member functions                *********
  ******************************************************************************/
@@ -45,6 +49,12 @@ volatile _llnode* LinkedList::AddSort(TaskEntry &arg) volatile
     volatile _llnode *tmp = new _llnode(arg),//  Create new node on the free store
              *node = head;           //  Define starting node
 
+    //  Update PID of a task -> only if it doesn't already have one
+    if (tmp->data._PID == 0)
+    {
+        tmp->data._PID = _pidCount;
+        _pidCount++;
+    }
     //  Find where to insert new node(worst-case: end of the list)
     while (node != 0)
     {
@@ -148,6 +158,40 @@ bool LinkedList::RemoveEntry(TaskEntry &arg) volatile
     return false;
 }
 
+bool LinkedList::RemoveEntry(uint16_t PIDarg) volatile
+{
+    volatile _llnode *node = head;           //  Define starting node
+
+    while (node != tail)
+    {
+        //  Check for matching PID
+        if (node->data._PID != PIDarg)
+        {
+            node = node->_next;
+            continue;
+        }
+
+        //  If we got to here we have a match, remove node but link _prev and
+        //  _next if they exists
+        if (node->_prev != 0)
+            node->_prev->_next = node->_next;
+        if (node->_next != 0)
+            node->_next->_prev = node->_prev;
+        //  Check if the node was head or tail and update those
+        if (head == node)
+            head = node->_next;
+        if (tail == node)
+            tail == node->_prev;
+        delete node;
+        size--;
+        //  Node has been found and deleted, return true
+        return true;
+    }
+
+    //  Node wasn't found in the list, return false
+    return false;
+}
+
 
 /**
  * Delete content of the list.
@@ -191,7 +235,7 @@ TaskEntry LinkedList::PopFront() volatile
     //  Check if there's only one element in this list
     if (head == tail) tail = 0;
     //  Extract data from node before it's deleted
-    TaskEntry retVal = head->data;
+    TaskEntry retVal(head->data);
     //  Move second node to the first position
     //  If there's only one node next points to nullptr so it's safe
     volatile _llnode *newHead = head->_next;

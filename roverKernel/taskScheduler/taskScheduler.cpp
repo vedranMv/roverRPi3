@@ -52,6 +52,73 @@ void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid)
 //  startup(declared at the bottom)
 void _TSSyncCallback();
 
+/**
+ * Callback routine to invoke service offered by this module from task scheduler
+ * @note It is assumed that once this function is called task scheduler has
+ * already copied required variables into the memory space provided for it.
+ */
+void _TS_KernelCallback(void)
+{
+    volatile TaskScheduler  &__ts = TaskScheduler::GetI();
+
+    //  Check for null-pointer
+    if (__ts._tsKer.args == 0)
+        return;
+
+    /*
+     *  Data in args[] contains bytes that constitute arguments for function
+     *  calls. The exact representation(i.e. whether bytes represent ints, floats)
+     *  of data is known only to individual blocks of switch() function. There
+     *  is no predefined data separator between arguments inside args[].
+     */
+    switch (__ts._tsKer.serviceID)
+    {
+    /*
+     *  Enable/disable time ticking on internal timer
+     *  args[] = enable(bool)
+     *  retVal on of myLib.h STATUS_* macros
+     */
+    case TASKSCHED_T_ENABLE:
+        {
+            bool enable = (__ts._tsKer.args[0] == 1);
+
+            if (enable)
+                HAL_TS_StartSysTick();
+            else
+                HAL_TS_StopSysTick();
+
+            __ts._tsKer.retVal = STATUS_OK;
+        }
+        break;
+    /*
+     *  Delete task by its PID
+     *  args[] = taskPID(uint16_t)
+     *  retVal on of myLib.h STATUS_* macros
+     */
+    case TASKSCHED_T_KILL:
+        {
+            uint16_t PIDarg;
+
+            memcpy(&PIDarg, __ts._tsKer.args, sizeof(uint16_t));
+
+            __ts.RemoveTask(PIDarg);
+
+            __ts._tsKer.retVal = STATUS_OK;
+        }
+        break;
+    default:
+        break;
+    }
+
+    //  Check return-value and emit event based on it
+#ifdef __HAL_USE_EVENTLOG__
+    if (__ts._tsKer.retVal == STATUS_OK)
+        EMIT_EV(__ts._tsKer.serviceID, EVENT_OK);
+    else
+        EMIT_EV(__ts._tsKer.serviceID, EVENT_ERROR);
+#endif  /* __HAL_USE_EVENTLOG__ */
+}
+
 ///-----------------------------------------------------------------------------
 ///         Functions for returning static instance                     [PUBLIC]
 ///-----------------------------------------------------------------------------
@@ -105,6 +172,10 @@ void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
     //  Initialize & start systick => keeps internal time reference
     HAL_TS_InitSysTick(timeStepMS, _TSSyncCallback);
     HAL_TS_StartSysTick();
+
+    //  Register module services with task scheduler
+    _tsKer.callBackFunc = _TS_KernelCallback;
+    TS_RegCallback((struct _kernelEntry*)&_tsKer, TASKSCHED_UID);
 
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_INITIALIZED);
@@ -386,6 +457,27 @@ void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
     IntMasterEnable();
 }
 
+/**
+ * Find and delete the task in task list matching a given PID
+ * @param libUID
+ * @param taskID
+ * @param arg
+ * @param argLen
+ * @return true if removed, false otherwise()
+ */
+bool TaskScheduler::RemoveTask(uint16_t PIDarg) volatile
+{
+    bool retVal;
+    //  Sensitive task, disable all interrupts
+    IntMasterDisable();
+
+    retVal = _taskLog.RemoveEntry(PIDarg);
+
+    //  Sensitive task done, enable interrupts again
+    IntMasterEnable();
+    return retVal;
+}
+
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
@@ -443,8 +535,7 @@ void TS_GlobalCheck(void)
             //  Keep interrupts disabled when entering from loop
             //IntMasterDisable();
             // Take out first entry to process it
-            TaskEntry tE;
-            tE = __taskSch.PopFront();
+            TaskEntry tE(__taskSch.PopFront());
 
             //  If there's a period specified reschedule task
             if ((tE._period != 0) && (tE._repeats != 0))

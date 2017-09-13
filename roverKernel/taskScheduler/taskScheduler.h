@@ -5,7 +5,7 @@
  *      Author: Vedran Mikov
  *
  *  Task scheduler library
- *  @version 2.7.1
+ *  @version 2.8.0
  *  V1.1
  *  +Implementation of queue of tasks with various parameters. Tasks identified
  *      by unique integer number (defined by higher level library)
@@ -49,13 +49,17 @@
  *  V2.7.0 13.7.2017
  *  +Periodic tasks are rescheduled before their execution to keep time
  *  punctuality
- *  V2.7.1 - 9.9.2017
+ *  V2.8.0 - 9.9.2017
  *  +Added static member function for checking validity of kernel module UID
  *  +Periodically called functions switched to inline, declared in header
+ *  +Implemented kernel callback for TS, allowing enable/disable signal for
+ *  SysTick timer to be sent remotely
  *
  *  TODO:
  *  Implement UTC clock feature. If at some point program finds out what the
  *  actual time is it can save it and maintain real UTC time reference
+ *  +Add PID to task so it can be killer more easily(PID of periodic task is
+ *  inherited)
  */
 #include "hwconfig.h"
 #include "driverlib/interrupt.h"
@@ -67,16 +71,38 @@
 
 #include "linkedList.h"
 
+/**
+ * Callback entry into the Task scheduler from individual kernel module
+ * Once initialized, each kernel module registers the services it provides into
+ * a vector by inserting CallBackEntry into a global vector (handled by
+ * TS_RegCallback function). CallBackEntry holds: a) Function to be called when
+ * someone requests a service from kernel module; b) ServiceID of service to be
+ * executed; c)Memory space used for arguments for callback function; d) Return
+ * variable of the service execution
+ */
+struct _kernelEntry
+{
+    void((*callBackFunc)(void));    // Pointer to callback function
+    uint8_t serviceID;              // Requested service
+    uint8_t *args;                  // Arguments for service execution
+    uint16_t argN;                  // Length of *args array
+    int32_t  retVal;                // (Optional) Return variable of service exec
+};
+
+
 //  Pass to 'repeats' argument for indefinite number of repeats
 #define T_PERIODIC  (-1)
 //  Pass to 'time' for execution as-soon-as-possible
 #define T_ASAP      (0)
 
 //  Unique identifier of this module as registered in task scheduler
-    #define TASKSCHED_UID            7
+    #define TASKSCHED_UID           7
+    //  Definitions of ServiceID for service offered by this module
+    #define TASKSCHED_T_ENABLE      0
+    #define TASKSCHED_T_KILL        1
 
 //  Enable debug information printed on serial port
-#define __DEBUG_SESSION2__
+//#define __DEBUG_SESSION2__
 
 #ifdef __DEBUG_SESSION2__
 #include "serialPort/uartHW.h"
@@ -101,6 +127,7 @@ extern volatile uint64_t msSinceStartup;
 class TaskScheduler
 {
     //  Functions & classes needing direct access to all members
+    friend void _TS_KernelCallback(void);
     friend void _TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
 
@@ -129,6 +156,7 @@ class TaskScheduler
 		//  Remove task for task list
 		void RemoveTask(uint8_t libUID, uint8_t taskID,
 		                void* arg, uint16_t argLen) volatile;
+		bool RemoveTask(uint16_t PIDarg) volatile;
 
 		///---------------------------------------------------------------------
 		///                      Inline functions                       [PUBLIC]
@@ -182,7 +210,8 @@ class TaskScheduler
 #if defined(__DEBUG_SESSION2__)
         volatile uint32_t siz = _taskLog.size;
 #endif
-            retVal = _taskLog.PopFront();
+        //TaskEntry retVal(_taskLog.PopFront());
+        retVal = _taskLog.PopFront();
 #if defined(__DEBUG_SESSION2__)
         if ((siz-_taskLog.size) != 1)
         {
@@ -232,27 +261,14 @@ class TaskScheduler
 		 *  a volatile object (object can be removed from within interrupt)
 		 */
 		volatile _llnode    * volatile _lastIndex;
+
+        //  Interface with task scheduler - provides memory space and function
+        //  to call in order for task scheduler to request service from this module
+        struct _kernelEntry _tsKer;
 };
 
 extern void TS_GlobalCheck(void);
 extern void TS_RegCallback(struct _kernelEntry *arg, uint8_t uid);
 
-/**
- * Callback entry into the Task scheduler from individual kernel module
- * Once initialized, each kernel module registers the services it provides into
- * a vector by inserting CallBackEntry into a global vector (handled by
- * TS_RegCallback function). CallBackEntry holds: a) Function to be called when
- * someone requests a service from kernel module; b) ServiceID of service to be
- * executed; c)Memory space used for arguments for callback function; d) Return
- * variable of the service execution
- */
-struct _kernelEntry
-{
-    void((*callBackFunc)(void));    // Pointer to callback function
-    uint8_t serviceID;              // Requested service
-    uint8_t *args;                  // Arguments for service execution
-    uint16_t argN;                  // Length of *args array
-    int32_t  retVal;                // (Optional) Return variable of service exec
-};
 
 #endif /* TASKSCHEDULER_H_ */

@@ -52,6 +52,8 @@ class TaskEntry
         //  many repeats of that task remain, when negative, task
         //  will be repeated indefinitely. When == 0, task is killed.
         int32_t             _repeats;
+        //  Unique process ID
+        volatile uint16_t _PID;
 };
 
 #endif /* ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_ */

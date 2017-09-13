@@ -10,14 +10,15 @@
 ///-----------------------------------------------------------------------------
 ///                      Class constructors                             [PUBLIC]
 ///-----------------------------------------------------------------------------
-TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0), _args(0)
+TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0),
+        _args(0), _PID(0)
 {
 }
 
 TaskEntry::TaskEntry(uint8_t uid, uint8_t task, uint32_t time,
                      int32_t period, int32_t repeats)
             :_libuid(uid), _task(task), _timestamp(time),
-             _argN(0), _args(0), _period(period), _repeats(repeats)
+             _argN(0), _args(0), _period(period), _repeats(repeats), _PID(0)
 {
 }
 
@@ -85,6 +86,7 @@ TaskEntry& TaskEntry::operator= (const TaskEntry& arg)
     _timestamp = arg._timestamp;
     _period = arg._period;
     _repeats = arg._repeats;
+    _PID = arg._PID;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -99,11 +101,10 @@ volatile TaskEntry& TaskEntry::operator= (const volatile TaskEntry& arg)
     _timestamp = arg._timestamp;
     _period = arg._period;
     _repeats = arg._repeats;
+    _PID = arg._PID;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
-    //for (uint8_t i = 0; i < _argN; i++)
-     //   _args[i] = arg._args[i];
     return *this;
 }
 
@@ -115,10 +116,9 @@ volatile TaskEntry& TaskEntry::operator= (volatile TaskEntry& arg) volatile
     _timestamp = arg._timestamp;
     _period = arg._period;
     _repeats = arg._repeats;
+    _PID = arg._PID;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
-    //for (uint8_t i = 0; i < _argN; i++)
-    //    _args[i] = arg._args[i];
     return (volatile TaskEntry&) *this;
 }
