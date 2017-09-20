@@ -45,7 +45,8 @@
  */
 #define P_COMMANDS      2701
 
-#define TCP_SERVER_IP   (uint8_t*)"192.168.0.12\0"
+//#define TCP_SERVER_IP   (uint8_t*)"192.168.0.12\0"
+#define TCP_SERVER_IP   (uint8_t*)"192.168.0.29\0"
 
 /*
  * Kernel module UID and task IDs

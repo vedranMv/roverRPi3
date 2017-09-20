@@ -224,6 +224,7 @@ void _PLAT_KernelCallback(void)
                 telemetryFrame += tostr<uint16_t>(task->_libuid) + ":";
                 telemetryFrame += tostr<uint16_t>(task->_task) + ":";
                 telemetryFrame += tostr<int32_t>(task->_period) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->_PID) + ":";
 
                 //  Send telemetry frame
                 __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),

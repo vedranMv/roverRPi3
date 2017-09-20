@@ -171,6 +171,8 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
+            int retVal;
+
             if (__mpu._dataFlag)
             {
                 short gyro[3], accel[3], sensors;
@@ -197,10 +199,13 @@ void _MPU_KernelCallback(void)
                  * registered). The more parameter is non-zero if there are
                  * leftover packets in the FIFO.
                  */
-                if (dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more) != 0)
+                retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
+                if (retVal != 0)
                 {
+                    //  Use emitting event to also report error code through
+                    //  taskID parameter
             #ifdef __HAL_USE_EVENTLOG__
-                    EMIT_EV(MPU_T_GET_DATA, EVENT_HANG);
+                    EMIT_EV(retVal, EVENT_HANG);
             #endif  /* __HAL_USE_EVENTLOG__ */
                     return;
                 }

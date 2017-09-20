@@ -37,6 +37,8 @@
 #include <stdbool.h>
 #include "inc/hw_nvic.h"
 #include "inc/hw_types.h"
+
+#ifdef __FAULT_STARTUP_DEBUG__
 #include "utils/uartstdio.h"
 
 //*****************************************************************************
@@ -197,7 +199,7 @@ void FaultDecoder()
 //          "    bl   FaultDecoder\n"
 //          "    bx lr\n");
 //#endif
-
+#endif
 //*****************************************************************************
 //
 // Forward declaration of the default fault handlers.
@@ -422,6 +424,7 @@ NmiSR(void)
 static void
 FaultISR(void)
 {
+#ifdef __FAULT_STARTUP_DEBUG__
     uint32_t i = 0;
     FaultDecoder();
     //
@@ -432,6 +435,9 @@ FaultISR(void)
 //    }
     i++;
     UARTprintf("Faults occurred: %u\n", i);
+#else
+    while(1);
+#endif
 }
 
 //*****************************************************************************
