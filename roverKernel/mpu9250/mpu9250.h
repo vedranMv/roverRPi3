@@ -4,7 +4,7 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran Mikov
  *
- *  @version V3.0.2
+ *  @version V3.0.3
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
  *  V1.1 - 25.6.2016
@@ -22,6 +22,9 @@
  *  V3.0.2 - 2.9.2017
  *  +Added soft-reboot for resetting only event logger status
  *  +Moved data processing from ISR to task-scheduler callback
+ *  V3.0.3 - 21.9.2017
+ *  *Fixed FIFO overflow error in MPU causing occasional glitches when reading
+ *  sensor data
  */
 #include "hwconfig.h"
 

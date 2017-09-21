@@ -138,6 +138,9 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
  */
 void _MPU_KernelCallback(void)
 {
+    //  Sensitive task - accessing MPU instance, disable all interrupts
+    IntMasterDisable();
+
     MPU9250 &__mpu = MPU9250::GetI();
     static float sumOfRot = 0;
 
@@ -171,12 +174,11 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
-            int retVal;
-
             if (__mpu._dataFlag)
             {
+                int8_t retVal;
                 short gyro[3], accel[3], sensors;
-                unsigned char more;
+                unsigned char more = 1;
                 long quat[4];
                 unsigned long sensor_timestamp;
 
@@ -184,7 +186,7 @@ void _MPU_KernelCallback(void)
                 //  Calculate dT in seconds!
                 static uint64_t oldms = 0;
                 __mpu.dT = (float)(msSinceStartup-oldms)/1000.0f;
-                oldms = (int32_t)msSinceStartup;
+                oldms = msSinceStartup;
             #endif /* __HAL_USE_TASKSCH__ */
 
                 /* This function gets new data from the FIFO when the DMP is in
@@ -199,17 +201,19 @@ void _MPU_KernelCallback(void)
                  * registered). The more parameter is non-zero if there are
                  * leftover packets in the FIFO.
                  */
-                retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
-                if (retVal != 0)
+                int cnt = 0;
+                //  Make sure the fifo is empty before leaving this loop, in
+                //  order to prevent fifo overflow on consecutive sensor reading
+                while (more != 0)
                 {
-                    //  Use emitting event to also report error code through
-                    //  taskID parameter
-            #ifdef __HAL_USE_EVENTLOG__
-                    EMIT_EV(retVal, EVENT_HANG);
-            #endif  /* __HAL_USE_EVENTLOG__ */
-                    return;
-                }
+                    retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
+                    cnt++;
 
+                    //  If readinf fifo returned error, move to next packet
+                    if (retVal)
+                        continue;
+
+                    //  If there was no error, extract orientation data
                 Quaternion qt;
                 qt.x = (float)quat[0]/QUAT_SENS;
                 qt.y = (float)quat[1]/QUAT_SENS;
@@ -230,6 +234,20 @@ void _MPU_KernelCallback(void)
                 __mpu._gv[0] = v.x;
                 __mpu._gv[1] = v.y;
                 __mpu._gv[2] = v.z;
+
+                }
+
+                //  If there was only one packet in FIFI, and it caused error,
+                //  then emit hang
+                if ((retVal != 0) && (cnt == 1))
+                {
+                    //  Use emitting event to also report error code through
+                    //  taskID parameter
+            #ifdef __HAL_USE_EVENTLOG__
+                    EMIT_EV(retVal, EVENT_HANG);
+            #endif  /* __HAL_USE_EVENTLOG__ */
+                    return;
+                }
 
                 //  Do data health-check -> too big change in angle(30° cumulative)
                 //  between consecutive readings points to error
@@ -284,6 +302,9 @@ void _MPU_KernelCallback(void)
     default:
         break;
     }
+
+    //  Sensitive task done, enable interrupts again
+    IntMasterEnable();
 
     //  Report outcome to event logger
 #ifdef __HAL_USE_EVENTLOG__

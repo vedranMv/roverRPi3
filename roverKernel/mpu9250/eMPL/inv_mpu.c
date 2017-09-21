@@ -1758,16 +1758,16 @@ int mpu_read_fifo_stream(unsigned short length, unsigned char *data,
     unsigned char tmp[2];
     unsigned short fifo_count;
     if (!st.chip_cfg.dmp_on)
-        return -1;
+        return -4;
     if (!st.chip_cfg.sensors)
-        return -1;
+        return -5;
 
     if (i2c_read(st.hw->addr, st.reg->fifo_count_h, 2, tmp))
         return -1;
     fifo_count = (tmp[0] << 8) | tmp[1];
     if (fifo_count < length) {
         more[0] = 0;
-        return -1;
+        return -3;
     }
     if (fifo_count > (st.hw->max_fifo >> 1)) {
         /* FIFO is 50% full, better check overflow bit. */
