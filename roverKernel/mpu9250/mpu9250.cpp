@@ -153,6 +153,8 @@ void _MPU_KernelCallback(void)
     switch (__mpu._mpuKer.serviceID)
     {
     /*
+     * Toggle listening for MPU interrupts
+     * args[] = listen(bool)
      * retVal one of MPU_* error codes
      */
     case MPU_T_LISTEN:
@@ -167,6 +169,8 @@ void _MPU_KernelCallback(void)
 
     /*
      *  Once new data is available, read it from FIFO and store in data structure
+     *  args[] = none
+     *  retVal one of MPU_* error codes
      */
     case MPU_T_GET_DATA:
         {
@@ -283,6 +287,8 @@ void _MPU_KernelCallback(void)
         break;
         /*
          * Restart MPU module and reload DMP firmware
+         * args[] = rebootCode(0x17)
+         * retVal one of MPU_* error codes
          */
     case MPU_T_REBOOT:
         {
@@ -296,6 +302,8 @@ void _MPU_KernelCallback(void)
         break;
         /*
          * Soft reboot of MPU -> only reset status in event logger
+         * args[] = rebootCode(0x17)
+         * retVal one of MPU_* error codes
          */
     case MPU_T_SOFT_REBOOT:
         {
@@ -361,6 +369,7 @@ MPU9250* MPU9250::GetP()
  * to be toggled by MPU9250 when it has data available for reading (PA5 is
  * push-pull pin with weak pull down and 10mA strength). Initializes Timer 7 to
  * count time between 2 sensor measurements, to measure dT.
+ * @return One of MPU_* error codes
  */
 int8_t MPU9250::InitHW()
 {
@@ -370,7 +379,8 @@ int8_t MPU9250::InitHW()
 }
 
 /**
- * Initialize MPU sensor:
+ * Initialize MPU sensor, load DMP firmware and configure DMP output
+ * @return One of MPU_* error codes
  */
 int8_t MPU9250::InitSW()
 {
@@ -451,7 +461,7 @@ int8_t MPU9250::InitSW()
 }
 
 /**
- * Trigger software reset of the MPU module
+ * Trigger software reset of the MPU module by writing into corresponding register
  */
 void MPU9250::Reset()
 {
@@ -476,6 +486,7 @@ bool MPU9250::IsDataReady()
 
 /**
  * Get ID from MPU, should always return 0x71
+ * @return ID value stored in MPU's register
  */
 uint8_t MPU9250::GetID()
 {
@@ -521,7 +532,8 @@ void MPU9250::RPY(float* RPY, bool inDeg)
 
 /**
  * Copy acceleration from internal buffer to user-provided one
- * @param acc
+ * @param acc Pointer a float array of min. size 3 to store 3-axis acceleration
+ *  data
  */
 void MPU9250::Acceleration(float *acc)
 {
@@ -551,7 +563,6 @@ MPU9250::~MPU9250()
  * On interrupt pin going high(PA2) this function gets called and does:
  *  1. Clear TM4C interrupt status
  *  2. Set data-ready flag
- *  3. Schedule reading data from FIFO through task scheduler
  */
 void MPUDataHandler(void)
 {

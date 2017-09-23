@@ -43,10 +43,10 @@
     //  Unique identifier of this module as registered in task scheduler
     #define RADAR_UID       1
     //  Definitions of ServiceID for service offered by this module
-    #define RADAR_T_SCAN      0   //  Initiate radar scan
-    #define RADAR_T_SETH      1   //  Set horizontal angle for radar
-    #define RADAR_T_SETV      2   //  Set vertical angle of radar
-    #define RADAR_T_BLOCKINGSCAN 3   //  Change of angle and measurement
+    #define RADAR_T_SCAN            0   //  Initiate radar scan
+    #define RADAR_T_SETH            1   //  Set horizontal angle for radar
+    #define RADAR_T_SETV            2   //  Set vertical angle of radar
+    #define RADAR_T_BLOCKINGSCAN    3   //  Change of angle and measurement
 
 #endif /* __USE_TASK_SCHEDULER__ */
 

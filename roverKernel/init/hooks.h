@@ -59,14 +59,10 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
             strcat((char*)response, "NACK\0");
 
         Platform::GetI().commands.Send(response);
-
-//        //  Stop keeping command DataStrem alive
-//        uint32_t arg = (uint32_t)(&(Platform::GetI().commands));
-//        TaskScheduler::GetP()->RemoveTask(DATAS_UID, DATAS_T_KA, (void*)&arg, 4);
     }
     else
     {
-
+        //  Nothing
     }
 }
 
@@ -78,7 +74,7 @@ static void ESPDataReceived(const uint8_t sockID, const uint8_t *buf, const uint
  */
 static void RADScanComplete(uint8_t* scanData, uint16_t* scanLen)
 {
-    //  Once scan is completed schedule sending data to command socket
+    //  Once scan is completed schedule sending data through command socket
     TaskScheduler::GetP()->SyncTask(ESP_UID, ESP_T_SENDTCP, 0);
     TaskScheduler::GetP()->AddArg<uint8_t>(P_TO_SOCK(P_COMMANDS));  //Socket ID
 

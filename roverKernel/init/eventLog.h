@@ -139,7 +139,7 @@ class EventLog
         volatile struct _eventEntry *_entryVectorHead;
         //  Number of events in linked list
         uint16_t                     _entryvCount;
-        //  Enable signal for event logger, events are logged only when _enSig=true
+        //  Enable signal for event logger; events are logged only when _enSig=true
         bool                         _enSig;
         //  Last recorded event for each module
         struct _eventEntry  _lastEvent[NUM_OF_MODULES];

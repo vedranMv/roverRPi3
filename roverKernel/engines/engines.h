@@ -3,7 +3,7 @@
  *
  *  Created on: 29. 5. 2016.
  *      Author: Vedran Mikov
- *  @version v2.1.3
+ *  @version v2.2.0
  *  V1.0 - 29.5.2016
  *  +Implemented C code as C++ object, adjusted it to use HAL
  *  V2.0 - 7.2.2017
@@ -18,6 +18,8 @@
  *  V2.1.3 - 2.7.2017
  *  +Change include paths for better portability, new way of printing to debug
  *  +Integration with event logger
+ *  V2.2.0 - 23.9.2017
+ *  +Added support for measuring wheel speed
  */
 #include "hwconfig.h"
 
@@ -72,14 +74,15 @@ class EngineData
 		int8_t 	StartEnginesArc(float distance, float angle, float smallRadius);
 		bool 	IsDriving() volatile;
 		void 	SetSafetySeq(uint8_t seq, uint32_t right, uint32_t left);
+		float    GetDistance(uint8_t wheel);
 
 		//  Number of encoder counts each wheel has traveled
 		//  (+ for forward direction, - for backward)
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
 		//  Desired position for each wheel
 		volatile int32_t wheelSetPoint[2];  //  In encoder ticks
-		//
-		volatile float wheelSpeed[2];   //  In cm/s
+		//  Pre-calculated speed of each wheel
+		volatile float wheelSpeed[2];       //  In cm/s
 
 	protected:
         EngineData();

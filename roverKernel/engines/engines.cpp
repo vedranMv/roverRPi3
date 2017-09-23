@@ -123,8 +123,8 @@ void _ENG_KernelCallback(void)
         }
         break;
     /*
-     * Move each wheel at given percentage of full speed
-     * args[] = direction(uint8_t)|leftPercent(4B float)|rightPercent(4B float)
+     * Full reboot (reinitialization) of engines module
+     * args[] = rebootCode(0x17)
      * retVal one of myLib.h STATUS_* error codes
      */
     case ENG_T_REBOOT:
@@ -136,6 +136,12 @@ void _ENG_KernelCallback(void)
             __ed._edKer.retVal = __ed.InitHW();
         }
         break;
+    /*
+     * Task that calculates the speed of each wheel by calculating traveled
+     * distance per wheel within a fixed time-step
+     * args[] = none
+     * retVal STATUS_OK
+     */
     case ENG_T_SPEEDLOOP:
         {
             static uint64_t lastMsCounter = 0;
@@ -161,6 +167,8 @@ void _ENG_KernelCallback(void)
 
             lastMsCounter = msSinceStartup;
             memcpy((void*)lastWheelCounter, (void*)__ed.wheelCounter, 2*sizeof(int32_t));
+
+            __ed._edKer.retVal = STATUS_OK;
         }
         break;
     default:
@@ -228,7 +236,7 @@ void EngineData::SetVehSpec(
 
 /**
  * Invoke initialization of hardware used by engines, makes direct call to HAL
- * @return
+ * @return one of myLib.h STATUS_* error codes
  */
 int8_t EngineData::InitHW()
 {
@@ -266,6 +274,7 @@ int8_t EngineData::InitHW()
  * @param direction - selects the direction of movement
  * @param arg - distance in centimeters(forward/backward) or angle in �(left/right)
  * 	TODO: Configure startup_ccs.c to support ISR for counters
+ * @return one of myLib.h STATUS_* error codes
  */
 int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 {
@@ -310,7 +319,7 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);	//  Set left engine speed
 	HAL_ENG_SetPWM(ED_RIGHT, ENG_SPEED_FULL);	//  Set right engine speed
 
-
+	//  Wait until the motors start turning
     HAL_DelayUS(100000);
 
 	while ( blocking && IsDriving() )
@@ -325,6 +334,13 @@ int8_t EngineData::StartEngines(uint8_t dir, float arg, bool blocking)
 	return STATUS_OK;	//  Successful execution
 }
 
+/**
+ * Turn motors at a percentage of their maximum speed in a specified direction
+ * @param dir Direction in which wheels are turning, one of ENG_DIR_* macros
+ * @param percLeft Percentage of speed of left motor (0% ... 100%)
+ * @param percRight Percentage of speed of right motor (0% ... 100%)
+ * @return one of myLib.h STATUS_* error codes
+ */
 int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 {
 	if (!_DirValid(dir))
@@ -336,6 +352,7 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
 	wheelSetPoint[ED_RIGHT] = 1;
 
 
+	//  Make sure percentage is within boundaries 0% ... 100%
 	if (percLeft >= 100)
 	    HAL_ENG_SetPWM(ED_LEFT, ENG_SPEED_FULL);
 	if (percLeft <= 0 )
@@ -365,6 +382,7 @@ int8_t EngineData::RunAtPercPWM(uint8_t dir, float percLeft, float percRight)
  * 		-angle and small radius
  * 	Path is calculated based on the value of smallRadius. If it's 0 it will be calculated from distance and vehicle size
  * 	TODO: Configure startup_ccs.c to support ISR for counters
+ *  @return one of myLib.h STATUS_* error codes
  */
 int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadius)
 {
@@ -412,6 +430,7 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 
 	HAL_ENG_SetHBridge(ED_BOTH, ENG_DIR_FW);
 
+	//  Blocking call, wait until the vehicle is moving
 	while ( IsDriving() )
 	    HAL_DelayUS(700000);
 
@@ -424,6 +443,7 @@ int8_t EngineData::StartEnginesArc(float distance, float angle, float smallRadiu
 /**
  * Return true if the vehicle is driving at the moment
  * 		Check is performed by reading wheel counters for each wheel
+ *  @return true if the vehicle is moving; false otherwise
  */
 bool EngineData::IsDriving() volatile
 {
@@ -440,7 +460,9 @@ bool EngineData::IsDriving() volatile
 }
 
 /**
- * Check if the passed arguments are valid
+ * Check if the passed direction argument is valid
+ * @param dir Direction in which wheels are turning, one of ENG_DIR_* macros
+ * @return true if direction is valid; false otherwise
  */
 bool EngineData::_DirValid(uint8_t dir)
 {
@@ -448,6 +470,19 @@ bool EngineData::_DirValid(uint8_t dir)
 	    (dir == ENG_DIR_L) || (dir == ENG_DIR_R))
 		return true;
 	return false;
+}
+
+/**
+ * Convert internal encoder counter into a distance traveled, and return it in cm/s
+ * @param wheel ID of wheel to return data for
+ * @return distance the wheel has traveled in cm/s
+ */
+float EngineData::GetDistance(uint8_t wheel)
+{
+    if (wheel > 1)
+        return 0.0;
+
+    return ((float)wheelCounter[wheel]* (PI_CONST*_wheelDia)/_encRes);
 }
 
 ///-----------------------------------------------------------------------------
@@ -478,13 +513,14 @@ void PP0ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_LEFT);
 
-
+    //  Increase/decrease counter based on direction in which the vehicle is moving
     if (HAL_ENG_GetHBridge(ED_LEFT) == 0x01)    //0b00000001
             __ed->wheelCounter[ED_LEFT]--;
     else if (HAL_ENG_GetHBridge(ED_LEFT) == 0x02)   //0b00000010
         __ed->wheelCounter[ED_LEFT]++;
 
-
+    //  Break the vehicle one encoder tick before reaching setpoint, let inertia
+    //  take care of fully stopping it
     //  todo: COMMENT-OUT WHEN TESTING PID
     if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
     {
@@ -501,13 +537,14 @@ void PP1ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_RIGHT);
 
-
+    //  Increase/decrease counter based on direction in which the vehicle is moving
     if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x04)    //0b00000100
             __ed->wheelCounter[ED_RIGHT]--;
     else if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x08)   //0b00001000
         __ed->wheelCounter[ED_RIGHT]++;
 
-
+    //  Break the vehicle one encoder tick before reaching setpoint, let inertia
+    //  take care of fully stopping it
     //  todo: COMMENT-OUT WHEN TESTING PID
     if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)
     {

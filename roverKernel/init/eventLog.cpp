@@ -367,8 +367,6 @@ bool EventLog::GetPrioInvAt(uint8_t index)
 
 EventLog::EventLog() : _entryVectorHead(0), _entryvCount(0), _enSig(true)
 {
-    //EMIT_EV(-1, EVENT_UNINITIALIZED);
-
     for (int i = 0; i < NUM_OF_MODULES; i++)
     {
         _lastEvent[i].libUID = -1;

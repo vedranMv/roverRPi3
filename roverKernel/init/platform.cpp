@@ -14,7 +14,7 @@
 #include <sstream>
 
 //  Enable debug information printed on serial port
-#define __DEBUG_SESSION__
+//#define __DEBUG_SESSION__
 
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
@@ -28,7 +28,11 @@
     #define EMIT_EV(X, Y)  EventLog::EmitEvent(PLAT_UID, X, Y)
 #endif /* __HAL_USE_EVENTLOG__ */
 
-//  TODO: In test -> measure how much stack uses
+/**
+ * Template function to convert any number into a std::string
+ * @param t Number of any type
+ * @return Number passed in argument t as std::string
+ */
 template <typename T> inline std::string tostr(const T& t) {
    std::ostringstream os;
    os<<t;
@@ -63,29 +67,11 @@ void _PLAT_KernelCallback(void)
      */
     case PLAT_T_TEL:
         {
-//            /*
-//             * Telemetry frame has the following format:
-//             * @note numbers are represented as strings not byte values
-//             * [timeSinceStartup]:Roll|Pitch|Yaw\0
-//             */
-//            std::string telemetryFrame;
-//            float rpy[3];
-//
-//            //  Starting sequence "1*" marks beginning of standard telemetry
-//            //  frame with all sensor data
-//            telemetryFrame = "1*:[" + tostr(msSinceStartup) + "]:";
-//#ifdef __HAL_USE_MPU9250__
-//            //  Get RPY orientation on degrees
-//            __plat.mpu->RPY(rpy, true);
-//            telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
-//#else
-//            telemetryFrame += tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|";
-//#endif
-//            telemetryFrame += '\n';
+
             /*
              * Telemetry frame has the following format:
              * @note numbers are represented as strings not byte values
-             * timeSinceStartup:Roll:Pitch:Yaw\0
+             * timeSinceStartup:Roll:Pitch:Yaw:distanceLeft:distanceRight:speedLeft:speedRight:accX:accY:accZ\n
              */
             std::string telemetryFrame;
             float rpy[3];
@@ -98,19 +84,18 @@ void _PLAT_KernelCallback(void)
             __plat.mpu->RPY(rpy, true);
             telemetryFrame += tostr(rpy[0])+":"+tostr(rpy[1])+":"+tostr(rpy[2])+":";
 #else
-            telemetryFrame += tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|";
+            telemetryFrame += tostr<float>(0.0)+":"+tostr<float>(0.0)+":"+tostr<float>(0.0)+":";
 #endif
 
+            //  Get 3-axis acceleration from MPU
             float acc[3];
-
             __plat.mpu->Acceleration(acc);
 
-            //Format:
-            //  :distanceLeft:distanceRight:speedLeft:speedRight:accX:accY:accZ
-            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[0]) + ":";
-            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[1]) + ":";
-            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[0]) + ":";
-            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[1]) + ":";
+            //  Write engine telemetry into the packet
+            telemetryFrame += tostr<float>((float)__plat.eng->GetDistance(0)) + ":";
+            telemetryFrame += tostr<float>((float)__plat.eng->GetDistance(1)) + ":";
+            telemetryFrame += tostr<float>((float)__plat.eng->wheelSpeed[0]) + ":";
+            telemetryFrame += tostr<float>((float)__plat.eng->wheelSpeed[1]) + ":";
             telemetryFrame += tostr<float>(acc[0]) + ":";
             telemetryFrame += tostr<float>(acc[1]) + ":";
             telemetryFrame += tostr<float>(acc[2]) + ":";
@@ -120,12 +105,12 @@ void _PLAT_KernelCallback(void)
             //  Send over telemetry stream
             __plat._platKer.retVal =
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
-/*
+
 #ifdef __DEBUG_SESSION__
             DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
                     __plat._platKer.retVal, telemetryFrame.length(),   \
                     telemetryFrame.c_str());
-#endif*/
+#endif
 
             //  If previous sending failed, no need to force next sending, pass
             if (__plat._platKer.retVal != STATUS_OK)
@@ -150,12 +135,12 @@ void _PLAT_KernelCallback(void)
 
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                    telemetryFrame.length());
-/*
+
 #ifdef __DEBUG_SESSION__
                     DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
                             __plat._platKer.retVal, telemetryFrame.length(),   \
                             telemetryFrame.c_str());
-#endif*/
+#endif
 
                     node = node->next;
                     nodesSent++;
@@ -379,15 +364,18 @@ void Platform::InitHW()
     _platKer.callBackFunc = _PLAT_KernelCallback;
     TS_RegCallback(&_platKer, PLAT_UID);
 
-//  If using ESP chip, get handle and connect to access point
+    //  If using ESP chip, get handle and connect to access point
 #ifdef __HAL_USE_ESP8266__
         esp = ESP8266::GetP();
         esp->InitHW();
         esp->AddHook(ESPDataReceived);
         //  Connect to AP in non-blocking mode, allowing everything else to
-        //  be initialized while ESP establishes connection
+        //  be initialized while ESP establishes connection in the background
+        //  and reports process through interrupt
         esp->ConnectAP("sgvfyj7a", "7vxy3b5d", true);
-        //  Initialize data streams and bind them to sockets
+        //  Initialize data streams and bind them to sockets -> Since ESP is
+        //  still connecting to AP they will gracefully fail to bind until
+        //  connection is established (error handled by DataStream module)
         DataStream_InitHW();
         telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY), true);
         commands.BindToSocketID(P_TO_SOCK(P_COMMANDS), true);

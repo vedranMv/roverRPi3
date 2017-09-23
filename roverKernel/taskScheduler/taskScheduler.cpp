@@ -458,12 +458,17 @@ void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
 }
 
 /**
- * Find and delete the task in task list matching a given PID
+ *
  * @param libUID
  * @param taskID
  * @param arg
  * @param argLen
- * @return true if removed, false otherwise()
+ * @return
+ */
+/**
+ * Find and delete the task in task list matching a given PID
+ * @param PIDarg PID (Unque process ID) of task to kill
+ * @return true if removed; false otherwise()
  */
 bool TaskScheduler::RemoveTask(uint16_t PIDarg) volatile
 {
@@ -521,8 +526,6 @@ void _TSSyncCallback(void)
  */
 void TS_GlobalCheck(void)
 {
-    //  Disable interrupt for several cycles until task list is accessed
-    //IntMasterDisable();
     //  Grab reference to singleton
     volatile TaskScheduler &__taskSch = TaskScheduler::GetI();
 
@@ -548,19 +551,16 @@ void TS_GlobalCheck(void)
                 __taskSch.SyncTask(tE);
             }
 
-            //  It is safe to continue using interrupts from here onwards
-            //IntMasterEnable();
-
             // Check if module is registered in task scheduler
             if ((__kernelVector[tE._libuid]) == 0)
                 return;
 
-//#if defined(__DEBUG_SESSION__)
-//            DEBUG_WRITE("Now is %d \n", msSinceStartup);
-//
-//            DEBUG_WRITE("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
-//            DEBUG_WRITE("-(%d)> %s\n", tE._argN, tE._args);
-//#endif
+#if defined(__DEBUG_SESSION__)
+            DEBUG_WRITE("Now is %d \n", msSinceStartup);
+
+            DEBUG_WRITE("Processing %d:%d at %ul ms\n", tE._libuid, tE._task, tE._timestamp);
+            DEBUG_WRITE("-(%d)> %s\n", tE._argN, tE._args);
+#endif
 
             // Make task data available to kernel
             __kernelVector[tE._libuid]->serviceID = tE._task;
@@ -570,8 +570,6 @@ void TS_GlobalCheck(void)
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();
         }
-    //  Resume interrupts
-    //IntMasterEnable();
 }
 
 

@@ -108,7 +108,10 @@ struct _kernelEntry
 #include "serialPort/uartHW.h"
 #endif
 
-//  Internal time since TaskScheduler startup (in ms)
+//  Internal time since TaskScheduler startup (in ms); Increased by SysTick
+//  interrupt. Every tick increases this variable by value passed as argument to
+//  TaskScheduler::InitHW() function. Can be as little as 1ms, but can be also
+//  be more, depending on system requirements
 extern volatile uint64_t msSinceStartup;
 
 /**
@@ -137,7 +140,7 @@ class TaskScheduler
 
         static bool ValidKernModule(uint8_t libUID);
 
-		void                InitHW(uint32_t timeSteMS = 100) volatile;
+		void                InitHW(uint32_t timeStepMS = 100) volatile;
 		inline void         Reset() volatile;
 
 		uint32_t            NumOfTasks() volatile;

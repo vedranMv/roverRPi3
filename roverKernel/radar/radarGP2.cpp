@@ -147,8 +147,8 @@ void _RADAR_KernelCallback(void)
         break;
         /*
          * Measures current distance and sets new angle
-         * args[] = angle(4B)
-         * retVal none
+         * args[] = none
+         * retVal one of myLib.h STATUS_* error codes
          */
     case RADAR_T_BLOCKINGSCAN:
     {
