@@ -136,6 +136,33 @@ void _ENG_KernelCallback(void)
             __ed._edKer.retVal = __ed.InitHW();
         }
         break;
+    case ENG_T_SPEEDLOOP:
+        {
+            static uint64_t lastMsCounter = 0;
+            static int32_t lastWheelCounter[2] = {0,0};
+
+            //  If no distance was traveled and current speed is 0 just return,
+            //  no point in redoing calculations
+            if ( (lastWheelCounter[0] == __ed.wheelCounter[0]) &&
+                 (lastWheelCounter[1] == __ed.wheelCounter[1]) &&
+                 ((__ed.wheelSpeed[0] + __ed.wheelSpeed[1]) < 0.01))
+                return;
+
+            //Left wheel speed calculation
+            __ed.wheelSpeed[ED_LEFT] = (float)(__ed.wheelCounter[ED_LEFT]-lastWheelCounter[ED_LEFT]) * (PI_CONST*__ed._wheelDia)/__ed._encRes;
+            //  Divide distance with time interval passes
+            __ed.wheelSpeed[ED_LEFT] /= ((float)(msSinceStartup-lastMsCounter)/1000.0);
+
+            //Right wheel speed calculation
+            //  Convert distance traveled from encoder ticks to cm
+            __ed.wheelSpeed[ED_RIGHT] = (float)(__ed.wheelCounter[ED_RIGHT]-lastWheelCounter[ED_RIGHT]) * (PI_CONST*__ed._wheelDia)/__ed._encRes;
+            //  Divide distance with time interval passes
+            __ed.wheelSpeed[ED_RIGHT] /= ((float)(msSinceStartup-lastMsCounter)/1000.0);
+
+            lastMsCounter = msSinceStartup;
+            memcpy((void*)lastWheelCounter, (void*)__ed.wheelCounter, 2*sizeof(int32_t));
+        }
+        break;
     default:
         break;
     }
@@ -213,6 +240,10 @@ int8_t EngineData::InitHW()
     //  Listen for encoder input
     HAL_ENG_IntEnable(ED_LEFT, true);
     HAL_ENG_IntEnable(ED_RIGHT, true);
+
+    memset((void*)wheelCounter, 0, 2*sizeof(int32_t));
+    memset((void*)wheelSetPoint, 0, 2*sizeof(int32_t));
+    memset((void*)wheelSpeed, 0, 2*sizeof(float));
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
@@ -447,17 +478,13 @@ void PP0ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_LEFT);
 
-    //if (__ed->wheelCounter[ED_LEFT] > 0)
+
     if (HAL_ENG_GetHBridge(ED_LEFT) == 0x01)    //0b00000001
             __ed->wheelCounter[ED_LEFT]--;
     else if (HAL_ENG_GetHBridge(ED_LEFT) == 0x02)   //0b00000010
         __ed->wheelCounter[ED_LEFT]++;
 
-    /*if (__ed->wheelCounter[ED_LEFT] == 1)
-    {
-        HAL_ENG_SetHBridge(ED_LEFT, ~HAL_ENG_GetHBridge(ED_LEFT));
-    }
-    else*/
+
     //  todo: COMMENT-OUT WHEN TESTING PID
     if (labs(__ed->wheelCounter[ED_LEFT] - __ed->wheelSetPoint[ED_LEFT]) < 1)
     {
@@ -474,19 +501,12 @@ void PP1ISR(void)
     EngineData *__ed = EngineData::GetP();
     HAL_ENG_IntClear(ED_RIGHT);
 
-    //if (__ed->wheelCounter[ED_RIGHT] > 0)
-    //        __ed->wheelCounter[ED_RIGHT]--;
+
     if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x04)    //0b00000100
             __ed->wheelCounter[ED_RIGHT]--;
     else if (HAL_ENG_GetHBridge(ED_RIGHT) == 0x08)   //0b00001000
         __ed->wheelCounter[ED_RIGHT]++;
 
-
-    /*if (__ed->wheelCounter[ED_RIGHT] == 3)
-    {
-        HAL_ENG_SetHBridge(ED_RIGHT, ~HAL_ENG_GetHBridge(ED_RIGHT));
-    }
-    else*/
 
     //  todo: COMMENT-OUT WHEN TESTING PID
     if (labs(__ed->wheelCounter[ED_RIGHT] - __ed->wheelSetPoint[ED_RIGHT]) < 1)

@@ -34,7 +34,6 @@
 
 //  Function prototype to an interrupt handler (declared at the bottom)
 void MPUDataHandler(void);
-static volatile bool dF = false;
 
 ///-----------------------------------------------------------------------------
 ///         DMP related structs --  Start
@@ -138,9 +137,6 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
  */
 void _MPU_KernelCallback(void)
 {
-    //  Sensitive task - accessing MPU instance, disable all interrupts
-    IntMasterDisable();
-
     MPU9250 &__mpu = MPU9250::GetI();
     static float sumOfRot = 0;
 
@@ -174,8 +170,14 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
+            //  Sensitive task - accessing MPU instance, disable all interrupts
+            __mpu.Listen(false);
+            HAL_DelayUS(5);
             if (__mpu._dataFlag)
             {
+                //  Sensitive task done, enable MPU interrupt again
+                __mpu.Listen(true);
+
                 int8_t retVal;
                 short gyro[3], accel[3], sensors;
                 unsigned char more = 1;
@@ -209,31 +211,35 @@ void _MPU_KernelCallback(void)
                     retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
                     cnt++;
 
-                    //  If readinf fifo returned error, move to next packet
+                    //  If reading fifo returned error, move to next packet
                     if (retVal)
                         continue;
 
                     //  If there was no error, extract orientation data
-                Quaternion qt;
-                qt.x = (float)quat[0]/QUAT_SENS;
-                qt.y = (float)quat[1]/QUAT_SENS;
-                qt.z = (float)quat[2]/QUAT_SENS;
-                qt.w = (float)quat[3]/QUAT_SENS;
+                    Quaternion qt;
+                    qt.x = (float)quat[0]/QUAT_SENS;
+                    qt.y = (float)quat[1]/QUAT_SENS;
+                    qt.z = (float)quat[2]/QUAT_SENS;
+                    qt.w = (float)quat[3]/QUAT_SENS;
 
-                VectorFloat v;
-                dmp_GetGravity(&v, &qt);
+                    VectorFloat v;
+                    dmp_GetGravity(&v, &qt);
 
-                dmp_GetYawPitchRoll((float*)(__mpu._ypr), &qt, &v);
+                    dmp_GetYawPitchRoll((float*)(__mpu._ypr), &qt, &v);
 
-                __mpu._quat[0] = qt.x;
-                __mpu._quat[1] = qt.y;
-                __mpu._quat[2] = qt.z;
-                __mpu._quat[3] = qt.w;
+                    __mpu._quat[0] = qt.x;
+                    __mpu._quat[1] = qt.y;
+                    __mpu._quat[2] = qt.z;
+                    __mpu._quat[3] = qt.w;
 
-                //  Copy to MPU class
-                __mpu._gv[0] = v.x;
-                __mpu._gv[1] = v.y;
-                __mpu._gv[2] = v.z;
+                    //  Copy to MPU class
+                    __mpu._gv[0] = v.x;
+                    __mpu._gv[1] = v.y;
+                    __mpu._gv[2] = v.z;
+
+                    __mpu._acc[0] = (float)accel[0]/32767.0;
+                    __mpu._acc[1] = (float)accel[1]/32767.0;
+                    __mpu._acc[2] = (float)accel[2]/32767.0;
 
                 }
 
@@ -265,11 +271,13 @@ void _MPU_KernelCallback(void)
                     __mpu._mpuKer.retVal = MPU_SUCCESS;
 
                 //  Clear flag
-                //dF = false;
                 __mpu._dataFlag = false;
 
                 sumOfRot = fabs(__mpu._ypr[0]) + fabs(__mpu._ypr[1]) + fabs(__mpu._ypr[2]);
             }
+
+            //  Sensitive task done, enable MPU interrupt again
+            __mpu.Listen(true);
 
         }
         break;
@@ -302,9 +310,6 @@ void _MPU_KernelCallback(void)
     default:
         break;
     }
-
-    //  Sensitive task done, enable interrupts again
-    IntMasterEnable();
 
     //  Report outcome to event logger
 #ifdef __HAL_USE_EVENTLOG__
@@ -512,6 +517,15 @@ void MPU9250::RPY(float* RPY, bool inDeg)
             RPY[i] = _ypr[i]*180.0/PI_CONST;
         else
             RPY[i] = _ypr[i];
+}
+
+/**
+ * Copy acceleration from internal buffer to user-provided one
+ * @param acc
+ */
+void MPU9250::Acceleration(float *acc)
+{
+    memcpy((void*)acc, (void*)_acc, sizeof(float)*3);
 }
 
 ///-----------------------------------------------------------------------------

@@ -59,6 +59,7 @@
     #define PLAT_T_EVLOG_DUMP     2   //  Report events saved in event log
     #define PLAT_T_SOFT_REBOOT    3   //  Perform soft reboot, only reset states
     #define PLAT_T_TS_DUMP        4   //  Report task scheduler data
+    #define PLAT_T_ENG_DUMP       5   //  Report telemetry from engines
 
 //  ID of this device when exchanging messages
 const char DEVICE_ID[] = {"ROVER1"};

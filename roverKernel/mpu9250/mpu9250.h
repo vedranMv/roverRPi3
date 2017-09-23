@@ -79,6 +79,7 @@ class MPU9250
 
         void    AddHook(void((*custHook)(uint8_t,float*)));
         void    RPY(float* RPY, bool inDeg);
+        void    Acceleration(float *acc);
 
         volatile float  dT;
         //  Function to be hooked when new sensor data is received. 1st argument
@@ -98,6 +99,8 @@ class MPU9250
         volatile float _ypr[3];
         //  Gravity vector[x,y,z]
         volatile float _gv[3];
+        //  Acceleration
+        volatile float _acc[3];
 
         //  Flag set by ISR whenever new raw data is available
         volatile bool   _dataFlag;

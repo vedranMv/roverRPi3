@@ -14,7 +14,7 @@
 #include <sstream>
 
 //  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
+#define __DEBUG_SESSION__
 
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
@@ -63,24 +63,58 @@ void _PLAT_KernelCallback(void)
      */
     case PLAT_T_TEL:
         {
+//            /*
+//             * Telemetry frame has the following format:
+//             * @note numbers are represented as strings not byte values
+//             * [timeSinceStartup]:Roll|Pitch|Yaw\0
+//             */
+//            std::string telemetryFrame;
+//            float rpy[3];
+//
+//            //  Starting sequence "1*" marks beginning of standard telemetry
+//            //  frame with all sensor data
+//            telemetryFrame = "1*:[" + tostr(msSinceStartup) + "]:";
+//#ifdef __HAL_USE_MPU9250__
+//            //  Get RPY orientation on degrees
+//            __plat.mpu->RPY(rpy, true);
+//            telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
+//#else
+//            telemetryFrame += tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|";
+//#endif
+//            telemetryFrame += '\n';
             /*
              * Telemetry frame has the following format:
              * @note numbers are represented as strings not byte values
-             * [timeSinceStartup]:leftEncoder|rightEncoder|Roll|Pitch|Yaw\0
+             * timeSinceStartup:Roll:Pitch:Yaw\0
              */
             std::string telemetryFrame;
             float rpy[3];
 
             //  Starting sequence "1*" marks beginning of standard telemetry
             //  frame with all sensor data
-            telemetryFrame = "1*:[" + tostr(msSinceStartup) + "]:";
+            telemetryFrame = "1*:" + tostr(msSinceStartup) + ":";
 #ifdef __HAL_USE_MPU9250__
             //  Get RPY orientation on degrees
             __plat.mpu->RPY(rpy, true);
-            telemetryFrame += tostr(rpy[0])+"|"+tostr(rpy[1])+"|"+tostr(rpy[2])+"|";
+            telemetryFrame += tostr(rpy[0])+":"+tostr(rpy[1])+":"+tostr(rpy[2])+":";
 #else
             telemetryFrame += tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|"+tostr<float>(0.0)+"|";
 #endif
+
+            float acc[3];
+
+            __plat.mpu->Acceleration(acc);
+
+            //Format:
+            //  :distanceLeft:distanceRight:speedLeft:speedRight:accX:accY:accZ
+            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[0]) + ":";
+            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[1]) + ":";
+            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[0]) + ":";
+            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[1]) + ":";
+            telemetryFrame += tostr<float>(acc[0]) + ":";
+            telemetryFrame += tostr<float>(acc[1]) + ":";
+            telemetryFrame += tostr<float>(acc[2]) + ":";
+
             telemetryFrame += '\n';
 
             //  Send over telemetry stream
@@ -167,6 +201,9 @@ void _PLAT_KernelCallback(void)
 
                 //  Construct standard telemetry frame with event log data, format:
                 //  2*:numOfEvents:[time]:libUID:taskUID:event
+                //  NOTE: First argument numOfEvents is here set to 5, it can be
+                //  any number !=0. When 0 is sent client will request DropBefore(time)
+                //  function event log, deleting all entries before given time
                 telemetryFrame =  "2*:" + tostr<uint16_t>(5) + ":";
                 telemetryFrame += "[" + tostr<uint32_t>(ee.timestamp) + "]:";
                 telemetryFrame += tostr<uint16_t>(ee.libUID) + ":";
@@ -230,6 +267,45 @@ void _PLAT_KernelCallback(void)
                 __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                telemetryFrame.length());
             }
+            //  Telemetry can't affect status, it's only a best-effort to
+            //  deliver data
+            __plat._platKer.retVal = STATUS_OK;
+        }
+        break;
+    /*
+     * Send information about engines, current speed, distance traveled
+     * args[] = none
+     * retVal STATUS_OK
+     */
+    case PLAT_T_ENG_DUMP:
+        {
+            std::string telemetryFrame;
+            float acc[3];
+
+            __plat.mpu->Acceleration(acc);
+
+            //Format:
+            //  4*:distanceLeft:distanceRight:speedLeft:speedRight:accX:accY:accZ
+            telemetryFrame =  "4*:";
+            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[0]) + ":";
+            telemetryFrame += tostr<int32_t>((int32_t)__plat.eng->wheelCounter[1]) + ":";
+            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[0]) + ":";
+            telemetryFrame += tostr<int32_t>((float)__plat.eng->wheelSpeed[1]) + ":";
+            telemetryFrame += tostr<float>(acc[0]) + ":";
+            telemetryFrame += tostr<float>(acc[1]) + ":";
+            telemetryFrame += tostr<float>(acc[2]) + ":";
+
+
+            #ifdef __DEBUG_SESSION__
+                                DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
+                                        __plat._platKer.retVal, telemetryFrame.length(),   \
+                                        telemetryFrame.c_str());
+            #endif
+
+            //  Send telemetry frame
+            __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
+                                           telemetryFrame.length());
+
             //  Telemetry can't affect status, it's only a best-effort to
             //  deliver data
             __plat._platKer.retVal = STATUS_OK;
@@ -425,7 +501,7 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
 
 /**
  * Post-initialization
- * Function executes all the post-initialization tasks on the platform
+ * Function runs (and schedules) all post-initialization tasks on the platform
  */
 void Platform::_PostInit()
 {
@@ -436,8 +512,10 @@ void Platform::_PostInit()
     ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -20, 20, T_PERIODIC);
 #endif
 
-    //  Schedule periodic telemetry sending every 1.5s
-    ts->SyncTask(PLAT_UID, PLAT_T_TEL, 1500, true, T_PERIODIC);
+    //  Schedule periodic telemetry sending every 1s
+    ts->SyncTaskPer(PLAT_UID, PLAT_T_TEL, -1000, 1000, T_PERIODIC);
+    //  Startup speed loop for the engines
+    ts->SyncTaskPer(ENGINES_UID, ENG_T_SPEEDLOOP, -150, 150, T_PERIODIC);
 
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_OK);

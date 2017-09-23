@@ -41,6 +41,7 @@
     #define ENG_T_MOVE_ARC        1
     #define ENG_T_MOVE_PERC       2
     #define ENG_T_REBOOT          3
+    #define ENG_T_SPEEDLOOP       4
 
 #endif
 
@@ -77,6 +78,8 @@ class EngineData
 		volatile int32_t wheelCounter[2];   //  In encoder ticks
 		//  Desired position for each wheel
 		volatile int32_t wheelSetPoint[2];  //  In encoder ticks
+		//
+		volatile float wheelSpeed[2];   //  In cm/s
 
 	protected:
         EngineData();
