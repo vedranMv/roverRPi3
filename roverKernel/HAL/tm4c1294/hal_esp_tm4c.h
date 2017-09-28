@@ -17,6 +17,8 @@
 
 //  This include is needed to provide definitions for macros below
 #include "driverlib/uart.h"
+#include "driverlib/rom_map.h"
+#include "driverlib/rom.h"
 
 /**     ESP8266 - related macros        */
 #define ESP8266_UART_BASE       0x40013000
@@ -25,10 +27,10 @@
  * To prevent unnecessary stack layers (calling function from function) some
  * simpler functions are implemented using just macro definitions
  */
-#define HAL_ESP_UARTBusy()      UARTBusy(ESP8266_UART_BASE)
-#define HAL_ESP_SendChar(x)     UARTCharPut(ESP8266_UART_BASE, x)
-#define HAL_ESP_CharAvail()     UARTCharsAvail(ESP8266_UART_BASE)
-#define HAL_ESP_GetChar()       UARTCharGetNonBlocking(ESP8266_UART_BASE)
+#define HAL_ESP_UARTBusy()      MAP_UARTBusy(ESP8266_UART_BASE)
+#define HAL_ESP_SendChar(x)     MAP_UARTCharPut(ESP8266_UART_BASE, x)
+#define HAL_ESP_CharAvail()     MAP_UARTCharsAvail(ESP8266_UART_BASE)
+#define HAL_ESP_GetChar()       MAP_UARTCharGetNonBlocking(ESP8266_UART_BASE)
 
 
 #ifdef __cplusplus

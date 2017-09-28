@@ -17,6 +17,8 @@
 #include "inc/hw_ints.h"
 #include "inc/hw_gpio.h"
 
+#include "driverlib/rom_map.h"
+#include "driverlib/rom.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/sysctl.h"
@@ -40,44 +42,44 @@
  */
 void HAL_RAD_Init()
 {
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOG);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOG);
 
     //  Set PWM clock divider to 32 - allows for low frequencies
-    PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
+    MAP_PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
 
     // Configuration and initialization of Radar left-right PWM output
-    GPIOPinConfigure(GPIO_PF1_M0PWM1);
-    GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
-    PWMGenConfigure(PWM0_BASE, PWM_GEN_0,
+    MAP_GPIOPinConfigure(GPIO_PF1_M0PWM1);
+    MAP_GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
+    MAP_PWMGenConfigure(PWM0_BASE, PWM_GEN_0,
                     PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC);
-    PWMGenPeriodSet(PWM0_BASE, PWM_GEN_0, RAD_PWM_ARG);   //~60Hz PWM clock
-    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_1, RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
-    PWMGenEnable(PWM0_BASE, PWM_GEN_0); //Start PWM generator block
-    PWMOutputState(PWM0_BASE, PWM_OUT_1_BIT, true);
+    MAP_PWMGenPeriodSet(PWM0_BASE, PWM_GEN_0, RAD_PWM_ARG);   //~60Hz PWM clock
+    MAP_PWMPulseWidthSet(PWM0_BASE, PWM_OUT_1, RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
+    MAP_PWMGenEnable(PWM0_BASE, PWM_GEN_0); //Start PWM generator block
+    MAP_PWMOutputState(PWM0_BASE, PWM_OUT_1_BIT, true);
 
     // Configuration and initialization of Radar up-down axis PWM output
-    GPIOPinConfigure(GPIO_PG0_M0PWM4);
-    GPIOPinTypePWM(GPIO_PORTG_BASE, GPIO_PIN_0);
-    PWMGenConfigure(PWM0_BASE, PWM_GEN_2,
+    MAP_GPIOPinConfigure(GPIO_PG0_M0PWM4);
+    MAP_GPIOPinTypePWM(GPIO_PORTG_BASE, GPIO_PIN_0);
+    MAP_PWMGenConfigure(PWM0_BASE, PWM_GEN_2,
                     PWM_GEN_MODE_DOWN | PWM_GEN_MODE_NO_SYNC);
-    PWMGenPeriodSet(PWM0_BASE, PWM_GEN_2, RAD_PWM_ARG);   //~60Hz PWM clock
-    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_4,  RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
-    PWMGenEnable(PWM0_BASE, PWM_GEN_2); //Start PWM generator block
-    PWMOutputState(PWM0_BASE, PWM_OUT_4_BIT, true);
+    MAP_PWMGenPeriodSet(PWM0_BASE, PWM_GEN_2, RAD_PWM_ARG);   //~60Hz PWM clock
+    MAP_PWMPulseWidthSet(PWM0_BASE, PWM_OUT_4,  RAD_MIN+(RAD_MAX-RAD_MIN)/2);    //~10° for servo
+    MAP_PWMGenEnable(PWM0_BASE, PWM_GEN_2); //Start PWM generator block
+    MAP_PWMOutputState(PWM0_BASE, PWM_OUT_4_BIT, true);
 
     // Configure Radar ADC module to sample AIN 3 (used to read IR sensor output)
-    GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_0);//  Configure GPIO as ADC input
-    ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
-    ADCSequenceStepConfigure(ADC0_BASE, 3, 0,
+    MAP_GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_0);//  Configure GPIO as ADC input
+    MAP_ADCSequenceConfigure(ADC0_BASE, 3, ADC_TRIGGER_PROCESSOR, 0);
+    MAP_ADCSequenceStepConfigure(ADC0_BASE, 3, 0,
                              ADC_CTL_CH3 | ADC_CTL_IE | ADC_CTL_END);
-    ADCSequenceEnable(ADC0_BASE, 3);
-    ADCIntClear(ADC0_BASE, 3);
+    MAP_ADCSequenceEnable(ADC0_BASE, 3);
+    MAP_ADCIntClear(ADC0_BASE, 3);
     //  Configure hardware averaging of 64 samples
-    ADCHardwareOversampleConfigure(ADC0_BASE, 64);
+    MAP_ADCHardwareOversampleConfigure(ADC0_BASE, 64);
 
     HAL_RAD_Enable(true);
 
@@ -93,8 +95,8 @@ void HAL_RAD_Init()
  */
 void HAL_RAD_Enable(bool enable)
 {
-    PWMOutputState(PWM0_BASE, RAD_HORIZONTAL, enable);
-    PWMOutputState(PWM0_BASE, RAD_VERTICAL, enable);
+    MAP_PWMOutputState(PWM0_BASE, RAD_HORIZONTAL, enable);
+    MAP_PWMOutputState(PWM0_BASE, RAD_VERTICAL, enable);
 }
 
 /**
@@ -152,10 +154,10 @@ float HAL_RAD_GetHorAngle()
 uint32_t HAL_RAD_ADCTrigger()
 {
     uint32_t retVal;
-    ADCProcessorTrigger(ADC0_BASE, 3);
-    while(!ADCIntStatus(ADC0_BASE, 3, false));
-    ADCIntClear(ADC0_BASE, 3);  //Clear flag
-    ADCSequenceDataGet(ADC0_BASE, 3, &retVal);
+    MAP_ADCProcessorTrigger(ADC0_BASE, 3);
+    while(!MAP_ADCIntStatus(ADC0_BASE, 3, false));
+    MAP_ADCIntClear(ADC0_BASE, 3);  //Clear flag
+    MAP_ADCSequenceDataGet(ADC0_BASE, 3, &retVal);
 
     return retVal;
 }

@@ -17,6 +17,8 @@
 #include "inc/hw_ints.h"
 #include "inc/hw_gpio.h"
 
+#include "driverlib/rom_map.h"
+#include "driverlib/rom.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/sysctl.h"
@@ -45,46 +47,46 @@ uint32_t g_ui32SysClock;
 void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
 {
     /// Configuration and initialization of PWM for engines
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
 
     /// Set PWM clock divider to 32 - allows for low frequencies
-    PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
+    MAP_PWMClockSet(PWM0_BASE, PWM_SYSCLK_DIV_32);
 
 
-    GPIOPinConfigure(GPIO_PF2_M0PWM2);
-    GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_2);
-    GPIOPinConfigure(GPIO_PF3_M0PWM3);
-    GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_3);
-    PWMGenConfigure(ED_PWM_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN |
+    MAP_GPIOPinConfigure(GPIO_PF2_M0PWM2);
+    MAP_GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_2);
+    MAP_GPIOPinConfigure(GPIO_PF3_M0PWM3);
+    MAP_GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_3);
+    MAP_PWMGenConfigure(ED_PWM_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN |
                                           PWM_GEN_MODE_NO_SYNC);
     /// Target frequency ~60Hz (PWM generator clock -> 20kHZ)
-    PWMGenPeriodSet(ED_PWM_BASE, PWM_GEN_1, pwmMax + 1);
-    PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwmMin);
-    PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwmMin);
-    PWMGenEnable(ED_PWM_BASE, PWM_GEN_1);   ///Stop PWM generator block.
+    MAP_PWMGenPeriodSet(ED_PWM_BASE, PWM_GEN_1, pwmMax + 1);
+    MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwmMin);
+    MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwmMin);
+    MAP_PWMGenEnable(ED_PWM_BASE, PWM_GEN_1);   ///Stop PWM generator block.
     /// Disable the PWM1 output signal (PF1).
-    PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, false);
+    MAP_PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, false);
 
     /// Configure H-bridges for each engine
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
-    GPIOPinTypeGPIOOutput(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR);
-    GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR, 0x00);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
+    MAP_GPIOPinTypeGPIOOutput(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR);
+    MAP_GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL | ED_HBR_PINR, 0x00);
 
     /// Initialize optical encoders that track wheel movement - interrupt based
     /// Dont't forget to update ISR pointers in interrupt vector in startuo_ccs.c
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOP);
-    SysCtlPeripheralReset(SYSCTL_PERIPH_GPIOP);
-    GPIOPinTypeGPIOInput(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1);
-    GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE,GPIO_PIN_2);
-    GPIOPadConfigSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_STRENGTH_12MA, GPIO_PIN_TYPE_STD);
-    GPIODirModeSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_DIR_MODE_IN);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOP);
+    MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_GPIOP);
+    MAP_GPIOPinTypeGPIOInput(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1);
+    MAP_GPIOPinTypeGPIOOutput(GPIO_PORTP_BASE,GPIO_PIN_2);
+    MAP_GPIOPadConfigSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_STRENGTH_12MA, GPIO_PIN_TYPE_STD);
+    MAP_GPIODirModeSet(GPIO_PORTP_BASE, GPIO_PIN_0 | GPIO_PIN_1, GPIO_DIR_MODE_IN);
 
-    GPIOIntEnable(GPIO_PORTP_BASE, GPIO_INT_PIN_0 | GPIO_INT_PIN_1);
-    GPIOIntTypeSet(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1, GPIO_RISING_EDGE | GPIO_DISCRETE_INT);
+    MAP_GPIOIntEnable(GPIO_PORTP_BASE, GPIO_INT_PIN_0 | GPIO_INT_PIN_1);
+    MAP_GPIOIntTypeSet(GPIO_PORTP_BASE,GPIO_PIN_0 | GPIO_PIN_1, GPIO_RISING_EDGE | GPIO_DISCRETE_INT);
 
-    IntDisable(INT_GPIOP0);
-    IntDisable(INT_GPIOP1);
+    MAP_IntDisable(INT_GPIOP0);
+    MAP_IntDisable(INT_GPIOP1);
 }
 
 /**
@@ -95,11 +97,11 @@ void HAL_ENG_Init(uint32_t pwmMin, uint32_t pwmMax)
 void HAL_ENG_Enable(uint32_t engine, bool enable)
 {
     if (engine == 0)
-        PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT , enable);
+        MAP_PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT , enable);
     else if (engine == 1)
-        PWMOutputState(ED_PWM_BASE, PWM_OUT_3_BIT, enable);
+        MAP_PWMOutputState(ED_PWM_BASE, PWM_OUT_3_BIT, enable);
     else if (engine == 2)
-        PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, enable);
+        MAP_PWMOutputState(ED_PWM_BASE, PWM_OUT_2_BIT | PWM_OUT_3_BIT, enable);
 }
 
 /**
@@ -110,19 +112,19 @@ void HAL_ENG_Enable(uint32_t engine, bool enable)
  */
 uint8_t HAL_ENG_SetPWM(uint32_t engine, uint32_t pwm)
 {
-    if (pwm > PWMGenPeriodGet(ED_PWM_BASE, PWM_GEN_1))
+    if (pwm > MAP_PWMGenPeriodGet(ED_PWM_BASE, PWM_GEN_1))
         return HAL_ENG_PWMOOR;
     if (pwm < 1)
         return HAL_ENG_PWMOOR;
 
     if (engine == 0)
-        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
+        MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
     else if (engine == 1)
-        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
+        MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
     else if (engine == 2)
     {
-        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
-        PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
+        MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_LEFT, pwm);
+        MAP_PWMPulseWidthSet(ED_PWM_BASE, ED_PWM_RIGHT, pwm);
     }
     else
         return HAL_ENG_EOOR;
@@ -134,9 +136,9 @@ uint32_t HAL_ENG_GetPWM(uint32_t engine)
 {
 
     if (engine == 0)
-        return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_LEFT);
+        return MAP_PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_LEFT);
     else if (engine == 1)
-        return PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_RIGHT);
+        return MAP_PWMPulseWidthGet(ED_PWM_BASE, ED_PWM_RIGHT);
     else
         return HAL_ENG_EOOR;
 }
@@ -150,11 +152,11 @@ uint32_t HAL_ENG_GetPWM(uint32_t engine)
 uint8_t HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
 {
     if (mask == 0)  /// Configure direction for left motor
-        GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL, dir);
+        MAP_GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINL, dir);
     else if (mask == 1) /// Configure direction for right motor
-        GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR, dir);
+        MAP_GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR, dir);
     else if (mask == 2) /// Configure direction for both motors
-        GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL, dir);
+        MAP_GPIOPinWrite(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL, dir);
     else
         return HAL_ENG_ILLM;
 
@@ -169,11 +171,11 @@ uint8_t HAL_ENG_SetHBridge(uint32_t mask, uint8_t dir)
 uint32_t HAL_ENG_GetHBridge(uint32_t mask)
 {
     if (mask == 0)
-        return GPIOPinRead(ED_HBR_BASE, ED_HBR_PINL);
+        return MAP_GPIOPinRead(ED_HBR_BASE, ED_HBR_PINL);
     else if (mask == 1)
-        return GPIOPinRead(ED_HBR_BASE, ED_HBR_PINR);
+        return MAP_GPIOPinRead(ED_HBR_BASE, ED_HBR_PINR);
     else
-        return GPIOPinRead(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL);
+        return MAP_GPIOPinRead(ED_HBR_BASE, ED_HBR_PINR | ED_HBR_PINL);
 }
 
 /**
@@ -183,9 +185,9 @@ uint32_t HAL_ENG_GetHBridge(uint32_t mask)
 void HAL_ENG_IntClear(uint32_t engine)
 {
     if (engine == 0)
-        GPIOIntClear(GPIO_PORTP_BASE,GPIO_INT_PIN_0);
+        MAP_GPIOIntClear(GPIO_PORTP_BASE,GPIO_INT_PIN_0);
     else if (engine == 1)
-        GPIOIntClear(GPIO_PORTP_BASE,GPIO_INT_PIN_1);
+        MAP_GPIOIntClear(GPIO_PORTP_BASE,GPIO_INT_PIN_1);
 }
 
 /**
@@ -197,14 +199,14 @@ void HAL_ENG_IntEnable(uint32_t engine, bool enable)
 {
     if (engine == 0)
     {
-        if (enable) IntEnable(INT_GPIOP0);
-        else IntDisable(INT_GPIOP0);
+        if (enable) MAP_IntEnable(INT_GPIOP0);
+        else MAP_IntDisable(INT_GPIOP0);
     }
 
     if (engine == 1)
     {
-        if (enable) IntEnable(INT_GPIOP1);
-        else IntDisable(INT_GPIOP1);
+        if (enable) MAP_IntEnable(INT_GPIOP1);
+        else MAP_IntDisable(INT_GPIOP1);
     }
 }
 

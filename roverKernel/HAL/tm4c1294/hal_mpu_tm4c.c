@@ -17,6 +17,8 @@
 #include "inc/hw_ints.h"
 #include "inc/hw_gpio.h"
 
+#include "driverlib/rom_map.h"
+#include "driverlib/rom.h"
 #include "driverlib/gpio.h"
 #include "driverlib/pin_map.h"
 #include "driverlib/sysctl.h"
@@ -41,20 +43,20 @@ void HAL_MPU_Init(void((*custHook)(void)))
 {
     //uint32_t ui32TPR;
 
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
-    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C2);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
+    MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_I2C2);
 
     // Enable I2C communication interface, SCL, SDA lines
-    GPIOPinConfigure(GPIO_PN4_I2C2SDA);
-    GPIOPinConfigure(GPIO_PN5_I2C2SCL);
-    GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
-    GPIOPinTypeI2C(GPIO_PORTN_BASE, GPIO_PIN_4);
+    MAP_GPIOPinConfigure(GPIO_PN4_I2C2SDA);
+    MAP_GPIOPinConfigure(GPIO_PN5_I2C2SCL);
+    MAP_GPIOPinTypeI2CSCL(GPIO_PORTN_BASE, GPIO_PIN_5);
+    MAP_GPIOPinTypeI2C(GPIO_PORTN_BASE, GPIO_PIN_4);
 
-    I2CMasterEnable(MPU9250_I2C_BASE);
+    MAP_I2CMasterEnable(MPU9250_I2C_BASE);
 
     // Run I2C bus on 1MHz custom clock
-    I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
+    MAP_I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
     //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
     /*//  Taken from TivaWare library!
@@ -67,26 +69,26 @@ void HAL_MPU_Init(void((*custHook)(void)))
     ui32TPR = ((120000000 + (2 * 10 * 1000000) - 1) / (2 * 10 * 1000000)) - 1;
     HWREG(MPU9250_I2C_BASE + 0x00C) = ui32TPR;
     while (I2CMasterBusy(MPU9250_I2C_BASE));
-    I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);*/
+    MAP_I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);*/
 
     //  Configure interrupt pin to receive output
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
-    GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
-    GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+    MAP_GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
+    MAP_GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
     //  Set up an interrupt, and interrupt handler
     if (custHook != 0)
     {
-        GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
+        MAP_GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
         //  GPIOInterRegister internally calls IntEnable() function causing
         //  interrupt to trigger. Prevent this by first disabling interrupt
         //  with GPIOIntDis
         //userHook = custHook;
-        GPIOIntDisable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
+        MAP_GPIOIntDisable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
         GPIOIntRegister(GPIO_PORTA_BASE, custHook);
 
-        IntDisable(INT_GPIOA);
-        GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
+        MAP_IntDisable(INT_GPIOA);
+        MAP_GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
     }
 
     //HAL_TIM_Init();
@@ -99,16 +101,16 @@ void HAL_MPU_Init(void((*custHook)(void)))
  */
 void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterDataPut(MPU9250_I2C_BASE, data);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 }
 
 /**
@@ -119,14 +121,14 @@ void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
  */
 void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterDataPut(MPU9250_I2C_BASE, data);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
 }
 
 /**
@@ -139,24 +141,24 @@ void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t length, uint8_t *data)
 {
     uint16_t i;
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
     for (i = 0; i < (length-1); i++)
     {
-        I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
-        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
+        MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
+        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
         HAL_DelayUS(4);
-        while(I2CMasterBusy(MPU9250_I2C_BASE));
+        while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
     }
 
-    I2CMasterDataPut(MPU9250_I2C_BASE, data[length-1]);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data[length-1]);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
     return 0;
 }
@@ -172,17 +174,17 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
     uint32_t data, dummy = 0;
     UNUSED(dummy);  //Prevent unused-variable warning
 
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
-    data = I2CMasterDataGet(MPU9250_I2C_BASE);
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
+    data = MAP_I2CMasterDataGet(MPU9250_I2C_BASE);
 
     return (data & 0xFF);
 }
@@ -199,35 +201,35 @@ uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
 {
     uint16_t i;
 
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-    I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-    I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
+    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
+    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
-    I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
+    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
     if (length == 1)
-        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
+        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
     else
     {
-        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
+        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
         HAL_DelayUS(4);
-        while(I2CMasterBusy(MPU9250_I2C_BASE));
-        data[0] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+        while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
+        data[0] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
 
         for (i = 1; i < (length-1); i++)
         {
-            I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
+            MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
             HAL_DelayUS(4);
-            while(I2CMasterBusy(MPU9250_I2C_BASE));
-            data[i] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+            while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
+            data[i] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
         }
-        I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
+        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
     }
 
     HAL_DelayUS(4);
-    while(I2CMasterBusy(MPU9250_I2C_BASE));
-    data[length-1] = (uint8_t)(I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
+    data[length-1] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
 
     return 0;
 }
@@ -243,12 +245,12 @@ void HAL_MPU_IntEnable(bool enable)
     if (enable)
     {
         //HAL_TIM_Start(0);
-        IntEnable(INT_GPIOA);
+        MAP_IntEnable(INT_GPIOA);
     }
     else
     {
         //HAL_TIM_Stop();
-        IntDisable(INT_GPIOA);
+        MAP_IntDisable(INT_GPIOA);
     }
 }
 
@@ -260,8 +262,8 @@ void HAL_MPU_IntEnable(bool enable)
  */
 bool HAL_MPU_IntClear()
 {
-    uint32_t intStat = GPIOIntStatus(GPIO_PORTA_BASE, true);
-    GPIOIntClear(GPIO_PORTA_BASE, intStat);
+    uint32_t intStat = MAP_GPIOIntStatus(GPIO_PORTA_BASE, true);
+    MAP_GPIOIntClear(GPIO_PORTA_BASE, intStat);
 
     if ( (intStat & (GPIO_INT_PIN_5)) != GPIO_INT_PIN_5) return false;
     else return true;
@@ -281,10 +283,10 @@ void HAL_MPU_ISR(void)
 void HAL_TIM_Init()
 {
     /// Set up timer to measure period between two sensor measurements
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
-    TimerConfigure(TIMER7_BASE, TIMER_CFG_ONE_SHOT_UP);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
+    MAP_TimerConfigure(TIMER7_BASE, TIMER_CFG_ONE_SHOT_UP);
     /// Set up some big load that should never be reached (dT usually < 1s)
-    TimerLoadSet(TIMER7_BASE, TIMER_A, 2*g_ui32SysClock);
+    MAP_TimerLoadSet(TIMER7_BASE, TIMER_A, 2*g_ui32SysClock);
 }
 
 /**
@@ -296,7 +298,7 @@ void HAL_TIM_Start(uint32_t load)
     ///  Set load for Timer7, timer A
     HWREG(TIMER7_BASE + TIMER_O_TAV) = load;
     ///  Start timer
-    TimerEnable(TIMER7_BASE, TIMER_A);
+    MAP_TimerEnable(TIMER7_BASE, TIMER_A);
 }
 
 /**
@@ -304,7 +306,7 @@ void HAL_TIM_Start(uint32_t load)
  */
 void HAL_TIM_Stop()
 {
-    TimerDisable(TIMER7_BASE, TIMER_A);
+    MAP_TimerDisable(TIMER7_BASE, TIMER_A);
 }
 
 /**
@@ -313,7 +315,7 @@ void HAL_TIM_Stop()
  */
 uint32_t HAL_TIM_GetValue()
 {
-    return TimerValueGet(TIMER7_BASE, TIMER_A);
+    return MAP_TimerValueGet(TIMER7_BASE, TIMER_A);
 }
 
 /**

@@ -39,28 +39,28 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
     if (!pinInit)
     {
         //  Configure HW pins for UART and on/off signal
-        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
-        GPIOPinConfigure(GPIO_PC4_U7RX);
-        GPIOPinConfigure(GPIO_PC5_U7TX);
-        GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_4 | GPIO_PIN_5);
+        MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);
+        MAP_GPIOPinConfigure(GPIO_PC4_U7RX);
+        MAP_GPIOPinConfigure(GPIO_PC5_U7TX);
+        MAP_GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_4 | GPIO_PIN_5);
 
-        GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_6);
-        GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0x00);
+        MAP_GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_6);
+        MAP_GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0x00);
 
-        GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_7);
-        GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, 0xFF);
+        MAP_GPIOPinTypeGPIOOutput(GPIO_PORTC_BASE, GPIO_PIN_7);
+        MAP_GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_7, 0xFF);
 
         pinInit = true;
     }
 
     //    Configure UART 7 peripheral used for ESP communication
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
-    SysCtlPeripheralReset(SYSCTL_PERIPH_UART7);
-    UARTClockSourceSet(ESP8266_UART_BASE, UART_CLOCK_SYSTEM);
-    UARTConfigSetExpClk(ESP8266_UART_BASE, g_ui32SysClock, baud,
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_UART7);
+    MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_UART7);
+    MAP_UARTClockSourceSet(ESP8266_UART_BASE, UART_CLOCK_SYSTEM);
+    MAP_UARTConfigSetExpClk(ESP8266_UART_BASE, g_ui32SysClock, baud,
                         (UART_CONFIG_WLEN_8 | UART_CONFIG_STOP_ONE |
                          UART_CONFIG_PAR_NONE));
-    UARTEnable(ESP8266_UART_BASE);
+    MAP_UARTEnable(ESP8266_UART_BASE);
     HAL_DelayUS(50000);    //  50ms delay after configuring
 
     return HAL_OK;
@@ -72,13 +72,13 @@ uint32_t HAL_ESP_InitPort(uint32_t baud)
  */
 void HAL_ESP_RegisterIntHandler(void((*intHandler)(void)))
 {
-    UARTDisable(ESP8266_UART_BASE);
+    MAP_UARTDisable(ESP8266_UART_BASE);
     //  Enable Interrupt on received data
-    UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8, UART_FIFO_RX1_8 );
+    MAP_UARTFIFOLevelSet(ESP8266_UART_BASE,UART_FIFO_TX1_8, UART_FIFO_RX1_8 );
     UARTIntRegister(ESP8266_UART_BASE, intHandler);
-    UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
-    IntDisable(INT_UART7);
-    UARTEnable(ESP8266_UART_BASE);
+    MAP_UARTIntEnable(ESP8266_UART_BASE, UART_INT_RX | UART_INT_RT);
+    MAP_IntDisable(INT_UART7);
+    MAP_UARTEnable(ESP8266_UART_BASE);
 }
 
 /**
@@ -90,12 +90,12 @@ void HAL_ESP_HWEnable(bool enable)
     ///    After both actions add a delay to allow chip to settle
     if (!enable)
     {
-        GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0);
+        MAP_GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0);
         HAL_DelayUS(1000000);
     }
     else
     {
-        GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0xFF);
+        MAP_GPIOPinWrite(GPIO_PORTC_BASE, GPIO_PIN_6, 0xFF);
         HAL_DelayUS(2000000);
     }
 }
@@ -105,7 +105,7 @@ void HAL_ESP_HWEnable(bool enable)
  */
 bool HAL_ESP_IsHWEnabled()
 {
-    return ((GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_6) & GPIO_PIN_6) > 0);
+    return ((MAP_GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_6) & GPIO_PIN_6) > 0);
 }
 
 /**
@@ -114,8 +114,8 @@ bool HAL_ESP_IsHWEnabled()
  */
 void HAL_ESP_IntEnable(bool enable)
 {
-    if (enable) IntEnable(INT_UART7);
-    else IntDisable(INT_UART7);
+    if (enable) MAP_IntEnable(INT_UART7);
+    else MAP_IntDisable(INT_UART7);
 }
 
 /**
@@ -123,9 +123,9 @@ void HAL_ESP_IntEnable(bool enable)
  */
 int32_t HAL_ESP_ClearInt()
 {
-    uint32_t retVal = UARTIntStatus(ESP8266_UART_BASE, true);
+    uint32_t retVal = MAP_UARTIntStatus(ESP8266_UART_BASE, true);
     //  Clear all raised interrupt flags
-    UARTIntClear(ESP8266_UART_BASE, retVal);
+    MAP_UARTIntClear(ESP8266_UART_BASE, retVal);
     return retVal;
 }
 
@@ -136,12 +136,12 @@ int32_t HAL_ESP_ClearInt()
 void((*g_intHandler)(void));
 void HAL_ESP_InitWD(void((*intHandler)(void)))
 {
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
-    SysCtlPeripheralReset(SYSCTL_PERIPH_TIMER6);
-    TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER6);
+    MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_TIMER6);
+    MAP_TimerConfigure(TIMER6_BASE, TIMER_CFG_ONE_SHOT_UP);
     TimerIntRegister(TIMER6_BASE, TIMER_A, intHandler);
-    TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
-    IntEnable(INT_TIMER6A);
+    MAP_TimerIntEnable(TIMER6_BASE, TIMER_TIMA_TIMEOUT);
+    MAP_IntEnable(INT_TIMER6A);
     g_intHandler = intHandler;
 }
 
@@ -155,20 +155,20 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
     //  Record last value for timeout, use it when timeout argument is 0
     static uint32_t LTM;
     HAL_DelayUS(2);
-    TimerDisable(TIMER6_BASE, TIMER_A);
+    MAP_TimerDisable(TIMER6_BASE, TIMER_A);
 
     if (enable)
     {
         if (ms != 0)
         {
             HAL_ESP_InitWD(g_intHandler);
-            TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(ms));
+            MAP_TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(ms));
             LTM = ms;
 
         }
         else
-            TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
-        TimerEnable(TIMER6_BASE, TIMER_A);
+            MAP_TimerLoadSet(TIMER6_BASE, TIMER_A, _TM4CMsToCycles(LTM));
+        MAP_TimerEnable(TIMER6_BASE, TIMER_A);
     }
     else if (ms != 0)
     {
@@ -189,10 +189,10 @@ void HAL_ESP_WDControl(bool enable, uint32_t ms)
  */
 void HAL_ESP_WDClearInt()
 {
-    TimerIntClear(TIMER6_BASE, TimerIntStatus(TIMER6_BASE, true));
-    TimerDisable(TIMER6_BASE, TIMER_A);
+    MAP_TimerIntClear(TIMER6_BASE, MAP_TimerIntStatus(TIMER6_BASE, true));
+    MAP_TimerDisable(TIMER6_BASE, TIMER_A);
 
-    IntPendSet(INT_UART7);
+    MAP_IntPendSet(INT_UART7);
 }
 
 ///-----------------------------------------------------------------------------

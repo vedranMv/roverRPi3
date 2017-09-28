@@ -16,6 +16,8 @@
 #include "inc/hw_timer.h"
 #include "inc/hw_ints.h"
 
+#include "driverlib/rom_map.h"
+#include "driverlib/rom.h"
 #include "driverlib/sysctl.h"
 #include "driverlib/interrupt.h"
 #include "driverlib/timer.h"
@@ -45,10 +47,10 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
     if (1 > (periodMs*(g_ui32SysClock/1000)))
             return HAL_SYSTICK_PEROOR;
 
-    SysTickPeriodSet(periodMs*(g_ui32SysClock/1000));
+    MAP_SysTickPeriodSet(periodMs*(g_ui32SysClock/1000));
     SysTickIntRegister(custHook);
-    IntPrioritySet(FAULT_SYSTICK, 0);
-    SysTickIntEnable();
+    MAP_IntPrioritySet(FAULT_SYSTICK, 0);
+    MAP_SysTickIntEnable();
     _systickSet = true;
 
     _periodMS = periodMs;
@@ -62,7 +64,7 @@ uint8_t HAL_TS_InitSysTick(uint32_t periodMs,void((*custHook)(void)))
 uint8_t HAL_TS_StartSysTick()
 {
     if(_systickSet)
-        SysTickEnable();
+        MAP_SysTickEnable();
     else
         return HAL_SYSTICK_NOTSET_ERR;
 
@@ -75,7 +77,7 @@ uint8_t HAL_TS_StartSysTick()
 uint8_t HAL_TS_StopSysTick()
 {
     if(_systickSet)
-        SysTickDisable();
+        MAP_SysTickDisable();
     else
         return HAL_SYSTICK_NOTSET_ERR;
 
