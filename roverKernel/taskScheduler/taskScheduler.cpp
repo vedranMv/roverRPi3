@@ -387,8 +387,8 @@ void TaskScheduler::SyncTask(TaskEntry te) volatile
 #if defined(__DEBUG_SESSION2__)
         volatile uint32_t siz = _taskLog.size;
 #endif
-        //  Save pointer to newly added task so additional arguments can be appended
-        //  to it through AddArgs function call
+        //  Save pointer to newly added task so additional arguments can be
+        //  appended to it through AddArgs function call
         _lastIndex = _taskLog.AddSort(te);
 #if defined(__DEBUG_SESSION2__)
         if ((_taskLog.size-siz) != 1)
@@ -535,20 +535,20 @@ void TS_GlobalCheck(void)
         while((__taskSch.PeekFront()._timestamp <= msSinceStartup) &&
               (!__taskSch.IsEmpty()))
         {
-            //  Keep interrupts disabled when entering from loop
-            //IntMasterDisable();
             // Take out first entry to process it
             TaskEntry tE(__taskSch.PopFront());
 
-            //  If there's a period specified reschedule task
+            //  If we're going to repeat this task then it makes sense to
+            //  measure its performance, run task-start hook  and calculate new
+            //  starting time for this task
             if ((tE._period != 0) && (tE._repeats != 0))
             {
-                //  If using repeat counter decrease it
-                if (tE._repeats > 0)
-                    tE._repeats--;
-                //  Change time of execution based on period
+#ifdef _TS_PERF_ANALYSIS_
+                //  TODO: Timestep of 1ms for now hardcoded
+                tE._perf.TaskStartHook((uint64_t)msSinceStartup, tE._timestamp, HAL_TS_GetTimeStepMS());
+#endif
+                //  Change time of execution based on period (for next execution)
                 tE._timestamp = msSinceStartup + labs(tE._period);
-                __taskSch.SyncTask(tE);
             }
 
             // Check if module is registered in task scheduler
@@ -569,6 +569,20 @@ void TS_GlobalCheck(void)
 
             // Call kernel module to execute task
             __kernelVector[tE._libuid]->callBackFunc();
+
+            //  If there's a period specified, reschedule task
+            //  Run post-execution hook for calculating performance
+            if ((tE._period != 0) && (tE._repeats != 0))
+            {
+#ifdef _TS_PERF_ANALYSIS_
+                tE._perf.TaskEndHook((uint64_t)msSinceStartup);
+#endif
+                //  If using repeat counter decrease it
+                if (tE._repeats > 0)
+                    tE._repeats--;
+                //  Reschedule the task
+                __taskSch.SyncTask(tE);
+            }
         }
 }
 

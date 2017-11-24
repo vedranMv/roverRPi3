@@ -8,6 +8,7 @@
 #define ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_
 
 #include "libs/myLib.h"
+#include "tsMetric.h"
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
@@ -53,7 +54,9 @@ class TaskEntry
         //  will be repeated indefinitely. When == 0, task is killed.
         int32_t             _repeats;
         //  Unique process ID
-        volatile uint16_t _PID;
+        volatile uint16_t   _PID;
+        //  Performance data regarding the task
+        Performance         _perf;
 };
 
 #endif /* ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_ */

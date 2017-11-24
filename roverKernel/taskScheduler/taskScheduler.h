@@ -108,6 +108,14 @@ struct _kernelEntry
 #include "serialPort/uartHW.h"
 #endif
 
+//  Compiling with this definition will enable parts of TS code used to measure
+//  performance such as missed starting time, average execution time on task...
+#define _TS_PERF_ANALYSIS_
+
+#ifdef _TS_PERF_ANALYSIS_
+#include "tsMetric.h"
+#endif
+
 //  Internal time since TaskScheduler startup (in ms); Increased by SysTick
 //  interrupt. Every tick increases this variable by value passed as argument to
 //  TaskScheduler::InitHW() function. Can be as little as 1ms, but can be also

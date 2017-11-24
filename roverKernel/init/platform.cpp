@@ -248,6 +248,14 @@ void _PLAT_KernelCallback(void)
                 telemetryFrame += tostr<int32_t>(task->_period) + ":";
                 telemetryFrame += tostr<uint16_t>((uint16_t)task->_PID) + ":";
 
+                //  Task performance data
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.taskRuns) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.startTimeMissCnt) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.startTimeMissTot) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->_perf.msAcc) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.accRT) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->_perf.maxRT) + ":";
+
                 //  Send telemetry frame
                 __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
                                                telemetryFrame.length());
@@ -349,10 +357,10 @@ void Platform::InitHW()
     EventLog::GetI().RecordEvents(true);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
-    //  If using task scheduler get handle and start systick every 1ms
+    //  If using task scheduler get handle and start systick every 5ms
 #ifdef __HAL_USE_TASKSCH__
         ts = TaskScheduler::GetP();
-        ts->InitHW(1);
+        ts->InitHW(5);
 #endif
 
     //  Emit status of platform
@@ -378,6 +386,11 @@ void Platform::InitHW()
         //  connection is established (error handled by DataStream module)
         DataStream_InitHW();
         telemetry.BindToSocketID(P_TO_SOCK(P_TELEMETRY), true);
+
+        //  Delay binding second socket so that the two tasks have different
+        //  starting times, otherwise scheduler will be asked to execute them
+        //  Concurrently which ends up in one of the tasks missing its start time
+        HAL_DelayUS(20000); //  20ms delay
         commands.BindToSocketID(P_TO_SOCK(P_COMMANDS), true);
 #endif
 #ifdef __HAL_USE_ENGINES__
