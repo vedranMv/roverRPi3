@@ -1,10 +1,10 @@
 /**
- *  tsMetric.h
+ *  tsProfiler.h
  *
  *  Created on: 14.11.2017.
  *      Author: Vedran Mikov
  *
- *  Task scheduler performance metric extension
+ *  Task scheduler extension for profiling of tasks (measuring run-time statistics)
  *  @version 1.0
  *  V1.0
  *  +Creation of file, definition of class object for holding task-performance data
@@ -13,8 +13,8 @@
  *  into a 32-bit counter and dividing by number of runs
  */
 
-#ifndef ROVERKERNEL_TASKSCHEDULER_TSMETRIC_H_
-#define ROVERKERNEL_TASKSCHEDULER_TSMETRIC_H_
+#ifndef ROVERKERNEL_TASKSCHEDULER_TSPROFILER_H_
+#define ROVERKERNEL_TASKSCHEDULER_TSPROFILER_H_
 
 
 class Performance
@@ -124,4 +124,4 @@ class Performance
 };
 
 
-#endif /* ROVERKERNEL_TASKSCHEDULER_TSMETRIC_H_ */
+#endif /* ROVERKERNEL_TASKSCHEDULER_TSPROFILER_H_ */

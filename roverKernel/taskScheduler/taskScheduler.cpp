@@ -537,6 +537,7 @@ void TS_GlobalCheck(void)
         {
             // Take out first entry to process it
             TaskEntry tE(__taskSch.PopFront());
+            uint64_t tStart = (uint64_t)msSinceStartup;
 
             //  If we're going to repeat this task then it makes sense to
             //  measure its performance, run task-start hook  and calculate new
@@ -544,7 +545,6 @@ void TS_GlobalCheck(void)
             if ((tE._period != 0) && (tE._repeats != 0))
             {
 #ifdef _TS_PERF_ANALYSIS_
-                //  TODO: Timestep of 1ms for now hardcoded
                 tE._perf.TaskStartHook((uint64_t)msSinceStartup, tE._timestamp, HAL_TS_GetTimeStepMS());
 #endif
                 //  Change time of execution based on period (for next execution)

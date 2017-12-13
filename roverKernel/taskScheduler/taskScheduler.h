@@ -113,7 +113,7 @@ struct _kernelEntry
 #define _TS_PERF_ANALYSIS_
 
 #ifdef _TS_PERF_ANALYSIS_
-#include "tsMetric.h"
+#include "tsProfiler.h"
 #endif
 
 //  Internal time since TaskScheduler startup (in ms); Increased by SysTick

@@ -8,7 +8,7 @@
 #define ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_
 
 #include "libs/myLib.h"
-#include "tsMetric.h"
+#include "tsProfiler.h"
 
 /**
  * _taksEntry class - object wrapper for tasks handled by TaskScheduler class
