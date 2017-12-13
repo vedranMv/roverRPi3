@@ -360,7 +360,7 @@ void Platform::InitHW()
     //  If using task scheduler get handle and start systick every 5ms
 #ifdef __HAL_USE_TASKSCH__
         ts = TaskScheduler::GetP();
-        ts->InitHW(5);
+        ts->InitHW(1);
 #endif
 
     //  Emit status of platform

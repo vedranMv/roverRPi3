@@ -174,13 +174,12 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
-            //  Sensitive task - accessing MPU instance, disable all interrupts
-            __mpu.Listen(false);
-            HAL_DelayUS(5);
+
             if (__mpu._dataFlag)
             {
-                //  Sensitive task done, enable MPU interrupt again
-                __mpu.Listen(true);
+                //  Sensitive task - accessing MPU, disable all interrupts
+                __mpu.Listen(false);
+                HAL_DelayUS(5);
 
                 int8_t retVal;
                 short gyro[3], accel[3], sensors;
@@ -247,14 +246,15 @@ void _MPU_KernelCallback(void)
 
                 }
 
-                //  If there was only one packet in FIFI, and it caused error,
+                //  If there was only one packet in FIFO, and it caused error,
                 //  then emit hang
                 if ((retVal != 0) && (cnt == 1))
                 {
                     //  Use emitting event to also report error code through
                     //  taskID parameter
             #ifdef __HAL_USE_EVENTLOG__
-                    EMIT_EV(retVal, EVENT_HANG);
+                    //Doesn't quite work - emits hang on every loop cycle
+                    //EMIT_EV(retVal, EVENT_HANG);
             #endif  /* __HAL_USE_EVENTLOG__ */
                     return;
                 }
@@ -278,10 +278,10 @@ void _MPU_KernelCallback(void)
                 __mpu._dataFlag = false;
 
                 sumOfRot = fabs(__mpu._ypr[0]) + fabs(__mpu._ypr[1]) + fabs(__mpu._ypr[2]);
-            }
 
-            //  Sensitive task done, enable MPU interrupt again
-            __mpu.Listen(true);
+                //  Sensitive task done, enable MPU interrupt again
+                __mpu.Listen(true);
+            }
 
         }
         break;
@@ -367,8 +367,7 @@ MPU9250* MPU9250::GetP()
  * Initializes I2C bus for communication with MPU (SDA - PN4, SCL - PN5), bus
  * frequency 1MHz, connection timeout: 100ms. Initializes interrupt pin(PA5)
  * to be toggled by MPU9250 when it has data available for reading (PA5 is
- * push-pull pin with weak pull down and 10mA strength). Initializes Timer 7 to
- * count time between 2 sensor measurements, to measure dT.
+ * push-pull pin with weak pull down and 10mA strength).
  * @return One of MPU_* error codes
  */
 int8_t MPU9250::InitHW()
@@ -379,12 +378,19 @@ int8_t MPU9250::InitHW()
 }
 
 /**
- * Initialize MPU sensor, load DMP firmware and configure DMP output
+ * Initialize MPU sensor, load DMP firmware and configure DMP output. Prior to
+ * any software initialization, this function power-cycles the board
  * @return One of MPU_* error codes
  */
 int8_t MPU9250::InitSW()
 {
     int result;
+
+    //  Power cycle MPU chip on every SW initialization
+    HAL_MPU_PowerSwitch(false);
+    HAL_DelayUS(20000);
+    HAL_MPU_PowerSwitch(true);
+    HAL_DelayUS(30000);
 
     //  Emit event before initializing module
 #ifdef __HAL_USE_EVENTLOG__
@@ -572,6 +578,9 @@ void MPUDataHandler(void)
 
     //  Raise new-data flag
     __mpu._dataFlag = true;
+    //  Prevent making new interrupts until this data has been handled
+    //  ->Interrupt re-eanbled once data is read
+    __mpu.Listen(false);
 }
 
 #endif  /* __HAL_USE_MPU9250__ */

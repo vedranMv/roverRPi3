@@ -44,6 +44,7 @@ void HAL_MPU_Init(void((*custHook)(void)))
     //uint32_t ui32TPR;
 
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
     MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_I2C2);
 
@@ -57,19 +58,10 @@ void HAL_MPU_Init(void((*custHook)(void)))
 
     // Run I2C bus on 1MHz custom clock
     MAP_I2CMasterInitExpClk(MPU9250_I2C_BASE, g_ui32SysClock, true);
-    //I2CMasterGlitchFilterConfigSet(MPU9250_I2C_BASE, I2C_MASTER_GLITCH_FILTER_8);
 
-    /*//  Taken from TivaWare library!
-    //
-    // Compute the clock divider that achieves the fastest speed less than or
-    // equal to the desired speed.  The numerator is biased to favor a larger
-    // clock divider so that the resulting clock is always less than or equal
-    // to the desired clock, never greater.
-    //
-    ui32TPR = ((120000000 + (2 * 10 * 1000000) - 1) / (2 * 10 * 1000000)) - 1;
-    HWREG(MPU9250_I2C_BASE + 0x00C) = ui32TPR;
-    while (I2CMasterBusy(MPU9250_I2C_BASE));
-    MAP_I2CMasterTimeoutSet(MPU9250_I2C_BASE, g_ui32SysClock/10);*/
+    //  Configure power-switch pin
+    MAP_GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_4);
+    MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 
     //  Configure interrupt pin to receive output
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
@@ -90,8 +82,19 @@ void HAL_MPU_Init(void((*custHook)(void)))
         MAP_IntDisable(INT_GPIOA);
         MAP_GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
     }
+}
 
-    //HAL_TIM_Init();
+/**
+ * Control power-switch for MPU9250
+ * Controls whether or not MPU sensors receives power (n-ch MOSFET as switch)
+ * @param powerState desired state of power switch (active high)
+ */
+void HAL_MPU_PowerSwitch(bool powerState)
+{
+    if (powerState)
+        GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0xFF);
+    else
+        GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 }
 /**
  * Write one byte of data to I2C bus and wait until transmission is over (blocking)
@@ -267,63 +270,5 @@ bool HAL_MPU_IntClear()
 
     if ( (intStat & (GPIO_INT_PIN_5)) != GPIO_INT_PIN_5) return false;
     else return true;
-}
-/*
-void HAL_MPU_ISR(void)
-{
-    HAL_MPU_IntClear();
-    if (userHook != 0)
-        userHook();
-}*/
-
-/**
- * Initialize timer used to precisely measure time interval between two sensor
- * measurements (dt constant used for integration of MPU data)
- */
-void HAL_TIM_Init()
-{
-    /// Set up timer to measure period between two sensor measurements
-    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER7);
-    MAP_TimerConfigure(TIMER7_BASE, TIMER_CFG_ONE_SHOT_UP);
-    /// Set up some big load that should never be reached (dT usually < 1s)
-    MAP_TimerLoadSet(TIMER7_BASE, TIMER_A, 2*g_ui32SysClock);
-}
-
-/**
- * Start the timer to count up from a specified load value
- * @param load desired load value from which to start counting up
- */
-void HAL_TIM_Start(uint32_t load)
-{
-    ///  Set load for Timer7, timer A
-    HWREG(TIMER7_BASE + TIMER_O_TAV) = load;
-    ///  Start timer
-    MAP_TimerEnable(TIMER7_BASE, TIMER_A);
-}
-
-/**
- * Stop timer
- */
-void HAL_TIM_Stop()
-{
-    MAP_TimerDisable(TIMER7_BASE, TIMER_A);
-}
-
-/**
- * Get current value of the timer's internal counter
- * @return value of timer's internal counter
- */
-uint32_t HAL_TIM_GetValue()
-{
-    return MAP_TimerValueGet(TIMER7_BASE, TIMER_A);
-}
-
-/**
- * Get time it passed from starting the timer converted in seconds
- * @return seconds passed form starting up the timer
- */
-float HAL_TIM_GetS()
-{
-    return (float)HAL_TIM_GetValue()/((float)g_ui32SysClock);
 }
 #endif /* __HAL_USE_MPU9250__ */

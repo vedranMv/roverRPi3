@@ -4,7 +4,7 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran Mikov
  *
- *  @version V3.0.3
+ *  @version V3.0.4
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
  *  V1.1 - 25.6.2016
@@ -25,6 +25,9 @@
  *  V3.0.3 - 21.9.2017
  *  *Fixed FIFO overflow error in MPU causing occasional glitches when reading
  *  sensor data
+ *  V3.0.4 - 13.12.2017
+ *  +HAL and hardware support power cycling of MPU. Added power-cycle step in
+ *  initialization routine of MPU
  */
 #include "hwconfig.h"
 

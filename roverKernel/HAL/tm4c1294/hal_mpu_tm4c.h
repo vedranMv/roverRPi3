@@ -7,7 +7,7 @@
  ****Hardware dependencies:
  *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
  *      GPIO PA5 - Data available interrupt
- *      Timer 7 - Measure time between two consecutive sensor measurements
+ *      GPIO PL4 - Power switch for MPU (active high)
  */
 #include "hwconfig.h"
 
@@ -22,6 +22,7 @@ extern "C"
 
 /**     MPU9250(I2C) - related HW API       */
     extern void        HAL_MPU_Init(void((*custHook)(void)));
+    extern void        HAL_MPU_PowerSwitch(bool powerState);
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
     extern void        HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress,
@@ -33,12 +34,6 @@ extern "C"
                                          uint16_t length, uint8_t* data);
     extern void        HAL_MPU_IntEnable(bool enable);
     extern bool        HAL_MPU_IntClear();
-/**     MPU9250(timer) - related API    */
-//    extern void        HAL_TIM_Init();
-//    extern void        HAL_TIM_Start(uint32_t load);
-//    extern void        HAL_TIM_Stop();
-//    extern uint32_t    HAL_TIM_GetValue();
-//    extern float       HAL_TIM_GetS();
 
 #ifdef __cplusplus
 }
