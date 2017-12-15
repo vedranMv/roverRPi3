@@ -28,6 +28,8 @@
  *  V3.0.4 - 13.12.2017
  *  +HAL and hardware support power cycling of MPU. Added power-cycle step in
  *  initialization routine of MPU
+ *  -Removed interrupt-based sensor readings; Polling sensor from scheduler
+ *  -Removed 'listen' functionality
  */
 #include "hwconfig.h"
 
@@ -49,7 +51,7 @@
     //  Unique identifier of this module as registered in task scheduler
     #define MPU_UID             3
     //  Definitions of ServiceID for service offered by this module
-    #define MPU_T_LISTEN          0
+    #define MPU_T_POWERSW         0
     #define MPU_T_GET_DATA        1
     #define MPU_T_REBOOT          2
     #define MPU_T_SOFT_REBOOT     3
@@ -78,8 +80,6 @@ class MPU9250
         bool    IsDataReady();
         uint8_t GetID();
 
-        void    Listen(bool enable);
-
         void    AddHook(void((*custHook)(uint8_t,float*)));
         void    RPY(float* RPY, bool inDeg);
         void    Acceleration(float *acc);
@@ -94,8 +94,7 @@ class MPU9250
         MPU9250(MPU9250 &arg) {}              //  No definition - forbid this
         void operator=(MPU9250 const &arg) {} //  No definition - forbid this
 
-        //  States whether we're listening for MPU interrupts
-        bool           _listen;
+
         //  Orientation in quaternions in sensor units
         volatile float _quat[4];
         //  Yaw-Pitch-Roll orientation[Y,P,R] in radians

@@ -357,7 +357,7 @@ void Platform::InitHW()
     EventLog::GetI().RecordEvents(true);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
-    //  If using task scheduler get handle and start systick every 5ms
+    //  If using task scheduler get handle and start systick every 1ms
 #ifdef __HAL_USE_TASKSCH__
         ts = TaskScheduler::GetP();
         ts->InitHW(1);
@@ -507,9 +507,7 @@ void Platform::Execute(const uint8_t* buf, const uint16_t len, int *err)
 void Platform::_PostInit()
 {
 #ifdef __HAL_USE_MPU9250__
-    //  Start listening for sensor data, create periodic task that will check
-    //  sensor data-flag for new data
-    mpu->Listen(true);
+    //  Create periodic task that will read sensor data
     ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -20, 20, T_PERIODIC);
 #endif
 

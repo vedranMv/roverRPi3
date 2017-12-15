@@ -64,24 +64,11 @@ void HAL_MPU_Init(void((*custHook)(void)))
     MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 
     //  Configure interrupt pin to receive output
+    //      (not used as actual interrupts)
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     MAP_GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
     MAP_GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
-    //  Set up an interrupt, and interrupt handler
-    if (custHook != 0)
-    {
-        MAP_GPIOIntTypeSet(GPIO_PORTA_BASE, GPIO_INT_PIN_5, GPIO_FALLING_EDGE);
-        //  GPIOInterRegister internally calls IntEnable() function causing
-        //  interrupt to trigger. Prevent this by first disabling interrupt
-        //  with GPIOIntDis
-        //userHook = custHook;
-        MAP_GPIOIntDisable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
-        GPIOIntRegister(GPIO_PORTA_BASE, custHook);
-
-        MAP_IntDisable(INT_GPIOA);
-        MAP_GPIOIntEnable(GPIO_PORTA_BASE, GPIO_INT_PIN_5);
-    }
 }
 
 /**
@@ -92,9 +79,9 @@ void HAL_MPU_Init(void((*custHook)(void)))
 void HAL_MPU_PowerSwitch(bool powerState)
 {
     if (powerState)
-        GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0xFF);
+        MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0xFF);
     else
-        GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
+        MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 }
 /**
  * Write one byte of data to I2C bus and wait until transmission is over (blocking)
@@ -238,37 +225,11 @@ uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
 }
 
 /**
- * Enable pin interrupt used by MPU to signal it has new data available. If
- * interrupt is enabled means a data is expected therefore a timer is started as
- * well to measure time interval between two sensor measurements.
- * @param enable boolean value with new state (1-enable or 0-disable)
+ * Check if MPU has raised interrupt to notify it has new data ready
+ * @return true if interrupt pin is active, false otherwise
  */
-void HAL_MPU_IntEnable(bool enable)
+bool HAL_MPU_DataAvail()
 {
-    if (enable)
-    {
-        //HAL_TIM_Start(0);
-        MAP_IntEnable(INT_GPIOA);
-    }
-    else
-    {
-        //HAL_TIM_Stop();
-        MAP_IntDisable(INT_GPIOA);
-    }
-}
-
-/**
- * Clear all raised interrupts on port A (pin interrupt by MPU) and return true
- * if interrupt occurred on pin 5 (used by MPU)
- * @return true: if interrupt was raised by pin 5 on port A
- *        false: otherwise
- */
-bool HAL_MPU_IntClear()
-{
-    uint32_t intStat = MAP_GPIOIntStatus(GPIO_PORTA_BASE, true);
-    MAP_GPIOIntClear(GPIO_PORTA_BASE, intStat);
-
-    if ( (intStat & (GPIO_INT_PIN_5)) != GPIO_INT_PIN_5) return false;
-    else return true;
+    return (MAP_GPIOPinRead(GPIO_PORTA_BASE, GPIO_PIN_5) != 0);
 }
 #endif /* __HAL_USE_MPU9250__ */

@@ -153,16 +153,23 @@ void _MPU_KernelCallback(void)
     switch (__mpu._mpuKer.serviceID)
     {
     /*
-     * Toggle listening for MPU interrupts
-     * args[] = listen(bool)
+     * Change state of the power switch. Allows for powering down MPU chip
+     * args[] = powerState(bool)
      * retVal one of MPU_* error codes
      */
-    case MPU_T_LISTEN:
+    case MPU_T_POWERSW:
         {
             //  Double negation to convert any non-zero int to bool
-            bool listen = !(!(__mpu._mpuKer.args[0]));
+            bool powerState = !(!(__mpu._mpuKer.args[0]));
 
-            __mpu.Listen(listen);
+            HAL_MPU_PowerSwitch(powerState);
+
+            //  If sensor is powering on reset I2C and load DMP firmware
+            if (powerState)
+            {
+                __mpu.InitHW();
+                __mpu.InitSW();
+            }
             __mpu._mpuKer.retVal = MPU_SUCCESS;
         }
         break;
@@ -174,13 +181,10 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
+            static bool suppressError = false;
 
-            if (__mpu._dataFlag)
+            if (HAL_MPU_DataAvail())
             {
-                //  Sensitive task - accessing MPU, disable all interrupts
-                __mpu.Listen(false);
-                HAL_DelayUS(5);
-
                 int8_t retVal;
                 short gyro[3], accel[3], sensors;
                 unsigned char more = 1;
@@ -209,10 +213,17 @@ void _MPU_KernelCallback(void)
                 int cnt = 0;
                 //  Make sure the fifo is empty before leaving this loop, in
                 //  order to prevent fifo overflow on consecutive sensor reading
-                while (more != 0)
+                while (cnt < 100)   //Read max 100 packets, if there's more we
+                                    //   have a problem
                 {
                     retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
                     cnt++;
+
+                    if (sensors == 0)   //No data available
+                    {
+                        __mpu._mpuKer.retVal = MPU_SUCCESS;
+                        break;
+                    }
 
                     //  If reading fifo returned error, move to next packet
                     if (retVal)
@@ -243,18 +254,16 @@ void _MPU_KernelCallback(void)
                     __mpu._acc[0] = (float)accel[0]/32767.0;
                     __mpu._acc[1] = (float)accel[1]/32767.0;
                     __mpu._acc[2] = (float)accel[2]/32767.0;
-
                 }
 
                 //  If there was only one packet in FIFO, and it caused error,
                 //  then emit hang
-                if ((retVal != 0) && (cnt == 1))
+                if ((retVal != 0) && (cnt == 1) && (sensors != 0))
                 {
                     //  Use emitting event to also report error code through
                     //  taskID parameter
             #ifdef __HAL_USE_EVENTLOG__
-                    //Doesn't quite work - emits hang on every loop cycle
-                    //EMIT_EV(retVal, EVENT_HANG);
+                    EMIT_EV(retVal, EVENT_HANG);
             #endif  /* __HAL_USE_EVENTLOG__ */
                     return;
                 }
@@ -265,23 +274,30 @@ void _MPU_KernelCallback(void)
                           fabs(__mpu._ypr[2])) > 0.5) && (sumOfRot != 0.0))
                 {
                     //  Emit error event to the system if consecutive sensor
-                    //   readings are too far off
+                    //   readings are too far off and suppress
+                    if (!suppressError)
+                    {
 #ifdef __HAL_USE_EVENTLOG__
                     EMIT_EV(MPU_T_GET_DATA, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
                     __mpu._mpuKer.retVal = MPU_ERROR;
+                    }
                 }
                 else
+                {
                     __mpu._mpuKer.retVal = MPU_SUCCESS;
+                    __mpu._dataFlag = true;
+                }
 
-                //  Clear flag
-                __mpu._dataFlag = false;
-
+                //  Update sum of rotations for next function call
                 sumOfRot = fabs(__mpu._ypr[0]) + fabs(__mpu._ypr[1]) + fabs(__mpu._ypr[2]);
-
-                //  Sensitive task done, enable MPU interrupt again
-                __mpu.Listen(true);
+                suppressError = false;
             }
+            else
+                //  When not listening to sensor readings for a while, it is
+                //  possible to have a big change in readings when starting to
+                //  listen again, in that case first error message is suppressed
+                suppressError = true;
 
         }
         break;
@@ -296,6 +312,7 @@ void _MPU_KernelCallback(void)
             {
                 sumOfRot = 0.0; //Prevents error for big change in value after reboot
                 __mpu.Reset();
+                __mpu.InitHW();
                 __mpu._mpuKer.retVal = (int32_t)__mpu.InitSW();
             }
         }
@@ -365,14 +382,14 @@ MPU9250* MPU9250::GetP()
 /**
  * Initialize hardware used by MPU9250
  * Initializes I2C bus for communication with MPU (SDA - PN4, SCL - PN5), bus
- * frequency 1MHz, connection timeout: 100ms. Initializes interrupt pin(PA5)
+ * frequency 1MHz, connection timeout: 100ms. Initializes pin(PA5)
  * to be toggled by MPU9250 when it has data available for reading (PA5 is
  * push-pull pin with weak pull down and 10mA strength).
  * @return One of MPU_* error codes
  */
 int8_t MPU9250::InitHW()
 {
-    HAL_MPU_Init(MPUDataHandler);
+    HAL_MPU_Init();
 
     return MPU_SUCCESS;
 }
@@ -503,16 +520,6 @@ uint8_t MPU9250::GetID()
 }
 
 /**
- * Listen for new sensor measurements by enabling/disabling sensor interrupt pin
- * @param enable new status of sensor interrupt
- */
-void MPU9250::Listen(bool enable)
-{
-    HAL_MPU_IntEnable(enable);
-    _listen = enable;
-}
-
-/**
  * Add hook to user-defined function to be called once new sensor
  * data has been received
  * @param custHook pointer to function with two float args (accel & gyro array)
@@ -550,7 +557,7 @@ void MPU9250::Acceleration(float *acc)
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
-MPU9250::MPU9250() : _listen(0), dT(0), _dataFlag(false), userHook(0)
+MPU9250::MPU9250() :  dT(0), _dataFlag(false), userHook(0)
 {
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_UNINITIALIZED);
@@ -559,28 +566,5 @@ MPU9250::MPU9250() : _listen(0), dT(0), _dataFlag(false), userHook(0)
 
 MPU9250::~MPU9250()
 {}
-
-
-///-----------------------------------------------------------------------------
-///         ISR executed whenever MPU toggles a data-ready pin         [PRIVATE]
-///-----------------------------------------------------------------------------
-
-/**
- * On interrupt pin going high(PA2) this function gets called and does:
- *  1. Clear TM4C interrupt status
- *  2. Set data-ready flag
- */
-void MPUDataHandler(void)
-{
-    MPU9250 &__mpu = MPU9250::GetI();
-
-    HAL_MPU_IntClear();
-
-    //  Raise new-data flag
-    __mpu._dataFlag = true;
-    //  Prevent making new interrupts until this data has been handled
-    //  ->Interrupt re-eanbled once data is read
-    __mpu.Listen(false);
-}
 
 #endif  /* __HAL_USE_MPU9250__ */

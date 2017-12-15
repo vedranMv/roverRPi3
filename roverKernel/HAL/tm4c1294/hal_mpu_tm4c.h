@@ -6,7 +6,7 @@
  *
  ****Hardware dependencies:
  *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
- *      GPIO PA5 - Data available interrupt
+ *      GPIO PA5 - Data available interrupt pin (normal input, not interrupt pin)
  *      GPIO PL4 - Power switch for MPU (active high)
  */
 #include "hwconfig.h"
@@ -21,7 +21,7 @@ extern "C"
 #endif
 
 /**     MPU9250(I2C) - related HW API       */
-    extern void        HAL_MPU_Init(void((*custHook)(void)));
+    extern void        HAL_MPU_Init();
     extern void        HAL_MPU_PowerSwitch(bool powerState);
     extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
                                          uint8_t data);
@@ -32,8 +32,7 @@ extern "C"
     extern int8_t      HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress);
     extern uint8_t     HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
                                          uint16_t length, uint8_t* data);
-    extern void        HAL_MPU_IntEnable(bool enable);
-    extern bool        HAL_MPU_IntClear();
+    extern bool        HAL_MPU_DataAvail();
 
 #ifdef __cplusplus
 }
