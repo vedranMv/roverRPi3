@@ -12,7 +12,7 @@
 #include "hwconfig.h"
 
 //  Compile following section only if hwconfig.h says to include this module
-#if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_MPU_TM4C_H_) && defined(__HAL_USE_MPU9250_NOSPI__)
+#if !defined(ROVERKERNEL_HAL_TM4C1294_HAL_MPU_TM4C_H_) && defined(__HAL_USE_MPU9250_SPI__)
 #define ROVERKERNEL_HAL_TM4C1294_HAL_MPU_TM4C_H_
 
 #ifdef __cplusplus

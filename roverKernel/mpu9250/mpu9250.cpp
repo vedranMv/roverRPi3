@@ -16,7 +16,7 @@
 #include "eMPL/inv_mpu_dmp_motion_driver.h"
 
 //  Enable debug information printed on serial port
-//#define __DEBUG_SESSION__
+#define __DEBUG_SESSION__
 
 //  Sensitivity of sensor while outputting quaternions
 #define QUAT_SENS  1073741824.0f
@@ -182,6 +182,13 @@ void _MPU_KernelCallback(void)
     case MPU_T_GET_DATA:
         {
             static bool suppressError = false;
+
+#ifdef __DEBUG_SESSION__
+    DEBUG_WRITE("In ISR\n");
+    uint8_t id = (uint8_t)HAL_MPU_ReadByte(0x00, 117);
+    DEBUG_WRITE("  My ID is: %d\n", id);
+    return;
+#endif
 
             if (HAL_MPU_DataAvail())
             {
@@ -390,6 +397,7 @@ MPU9250* MPU9250::GetP()
 int8_t MPU9250::InitHW()
 {
     HAL_MPU_Init();
+    HAL_MPU_PowerSwitch(true);
 
     return MPU_SUCCESS;
 }

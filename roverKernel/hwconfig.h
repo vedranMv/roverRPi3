@@ -32,10 +32,15 @@
  */
 #define __HAL_USE_ESP8266__
 #define __HAL_USE_ENGINES__
+//#define __HAL_USE_MPU9250_NOSPI__
+#define __HAL_USE_MPU9250_SPI__
 #define __HAL_USE_RADAR__
-#define __HAL_USE_MPU9250__
 #define __HAL_USE_TASKSCH__
 #define __HAL_USE_EVENTLOG__
+
+#if defined(__HAL_USE_MPU9250_SPI__) || defined(__HAL_USE_MPU9250_NOSPI__)
+    #define __HAL_USE_MPU9250__
+#endif
 
 //  Define number of modules in the kernel (used to initialize memory space)
 #define NUM_OF_MODULES  10

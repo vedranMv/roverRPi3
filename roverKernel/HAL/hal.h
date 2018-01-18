@@ -18,7 +18,7 @@
 #ifdef __BOARD_TM4C1294NCPDT__
 
     #include "tm4c1294/hal_common_tm4c.h"
-    #include "tm4c1294/hal_mpu_tm4c.h"
+    #include "tm4c1294/hal_mpuSpi_tm4c.h"
     #include "tm4c1294/hal_esp_tm4c.h"
     #include "tm4c1294/hal_radar_tm4c.h"
     #include "tm4c1294/hal_ts_tm4c.h"

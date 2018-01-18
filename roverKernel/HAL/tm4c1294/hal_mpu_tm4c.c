@@ -6,7 +6,7 @@
  */
 #include "hal_mpu_tm4c.h"
 
-#if defined(__HAL_USE_MPU9250__)       //  Compile only if module is enabled
+#if defined(__HAL_USE_MPU9250_NOSPI__)       //  Compile only if module is enabled
 
 #include "libs/myLib.h"
 #include "HAL/tm4c1294/hal_common_tm4c.h"
@@ -232,4 +232,4 @@ bool HAL_MPU_DataAvail()
 {
     return (MAP_GPIOPinRead(GPIO_PORTA_BASE, GPIO_PIN_5) != 0);
 }
-#endif /* __HAL_USE_MPU9250__ */
+#endif /* __HAL_USE_MPU9250_NOSPI__ */
