@@ -396,12 +396,12 @@ void Platform::InitHW()
 #ifdef __HAL_USE_ENGINES__
         eng = EngineData::GetP();
         eng->SetVehSpec(7.0f, 14.3f, 25.0f, 40);
-        //eng->InitHW();
+        eng->InitHW();
 #endif
 #ifdef __HAL_USE_MPU9250__
         mpu = MPU9250::GetP();
         mpu->InitHW();
-        //mpu->InitSW();
+        mpu->InitSW();
 #endif
 #ifdef __HAL_USE_RADAR__
         rad = RadarModule::GetP();
@@ -508,7 +508,7 @@ void Platform::_PostInit()
 {
 #ifdef __HAL_USE_MPU9250__
     //  Create periodic task that will read sensor data
-    ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -20, 2000, T_PERIODIC);
+    ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -20, 20, T_PERIODIC);
 #endif
 
     //  Schedule periodic telemetry sending every 1s

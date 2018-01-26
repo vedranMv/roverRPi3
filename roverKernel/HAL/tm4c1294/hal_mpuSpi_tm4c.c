@@ -104,23 +104,13 @@ void HAL_MPU_PowerSwitch(bool powerState)
 void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
     uint32_t dummy[1];
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
     regAddress = regAddress & 0x7F; //  MSB = 0 for writing operation
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
     HAL_DelayUS(1);
-    SSIDataPut(SSI0_BASE, regAddress);
-    SSIDataPut(SSI0_BASE, data);
-    while(SSIBusy(SSI0_BASE));
+    SSIDataPut(SSI2_BASE, regAddress);
+    SSIDataPut(SSI2_BASE, data);
+    while(SSIBusy(SSI2_BASE));
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
 
     while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
@@ -134,14 +124,17 @@ void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
  */
 void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
+    uint32_t dummy[1];
+
+    regAddress = regAddress & 0x7F; //  MSB = 0 for writing operation
+    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
+    HAL_DelayUS(1);
+    SSIDataPutNonBlocking(SSI2_BASE, regAddress);
+    SSIDataPutNonBlocking(SSI2_BASE, data);
+    while(SSIBusy(SSI2_BASE));
+    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
+
+    while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
 }
 
 /**
@@ -155,34 +148,16 @@ uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t len
 {
     uint16_t i;
     uint32_t dummy[1];
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//
-//    for (i = 0; i < (length-1); i++)
-//    {
-//        MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data[i]);
-//        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_CONT);
-//        HAL_DelayUS(4);
-//        while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//    }
-//
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, data[length-1]);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_FINISH);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
 
     regAddress = regAddress & 0x7F; //  MSB = 0 for writing operation
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
     HAL_DelayUS(1);
-    SSIDataPut(SSI0_BASE, regAddress);
+    SSIDataPut(SSI2_BASE, regAddress);
 
-    for (i = 0; i < (length-1); i++)
-        SSIDataPut(SSI0_BASE, data[i]);
+    for (i = 0; i < length; i++)
+        SSIDataPut(SSI2_BASE, data[i]);
 
-    while(SSIBusy(SSI0_BASE));
+    while(SSIBusy(SSI2_BASE));
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
 
     while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
@@ -199,30 +174,17 @@ uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t len
 int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
     uint32_t dummy[1], data;
-//    uint32_t data, dummy = 0;
-//    UNUSED(dummy);  //Prevent unused-variable warning
 
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//    data = MAP_I2CMasterDataGet(MPU9250_I2C_BASE);
-
-    regAddress = regAddress | 0x80; //  MSB = 0 for writing operation
+    regAddress = regAddress | 0x80; //  MSB = 1 for reading operation
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
     HAL_DelayUS(1);
 
-    SSIDataPut(SSI0_BASE, regAddress);
-    SSIDataPut(SSI0_BASE, 0x00);
-    SSIDataGet(SSI0_BASE, &data);
+    SSIDataPut(SSI2_BASE, regAddress);
+    SSIDataGet(SSI2_BASE, &dummy[0]);
+    SSIDataPut(SSI2_BASE, 0x00);
+    SSIDataGet(SSI2_BASE, &data);
 
-    while(SSIBusy(SSI0_BASE));
+    while(SSIBusy(SSI2_BASE));
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
 
     while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
@@ -241,36 +203,27 @@ uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
                        uint16_t length, uint8_t* data)
 {
     uint16_t i;
+    uint32_t dummy[1];
 
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, false);
-//    MAP_I2CMasterDataPut(MPU9250_I2C_BASE, regAddress);
-//    MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_SEND_START);
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//
-//    MAP_I2CMasterSlaveAddrSet(MPU9250_I2C_BASE, I2Caddress, true);
-//    if (length == 1)
-//        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_SINGLE_RECEIVE);
-//    else
-//    {
-//        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_START);
-//        HAL_DelayUS(4);
-//        while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//        data[0] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
-//
-//        for (i = 1; i < (length-1); i++)
-//        {
-//            MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_CONT);
-//            HAL_DelayUS(4);
-//            while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//            data[i] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
-//        }
-//        MAP_I2CMasterControl(MPU9250_I2C_BASE, I2C_MASTER_CMD_BURST_RECEIVE_FINISH);
-//    }
-//
-//    HAL_DelayUS(4);
-//    while(MAP_I2CMasterBusy(MPU9250_I2C_BASE));
-//    data[length-1] = (uint8_t)(MAP_I2CMasterDataGet(MPU9250_I2C_BASE) & 0xFF);
+    regAddress = regAddress | 0x80; //  MSB = 1 for reading operation
+    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
+    HAL_DelayUS(1);
+
+    SSIDataPut(SSI2_BASE, regAddress);
+    SSIDataGet(SSI2_BASE, &dummy[0]);
+
+    for (i = 0; i < length; i++)
+    {
+        uint32_t tmp;
+        SSIDataPut(SSI2_BASE, 0x00);
+        SSIDataGet(SSI2_BASE, &tmp);
+        data[i] = tmp & 0xFF;
+    }
+
+    while(SSIBusy(SSI2_BASE));
+    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
+
+    while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
 
     return 0;
 }

@@ -6,7 +6,7 @@
  */
 #include "mpu9250.h"
 
-#if defined(__HAL_USE_MPU9250__)       //  Compile only if module is enabled
+#if defined(__HAL_USE_MPU9250_DMP__)       //  Compile only if module is enabled
 
 #include "HAL/hal.h"
 #include "libs/myLib.h"
@@ -47,9 +47,13 @@ void MPUDataHandler(void);
  * chip-to-body matrix for your particular set up.
  */
 //  In this case chip is rotated -90° around Y axis
-static signed char gyro_orientation[9] = { 0, 0, -1,
+//static signed char gyro_orientation[9] = { 0, 0, -1,
+//                                           0, 1,  0,
+//                                           1, 0,  0};
+static signed char gyro_orientation[9] = { 1, 0, 0,
                                            0, 1,  0,
-                                           1, 0,  0};
+                                           0, 0,  1};
+
 
 struct int_param_s int_param;
 
@@ -138,12 +142,14 @@ static inline unsigned short inv_orientation_matrix_to_scalar(
 void _MPU_KernelCallback(void)
 {
     MPU9250 &__mpu = MPU9250::GetI();
+
     static float sumOfRot = 0;
 
 
     //  Check for null-pointer
     if (__mpu._mpuKer.args == 0)
         return;
+
     /*
      *  Data in args[] contains bytes that constitute arguments for function
      *  calls. The exact representation(i.e. whether bytes represent ints, floats)
@@ -183,12 +189,13 @@ void _MPU_KernelCallback(void)
         {
             static bool suppressError = false;
 
-#ifdef __DEBUG_SESSION__
-    DEBUG_WRITE("In ISR\n");
-    uint8_t id = (uint8_t)HAL_MPU_ReadByte(0x00, 117);
-    DEBUG_WRITE("  My ID is: %d\n", id);
-    return;
-#endif
+//#ifdef __DEBUG_SESSION__
+//    DEBUG_WRITE("In ISR\n");
+//    uint8_t id = (uint8_t)HAL_MPU_ReadByte(0x00, 117);
+//    DEBUG_WRITE("  My ID is: %d\n", id);
+//    return;
+//#endif
+//    return;
 
             if (HAL_MPU_DataAvail())
             {
@@ -225,6 +232,9 @@ void _MPU_KernelCallback(void)
                 {
                     retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
                     cnt++;
+
+                    if (retVal == (-2))
+                        DEBUG_WRITE("READ_FIFO returned: %d \n", retVal);
 
                     if (sensors == 0)   //No data available
                     {
@@ -399,6 +409,17 @@ int8_t MPU9250::InitHW()
     HAL_MPU_Init();
     HAL_MPU_PowerSwitch(true);
 
+    //  Emit event before initializing module
+#ifdef __HAL_USE_EVENTLOG__
+    EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+#if defined(__USE_TASK_SCHEDULER__)
+    //  Register module services with task scheduler
+    _mpuKer.callBackFunc = _MPU_KernelCallback;
+    TS_RegCallback(&_mpuKer, MPU_UID);
+#endif
+
     return MPU_SUCCESS;
 }
 
@@ -422,11 +443,11 @@ int8_t MPU9250::InitSW()
     EMIT_EV(-1, EVENT_STARTUP);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
-#if defined(__USE_TASK_SCHEDULER__)
-    //  Register module services with task scheduler
-    _mpuKer.callBackFunc = _MPU_KernelCallback;
-    TS_RegCallback(&_mpuKer, MPU_UID);
-#endif
+//#if defined(__USE_TASK_SCHEDULER__)
+//    //  Register module services with task scheduler
+//    _mpuKer.callBackFunc = _MPU_KernelCallback;
+//    TS_RegCallback(&_mpuKer, MPU_UID);
+//#endif
 
     mpu_init(&int_param);
 
