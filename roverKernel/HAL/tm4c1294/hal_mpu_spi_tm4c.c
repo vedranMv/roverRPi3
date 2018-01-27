@@ -4,7 +4,7 @@
  *  Created on: Mar 4, 2017
  *      Author: Vedran
  */
-#include "hal_mpuSpi_tm4c.h"
+#include "hal_mpu_tm4c.h"
 
 #if defined(__HAL_USE_MPU9250_SPI__)       //  Compile only if module is enabled
 
@@ -171,7 +171,7 @@ uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t len
  * @param regAddress address of register in I2C device to write into
  * @return data received from I2C device
  */
-int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
+uint8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
     uint32_t dummy[1], data;
 
@@ -189,7 +189,7 @@ int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 
     while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
 
-    return (data & 0xFF);
+    return (uint8_t)(data & 0xFF);
 }
 
 /**

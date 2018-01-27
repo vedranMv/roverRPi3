@@ -159,7 +159,7 @@ uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t len
  * @param regAddress address of register in I2C device to write into
  * @return data received from I2C device
  */
-int8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
+uint8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
     uint32_t data, dummy = 0;
     UNUSED(dummy);  //Prevent unused-variable warning

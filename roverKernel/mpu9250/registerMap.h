@@ -37,12 +37,11 @@
 
 
 /*      Device addresses        */
-#define AK8963_ADDRESS   0x0C // Magnetometer I2C address
+#define AK8963_ADDRESS   (0x0C) // Magnetometer I2C address
 #define MPU9250_ADDRESS  0x68 // Device address when ADO = 0
 
 //Magnetometer Registers
-#define AK8963_ADDRESS   0x0C
-#define WHO_AM_I_AK8963  0x49 // (AKA WIA) should return 0x48
+#define WHO_AM_I_AK8963  0x00 // (AKA WIA) should return 0x48
 #define INFO             0x01
 #define AK8963_ST1       0x02  // data ready status bit 0
 #define AK8963_XOUT_L    0x03  // data
@@ -53,6 +52,7 @@
 #define AK8963_ZOUT_H    0x08
 #define AK8963_ST2       0x09  // Data overflow bit 3 and data read error status bit 2
 #define AK8963_CNTL      0x0A  // Power down (0000), single-measurement (0001), self-test (1000) and Fuse ROM (1111) modes on bits 3:0
+#define AK8963_CNTL2     0x0B
 #define AK8963_ASTC      0x0C  // Self test control
 #define AK8963_I2CDIS    0x0F  // I2C disable
 #define AK8963_ASAX      0x10  // Fuse ROM x-axis sensitivity adjustment value

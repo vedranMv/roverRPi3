@@ -96,11 +96,11 @@ class MPU9250
 
 
         //  Orientation in quaternions in sensor units
-        volatile float _quat[4];
+        volatile float _mag[3];
         //  Yaw-Pitch-Roll orientation[Y,P,R] in radians
         volatile float _ypr[3];
         //  Gravity vector[x,y,z]
-        volatile float _gv[3];
+        volatile float _gyro[3];
         //  Acceleration
         volatile float _acc[3];
 

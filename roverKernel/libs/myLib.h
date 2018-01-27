@@ -20,6 +20,7 @@
 #define STATUS_PROG_ERR             2
 
 #define PI_CONST 	3.14159265f
+#define GRAVITY_CONST   9.80665f //  m/s^2
 
 #ifdef __cplusplus
 extern "C"
