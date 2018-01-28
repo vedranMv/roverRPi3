@@ -5,10 +5,12 @@
  *      Author: Vedran
  */
 #include "api_mpu9250.h"
+
+#if defined(__HAL_USE_MPU9250_NODMP__)       //  Compile only if module is enabled
+
 #include "registerMap.h"
 #include "HAL/hal.h"
 #include "libs/myLib.h"
-
 
 //  Local (to this file) variables for holding configuration data
 //  Values are defined as enums in "registerMap.h"
@@ -16,7 +18,6 @@ uint8_t Gscale = GFS_250DPS;
 uint8_t Ascale = AFS_2G;
 uint8_t Mscale = MFS_16BITS;
 uint8_t Mmode = M_100HZ;
-
 
 
 /**
@@ -30,6 +31,10 @@ uint8_t Mmode = M_100HZ;
  */
 void initMPU9250()
 {
+    float gBias[3], aBias[3];
+
+    //calibrateMPU9250(gBias, aBias);
+
     // wake up device
     // Clear sleep mode bit (6), enable all sensors
     HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00);
@@ -53,7 +58,7 @@ void initMPU9250()
     // Set sample rate = gyroscope output rate/(1 + SMPLRT_DIV)
     // Use a 200 Hz rate; a rate consistent with the filter update rate
     // determined inset in CONFIG above.
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x04);
+    HAL_MPU_WriteByte(MPU9250_ADDRESS, SMPLRT_DIV, 0x00);
 
     // Set gyroscope full scale range
     // Range selects FS_SEL and AFS_SEL are 0 - 3, so 2-bit values are
@@ -67,9 +72,9 @@ void initMPU9250()
     c = c | Gscale << 3; // Set full scale range for the gyro
     // Set Fchoice for the gyro to 11 by writing its inverse to bits 1:0 of
     // GYRO_CONFIG
-    // c =| 0x00;
+    c |= 0x03;
     // Write new GYRO_CONFIG value to register
-    HAL_MPU_WriteByte(MPU9250_ADDRESS, GYRO_CONFIG, c );
+    HAL_MPU_WriteByte(MPU9250_ADDRESS, GYRO_CONFIG, c);
 
     // Set accelerometer full-scale range configuration
     // Get current ACCEL_CONFIG register value
@@ -117,7 +122,7 @@ void initAK8963()
 {
     //  Initialization uses I2C channel number 4 for writing data
 
-    //  Configure master I2C clock to be 400kHz
+    //  Configure master I2C clock (400kHz) for MPU to talk to slaves
     HAL_MPU_WriteByte(MPU9250_ADDRESS,  I2C_MST_CTRL, 0x5D);
     //  Enable I2C master
     HAL_MPU_WriteByte(MPU9250_ADDRESS,  USER_CTRL, 0x20);
@@ -510,3 +515,5 @@ void calibrateMPU9250(float * gyroBias, float * accelBias)
     accelBias[1] = (float)accel_bias[1]/(float)accelsensitivity;
     accelBias[2] = (float)accel_bias[2]/(float)accelsensitivity;
 }
+
+#endif  /* __HAL_USE_MPU9250_NODMP__ */

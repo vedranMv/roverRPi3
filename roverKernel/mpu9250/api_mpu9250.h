@@ -10,20 +10,20 @@
  *  both SPI and I2C. Switch between the communication protocol must be done
  *  in HAL as this API has no knowledge of physical communication layer.
  *
- *  @note This implementation is adopted from
+ *  @note This implementation is modified version of existing arduino library:
  *      https://github.com/sparkfun/SparkFun_MPU-9250_Breakout_Arduino_Library
  *      Changes to original project were made in order to support SPI interface
  *      instead of commonly used I2C.
  *
  *  @version 1.0.0
  *  V1.0.0
- *  +Creation of file. Tested reading function for gyro/mag/accel and
+ *  +Creation of file. Tested reading functions for gyro/mag/accel and
  *  initialization. API tested with both SPI & I2C.
  */
-//  Include stdint, stdbool, and project specific modules
 #include "hwconfig.h"
 
-#ifndef ROVERKERNEL_MPU9250_API_MPU9250_H_
+//  Compile following section only if hwconfig.h says to include this module
+#if !defined(ROVERKERNEL_MPU9250_API_MPU9250_H_) && defined(__HAL_USE_MPU9250_NODMP__)
 #define ROVERKERNEL_MPU9250_API_MPU9250_H_
 
 

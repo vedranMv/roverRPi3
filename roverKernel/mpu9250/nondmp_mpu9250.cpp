@@ -1,12 +1,12 @@
 /**
- * mpu9250.cpp
+ *  mpu9250.cpp
  *
  *  Created on: 25. 3. 2015.
  *      Author: Vedran
  */
 #include "mpu9250.h"
 
-#if defined(__HAL_USE_MPU9250_NODMP__)       //  Compile only if module is enabled
+#if defined(__HAL_USE_MPU9250_NODMP__)  //  Compile only if module is enabled
 
 #include "HAL/hal.h"
 #include "api_mpu9250.h"
@@ -87,9 +87,7 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
-            static bool suppressError = false;
-
-            //if (HAL_MPU_DataAvail())
+            if (HAL_MPU_DataAvail())
             {
                 static int16_t gyro[3], accel[3], mag[3];
 
@@ -111,13 +109,27 @@ void _MPU_KernelCallback(void)
                     __mpu._gyro[i] = (float)gyro[i] * getGres();
                     __mpu._mag[i] = (float)mag[i] * getMres();
                 }
-//                for (uint8_t i = 0; i < 128; i++)
-//                    DEBUG_WRITE("\x08");
-                //DEBUG_WRITE("Accel: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._acc[0]), _FTOI_(__mpu._acc[1]), _FTOI_(__mpu._acc[2]));
-                //DEBUG_WRITE("Gyro: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._gyro[0]), _FTOI_(__mpu._gyro[1]), _FTOI_(__mpu._gyro[2]));
-                DEBUG_WRITE("MAg: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._mag[0]), _FTOI_(__mpu._mag[1]), _FTOI_(__mpu._mag[2]));
 
-                //DEBUG_WRITE("Mag: %02X  %02X %02X \n", mag[0], mag[1], mag[2]);
+                __mpu._ahrs.update(__mpu._gyro[0]*0.001, __mpu._gyro[1]*0.001, __mpu._gyro[2]*0.001,
+                                   __mpu._acc[0], __mpu._acc[1], __mpu._acc[2],
+                                   __mpu._mag[0], __mpu._mag[1], __mpu._mag[2]);
+
+//                DEBUG_WRITE("Accel: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._acc[0]), _FTOI_(__mpu._acc[1]), _FTOI_(__mpu._acc[2]));
+//                DEBUG_WRITE("Gyro: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._gyro[0]), _FTOI_(__mpu._gyro[1]), _FTOI_(__mpu._gyro[2]));
+//                DEBUG_WRITE("MAg: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._mag[0]), _FTOI_(__mpu._mag[1]), _FTOI_(__mpu._mag[2]));
+
+                __mpu._ypr[0] = __mpu._ahrs.getYaw();
+                __mpu._ypr[1] = __mpu._ahrs.getPitch();
+                __mpu._ypr[2] = __mpu._ahrs.getRoll();
+
+                if ((sumOfRot - (fabs(__mpu._ypr[0])+fabs(__mpu._ypr[1])+fabs(__mpu._ypr[2]))) > 30.0f)
+                {
+                #ifdef __HAL_USE_EVENTLOG__
+                    EMIT_EV(__mpu._mpuKer.serviceID, EVENT_HANG);
+                #endif  /* __HAL_USE_EVENTLOG__ */
+                }
+
+                sumOfRot = fabs(__mpu._ypr[0])+fabs(__mpu._ypr[1])+fabs(__mpu._ypr[2]);
             }
 
         }
@@ -250,6 +262,7 @@ int8_t MPU9250::InitSW()
     DEBUG_WRITE("Starting up initialization\n");
 #endif
 
+    _ahrs.begin(1.0f/0.05f);
     initMPU9250();
     initAK8963();
 
@@ -275,7 +288,7 @@ EMIT_EV(-1, EVENT_ERROR);
  */
 void MPU9250::Reset()
 {
-    HAL_MPU_WriteByteNB(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
+    HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
     HAL_DelayUS(50000);
 
 #ifdef __HAL_USE_EVENTLOG__
@@ -354,4 +367,4 @@ MPU9250::MPU9250() :  dT(0), _dataFlag(false), userHook(0)
 MPU9250::~MPU9250()
 {}
 
-#endif  /* __HAL_USE_MPU9250__ */
+#endif  /* __HAL_USE_MPU9250_NODMP__ */

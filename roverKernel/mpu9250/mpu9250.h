@@ -4,7 +4,7 @@
  *  Created on: 25. 3. 2015.
  *      Author: Vedran Mikov
  *
- *  @version V3.0.4
+ *  @version V3.1.0
  *  V1.0 - 25.3.2016
  *  +MPU9250 library now implemented as a C++ object
  *  V1.1 - 25.6.2016
@@ -30,6 +30,13 @@
  *  initialization routine of MPU
  *  -Removed interrupt-based sensor readings; Polling sensor from scheduler
  *  -Removed 'listen' functionality
+ *  V3.1.0 - 28.1.2018
+ *  +Implemented support for SPI communication with MPU (use hwconfig.h to set
+ *  the mode of communication)
+ *  +Implemented support for using the MPU module without DMP firmware, getting
+ *  raw sensor measurements and computing orientation from them - check
+ *  api_mpu9250 files. (use hwconfig.h to select which mode of operation to use,
+ *   raw data or DMP)
  */
 #include "hwconfig.h"
 
@@ -59,8 +66,13 @@
 
 //  Custom error codes for the library
 #define MPU_SUCCESS             0
-#define MPU_I2C_ERROR           1
+//#define MPU_I2C_ERROR           1
 #define MPU_ERROR               2
+
+#if defined(__HAL_USE_MPU9250_NODMP__)
+    //  Mahony AHRS is used for computing orientation without DMP
+    #include "MahonyAHRS.h"
+#endif
 
 
 /**
@@ -103,9 +115,12 @@ class MPU9250
         volatile float _gyro[3];
         //  Acceleration
         volatile float _acc[3];
-
         //  Flag set by ISR whenever new raw data is available
         volatile bool   _dataFlag;
+
+#if defined(__HAL_USE_MPU9250_NODMP__)
+        Mahony _ahrs;
+#endif
 
         //  Interface with task scheduler - provides memory space and function
         //  to call in order for task scheduler to request service from this module
