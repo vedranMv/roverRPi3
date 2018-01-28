@@ -1,5 +1,10 @@
 /**
- * hal_mpu_tm4c.c
+ *  hal_mpu_spi_tm4c.c
+ *
+ *  SPI drivers for MPU9250 on TM4C1294NCPDT
+ *  This file implements communication with MPU9250 IMU by utilizing SPI bus.
+ *  SPI2 bus is used at 1MHZ speed with PN2 as slave select (configured as GPIO),
+ *  PA5 as data-ready signal, and PL4 as power-control pin.
  *
  *  Created on: Mar 4, 2017
  *      Author: Vedran
@@ -29,64 +34,61 @@
 
 
 /**     MPU9250 - related macros        */
-//#define MPU9250_I2C_BASE I2C2_BASE
+#define MPU9250_SPI_BASE SSI2_BASE
 
 /**
- * Initializes I2C 2 bus for communication with MPU (SDA - PN4, SCL - PN5)
- *      Bus frequency 1MHz, connection timeout: 100ms
- * Initializes interrupt pin(PA5) that will be toggled by MPU9250
- *      when it has data available for reading
- *      -PA5 is push-pull pin with weak pull down and 10mA strength
+ * Initializes SPI2 bus for communication with MPU
+ *   * SPI Bus frequency 1MHz, PD0 as MISO, PD1 as MOSI, PD3 as SCLK
+ *   * Pin PL4 as power switch (control external MOSFET to cut-off power to MPU)
+ *   * Pin PA5 as input, to receive data-ready signal from MPU
+ *   * Pin PN2 as slave select, but configured as GPIO and manually toggled
  */
-
 void HAL_MPU_Init(void((*custHook)(void)))
 {
-    //uint32_t ui32TPR;
 
-
+    //  Enable peripherals in use. Also reset SSI2 at the end to allow calling
+    //  this function at any point in order to reset SPI interface.
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_SSI2);
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
     MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_SSI2);
 
-    GPIOPinConfigure(GPIO_PD3_SSI2CLK);
-    GPIOPinConfigure(GPIO_PD0_SSI2XDAT1);   //MISO
-    GPIOPinConfigure(GPIO_PD1_SSI2XDAT0);   //MOSI
+    //  Configure SSI2 pins
+    MAP_GPIOPinConfigure(GPIO_PD3_SSI2CLK);
+    MAP_GPIOPinConfigure(GPIO_PD0_SSI2XDAT1);   //MISO
+    MAP_GPIOPinConfigure(GPIO_PD1_SSI2XDAT0);   //MOSI
+    MAP_GPIOPinTypeSSI(GPIO_PORTD_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_3);
 
-    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
-    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOL);
-    MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C2);
-    MAP_SysCtlPeripheralReset(SYSCTL_PERIPH_I2C2);
-
-    GPIOPinTypeSSI(GPIO_PORTD_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_3);
-    SSIConfigSetExpClk(SSI2_BASE, g_ui32SysClock, SSI_FRF_MOTO_MODE_0,
+    //  Setup SPI: 1MHz, 8 bit data, mode 0
+    MAP_SSIConfigSetExpClk(SSI2_BASE, g_ui32SysClock, SSI_FRF_MOTO_MODE_0,
                            SSI_MODE_MASTER, 1000000, 8);
-    SSIEnable(SSI2_BASE);
+    //  Enable SPI peripheral
+    MAP_SSIEnable(SSI2_BASE);
 
+    //  Empty receiving buffer
     uint32_t dummy[1];
-    while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
-
+    while (MAP_SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
 
     //  Configure power-switch pin
     MAP_GPIOPinTypeGPIOOutput(GPIO_PORTL_BASE, GPIO_PIN_4);
     MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 
-    //  Configure interrupt pin to receive output
-    //      (not used as actual interrupts)
+    //  Configure input pin to receive interrupts from MPU
+    //      (not used as actual interrupt)
     MAP_SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
     MAP_GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_5);
     MAP_GPIOPinWrite(GPIO_PORTA_BASE, GPIO_PIN_5, 0x00);
 
-    //  Configure slave select pin - PN2
+    //  Configure slave select pin
     MAP_GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_2);
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
-
 }
 
 /**
  * Control power-switch for MPU9250
  * Controls whether or not MPU sensors receives power (n-ch MOSFET as switch)
- * @param powerState desired state of power switch (active high)
+ * @param powerState Desired state of power switch (active high)
  */
 void HAL_MPU_PowerSwitch(bool powerState)
 {
@@ -95,56 +97,53 @@ void HAL_MPU_PowerSwitch(bool powerState)
     else
         MAP_GPIOPinWrite(GPIO_PORTL_BASE, GPIO_PIN_4, 0x00);
 }
+
 /**
- * Write one byte of data to I2C bus and wait until transmission is over (blocking)
- * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
- * @param regAddress address of register in I2C device to write into
- * @param data to write into the register of I2C device
+ * Check if MPU has raised an interrupt to notify it has new data ready
+ * @return true if interrupt pin is high, false otherwise
+ */
+bool HAL_MPU_DataAvail()
+{
+    return (MAP_GPIOPinRead(GPIO_PORTA_BASE, GPIO_PIN_5) != 0);
+}
+
+/**
+ * Write one byte of data to SPI bus and wait until transmission is over (blocking)
+ * @param I2Caddress (NOT USED) Here for compatibility with I2C HAL implementation
+ * @param regAddress Address of register in MPU to write into
+ * @param data Data to write into the register
  */
 void HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
 {
     uint32_t dummy[1];
 
     regAddress = regAddress & 0x7F; //  MSB = 0 for writing operation
+    //  Drive CS low and wait one SPI clock cycle
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
     HAL_DelayUS(1);
+    //  Send register address
     SSIDataPut(SSI2_BASE, regAddress);
+    //  Send register data
     SSIDataPut(SSI2_BASE, data);
+    //  Wait until sending buffer is empty
     while(SSIBusy(SSI2_BASE));
+    //  Drive CS high to stop communication
     MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
 
+    //  Empty any received junk from the receive buffer
     while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
 }
 
 /**
- * Write one byte of data to I2C bus (non-blocking)
- * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
- * @param regAddress address of register in I2C device to write into
- * @param data to write into the register of I2C device
+ * Send a byte-array of data through SPI bus (blocking)
+ * @param I2Caddress (NOT USED) Here for compatibility with I2C HAL implementation
+ * @param regAddress Address of a first register in MPU to start writing into
+ * @param data Buffer of data to send
+ * @param length Length of data to send
+ * @return 0 to verify that function didn't hang somewhere
  */
-void HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress, uint8_t data)
-{
-    uint32_t dummy[1];
-
-    regAddress = regAddress & 0x7F; //  MSB = 0 for writing operation
-    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0x00);
-    HAL_DelayUS(1);
-    SSIDataPutNonBlocking(SSI2_BASE, regAddress);
-    SSIDataPutNonBlocking(SSI2_BASE, data);
-    while(SSIBusy(SSI2_BASE));
-    MAP_GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_2, 0xFF);
-
-    while (SSIDataGetNonBlocking(SSI2_BASE, &dummy[0]));
-}
-
-/**
- * Send a byte-array of data through I2C bus(blocking)
- * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
- * @param regAddress address of register in I2C device to write into
- * @param data buffer of data to send
- * @param length of data to send
- */
-uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t length, uint8_t *data)
+uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
+                           uint16_t length, uint8_t *data)
 {
     uint16_t i;
     uint32_t dummy[1];
@@ -166,10 +165,10 @@ uint8_t HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,  uint16_t len
 }
 
 /**
- * Read one byte of data from I2C device (performs dummy write as well)
- * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
- * @param regAddress address of register in I2C device to write into
- * @return data received from I2C device
+ * Read one byte of data from SPI device (performs dummy write as well)
+ * @param I2Caddress (NOT USED) Here for compatibility with I2C HAL implementation
+ * @param regAddress Address of register in MPU to read from
+ * @return Byte of data received from SPI device
  */
 uint8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 {
@@ -193,14 +192,14 @@ uint8_t HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress)
 }
 
 /**
- * Read several bytes from I2C device (performs dummy write as well)
- * @param I2Caddress 7-bit address of I2C device (8. bit is for R/W)
- * @param regAddress address of register in I2C device to write into
- * @param count number of bytes to red
- * @param dest pointer to data buffer in which data is saved after reading
+ * Read several bytes from SPI device (performs dummy write as well)
+ * @param I2Caddress (NOT USED) Here for compatibility with I2C HAL implementation
+ * @param regAddress Address of register in MPU to read from
+ * @param count Number of bytes to red
+ * @param dest Pointer to data buffer in which data is saved after reading
  */
 uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
-                       uint16_t length, uint8_t* data)
+                          uint16_t length, uint8_t* data)
 {
     uint16_t i;
     uint32_t dummy[1];
@@ -228,12 +227,4 @@ uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
     return 0;
 }
 
-/**
- * Check if MPU has raised interrupt to notify it has new data ready
- * @return true if interrupt pin is active, false otherwise
- */
-bool HAL_MPU_DataAvail()
-{
-    return (MAP_GPIOPinRead(GPIO_PORTA_BASE, GPIO_PIN_5) != 0);
-}
 #endif /* __HAL_USE_MPU9250_SPI__ */

@@ -4,10 +4,15 @@
  *  Created on: Mar 4, 2017
  *      Author: Vedran Mikov
  *
- ****Hardware dependencies:
- *      I2C2 - Communication with sensor, pins PN4(SDA) & PN5(SCL)
- *      GPIO PA5 - Data available interrupt pin (normal input, not interrupt pin)
- *      GPIO PL4 - Power switch for MPU (active high)
+ *  Hardware abstraction layer (HAL) for MPU 9250 IMU and TM4C1294. Implements
+ *  basic function for reading and writing data to MPU using either I2C and SPI
+ *  communication protocol. Configure the protocol in hwconfig.h file
+ *
+ *  Hardware dependencies:
+ *    * Check hwconfig to find out whether HAL uses I2C2(PN4 as SDA and PN5 as
+ *      SCL) or SPI2(PD0 as MISO, PD1 as MOSI, PD3 as SCLK, PN2 as CS)
+ *    * GPIO PA5 - Data available interrupt pin (normal input, not interrupt pin)
+ *    * GPIO PL4 - Power switch for MPU (active high)
  */
 #include "hwconfig.h"
 
@@ -20,19 +25,19 @@ extern "C"
 {
 #endif
 
-/**     MPU9250(I2C) - related HW API       */
-    extern void        HAL_MPU_Init();
-    extern void        HAL_MPU_PowerSwitch(bool powerState);
-    extern void        HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
-                                         uint8_t data);
-    extern void        HAL_MPU_WriteByteNB(uint8_t I2Caddress, uint8_t regAddress,
-                                          uint8_t data);
-    extern uint8_t     HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
-                                          uint16_t length, uint8_t *data);
-    extern uint8_t     HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress);
-    extern uint8_t     HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
-                                         uint16_t length, uint8_t* data);
-    extern bool        HAL_MPU_DataAvail();
+/**     MPU9250 - related HW API       */
+    extern void     HAL_MPU_Init();
+    extern void     HAL_MPU_PowerSwitch(bool powerState);
+    extern bool     HAL_MPU_DataAvail();
+
+    extern void     HAL_MPU_WriteByte(uint8_t I2Caddress, uint8_t regAddress,
+                                      uint8_t data);
+    extern uint8_t  HAL_MPU_WriteBytes(uint8_t I2Caddress, uint8_t regAddress,
+                                       uint16_t length, uint8_t *data);
+
+    extern uint8_t  HAL_MPU_ReadByte(uint8_t I2Caddress, uint8_t regAddress);
+    extern uint8_t  HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
+                                      uint16_t length, uint8_t* data);
 
 #ifdef __cplusplus
 }
