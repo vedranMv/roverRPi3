@@ -44,8 +44,6 @@
 #if !defined(ROVERKERNEL_MPU9250_MPU9250_H_) && defined(__HAL_USE_MPU9250__)
 #define ROVERKERNEL_MPU9250_MPU9250_H_
 
-#include "registerMap.h"
-
 //  Enable integration of this library with task scheduler but only if task
 //  scheduler is being compiled into this project
 #if defined(__HAL_USE_TASKSCH__)

@@ -11,7 +11,7 @@
  */
 #include "hal_mpu_tm4c.h"
 
-#if defined(__HAL_USE_MPU9250_NOSPI__)       //  Compile only if module is enabled
+#if defined(__HAL_USE_MPU9250_I2C__)       //  Compile only if module is enabled
 
 #include "libs/myLib.h"
 #include "HAL/tm4c1294/hal_common_tm4c.h"
@@ -250,4 +250,4 @@ uint8_t HAL_MPU_ReadBytes(uint8_t I2Caddress, uint8_t regAddress,
 }
 
 
-#endif /* __HAL_USE_MPU9250_NOSPI__ */
+#endif /* __HAL_USE_MPU9250_I2C__ */

@@ -15,6 +15,8 @@
 #include "eMPL/inv_mpu.h"
 #include "eMPL/inv_mpu_dmp_motion_driver.h"
 
+#include "registerMap.h"
+
 //  Enable debug information printed on serial port
 #define __DEBUG_SESSION__
 

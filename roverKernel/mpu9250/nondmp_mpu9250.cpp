@@ -13,6 +13,8 @@
 #include "libs/myLib.h"
 #include "libs/helper_3dmath.h"
 
+#include "registerMap.h"
+
 
 //  Enable debug information printed on serial port
 #define __DEBUG_SESSION__

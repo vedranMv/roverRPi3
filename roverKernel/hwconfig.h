@@ -32,10 +32,6 @@
  */
 #define __HAL_USE_ESP8266__
 #define __HAL_USE_ENGINES__
-
-//#define __HAL_USE_MPU9250_NOSPI__
-#define __HAL_USE_MPU9250_SPI__
-
 #define __HAL_USE_RADAR__
 #define __HAL_USE_TASKSCH__
 #define __HAL_USE_EVENTLOG__
@@ -45,14 +41,19 @@
  * MPU can either use SPI or I2C protocol
  * MPU can be configured to give raw data, or use DMP firmware
  */
-#if defined(__HAL_USE_MPU9250_SPI__) || defined(__HAL_USE_MPU9250_NOSPI__)
+//  Select communication protocol - use either one of these two
+//#define __HAL_USE_MPU9250_I2C__
+#define __HAL_USE_MPU9250_SPI__
+
+#if defined(__HAL_USE_MPU9250_SPI__) || defined(__HAL_USE_MPU9250_I2C__)
     #define __HAL_USE_MPU9250__
 
-    //  Use either one of these two!
+
+    //  Select operating mode - use either one of these two
+    //  Operating mode can be with raw sensor values or using DMP firmware
     #define __HAL_USE_MPU9250_NODMP__
     //#define __HAL_USE_MPU9250_DMP__
 #endif
-
 
 
 
