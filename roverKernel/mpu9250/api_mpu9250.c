@@ -33,7 +33,7 @@ void initMPU9250()
 {
     float gBias[3], aBias[3];
 
-    //calibrateMPU9250(gBias, aBias);
+    calibrateMPU9250(gBias, aBias);
 
     // wake up device
     // Clear sleep mode bit (6), enable all sensors
@@ -285,7 +285,7 @@ void readMagData(int16_t * destination)
     HAL_MPU_ReadBytes(MPU9250_ADDRESS, EXT_SENS_DATA_00, 7, rawData);
 
 
-    uint8_t c = rawData[6]; // End data read by reading ST2 register
+    uint8_t c = 0 & rawData[6]; // End data read by reading ST2 register
     // Check if magnetic sensor overflow is set, if not then report data
     if (!(c & 0x08))
     {

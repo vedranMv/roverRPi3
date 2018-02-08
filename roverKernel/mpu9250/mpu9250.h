@@ -60,11 +60,11 @@
     #define MPU_T_GET_DATA        1
     #define MPU_T_REBOOT          2
     #define MPU_T_SOFT_REBOOT     3
+    #define MPU_T_AHRS_CONFIG     4
 #endif
 
 //  Custom error codes for the library
 #define MPU_SUCCESS             0
-//#define MPU_I2C_ERROR           1
 #define MPU_ERROR               2
 
 #if defined(__HAL_USE_MPU9250_NODMP__)
@@ -105,18 +105,19 @@ class MPU9250
         void operator=(MPU9250 const &arg) {} //  No definition - forbid this
 
 
-        //  Orientation in quaternions in sensor units
+        //  Magnetometer readings[x,y,z]
         volatile float _mag[3];
         //  Yaw-Pitch-Roll orientation[Y,P,R] in radians
         volatile float _ypr[3];
-        //  Gravity vector[x,y,z]
+        //  Gyroscope readings [x,y,z]
         volatile float _gyro[3];
-        //  Acceleration
+        //  Acceleration [x,y,z]
         volatile float _acc[3];
-        //  Flag set by ISR whenever new raw data is available
-        volatile bool   _dataFlag;
+        //  Magnetometer control
+        bool _magEn;
 
 #if defined(__HAL_USE_MPU9250_NODMP__)
+        //  Use Mahoneys' algorithm for attitude estimations
         Mahony _ahrs;
 #endif
 

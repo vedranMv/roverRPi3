@@ -30,7 +30,7 @@
 #ifdef __DEBUG_SESSION__
 #include "serialPort/uartHW.h"
 
-#define _FTOI_(X) (int16_t)(trunc(X)),(int16_t)(trunc((X-trunc(X))*100))
+#define _FTOI_(X) (int16_t)(trunc(X)),(int16_t)fabs(trunc((X-trunc(X))*100))
 #endif
 
 
@@ -76,7 +76,7 @@ void _MPU_KernelCallback(void)
             if (powerState)
             {
                 __mpu.InitHW();
-                __mpu.InitSW();
+             //   __mpu.InitSW();
             }
             __mpu._mpuKer.retVal = MPU_SUCCESS;
         }
@@ -89,7 +89,7 @@ void _MPU_KernelCallback(void)
      */
     case MPU_T_GET_DATA:
         {
-            if (HAL_MPU_DataAvail())
+            if (/*HAL_MPU_DataAvail()*/true)
             {
                 static int16_t gyro[3], accel[3], mag[3];
 
@@ -112,23 +112,34 @@ void _MPU_KernelCallback(void)
                     __mpu._mag[i] = (float)mag[i] * getMres();
                 }
 
-                __mpu._ahrs.update(__mpu._gyro[0]*0.001, __mpu._gyro[1]*0.001, __mpu._gyro[2]*0.001,
+                if (__mpu._magEn)
+                {
+                __mpu._ahrs.Update(__mpu._gyro[0], __mpu._gyro[1], __mpu._gyro[2],
                                    __mpu._acc[0], __mpu._acc[1], __mpu._acc[2],
                                    __mpu._mag[0], __mpu._mag[1], __mpu._mag[2]);
+                }
+                else
+                {
+                    __mpu._ahrs.Update(__mpu._gyro[0], __mpu._gyro[1], __mpu._gyro[2],
+                                       __mpu._acc[0], __mpu._acc[1], __mpu._acc[2],
+                                       0.0f, 0.0f, 0.0f);
+                }
 
-//                DEBUG_WRITE("Accel: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._acc[0]), _FTOI_(__mpu._acc[1]), _FTOI_(__mpu._acc[2]));
-//                DEBUG_WRITE("Gyro: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._gyro[0]), _FTOI_(__mpu._gyro[1]), _FTOI_(__mpu._gyro[2]));
-//                DEBUG_WRITE("MAg: %02d.%03dX  %02d.%03dY  %02d.%03dZ\n", _FTOI_(__mpu._mag[0]), _FTOI_(__mpu._mag[1]), _FTOI_(__mpu._mag[2]));
+//                DEBUG_WRITE("{%02d.%03d, %02d.%03d, %02d.%03d, ", _FTOI_(__mpu._gyro[0]), _FTOI_(__mpu._gyro[1]), _FTOI_(__mpu._gyro[2]));
+//                DEBUG_WRITE("%02d.%03d, %02d.%03d, %02d.%03d, ", _FTOI_(__mpu._acc[0]), _FTOI_(__mpu._acc[1]), _FTOI_(__mpu._acc[2]));
+//                DEBUG_WRITE("%02d.%03d, %02d.%03d, %02d.%03d},\n", _FTOI_(__mpu._mag[0]), _FTOI_(__mpu._mag[1]), _FTOI_(__mpu._mag[2]));
 
-                __mpu._ypr[0] = __mpu._ahrs.getYaw();
-                __mpu._ypr[1] = __mpu._ahrs.getPitch();
-                __mpu._ypr[2] = __mpu._ahrs.getRoll();
+                for (uint8_t i = 0; i < 3; i++)
+                    __mpu._ypr[i] = __mpu._ahrs.ypr[i];
 
                 if ((sumOfRot - (fabs(__mpu._ypr[0])+fabs(__mpu._ypr[1])+fabs(__mpu._ypr[2]))) > 30.0f)
                 {
+                    if (sumOfRot)
+                    {
                 #ifdef __HAL_USE_EVENTLOG__
                     EMIT_EV(__mpu._mpuKer.serviceID, EVENT_HANG);
                 #endif  /* __HAL_USE_EVENTLOG__ */
+                    }
                 }
 
                 sumOfRot = fabs(__mpu._ypr[0])+fabs(__mpu._ypr[1])+fabs(__mpu._ypr[2]);
@@ -165,6 +176,25 @@ void _MPU_KernelCallback(void)
                 EventLog::SoftReboot(MPU_UID);
 #endif  /* __HAL_USE_EVENTLOG__ */
             }
+        }
+        break;
+        /*
+         * Change configuration of AHRS algorithm
+         * args[] = kp(float)|ki(float)|magnetometerEnable(bool)
+         * retVal one of MPU_* error codes
+         */
+    case MPU_T_AHRS_CONFIG:
+        {
+            float ki, kp;
+
+            memcpy((void*)&kp, (void*)__mpu._mpuKer.args, sizeof(float));
+            memcpy((void*)&ki,
+                   (void*)(__mpu._mpuKer.args+sizeof(float)),
+                   sizeof(float));
+            __mpu._magEn = (bool)*(__mpu._mpuKer.args+2*sizeof(float));
+
+            __mpu._ahrs.twoKi = 2*ki;
+            __mpu._ahrs.twoKp = 2*kp;
         }
         break;
     default:
@@ -264,14 +294,9 @@ int8_t MPU9250::InitSW()
     DEBUG_WRITE("Starting up initialization\n");
 #endif
 
-    _ahrs.begin(1.0f/0.05f);
+    _ahrs.InitSW(0.01);
     initMPU9250();
     initAK8963();
-
-#ifdef __HAL_USE_EVENTLOG__
-EMIT_EV(-1, EVENT_ERROR);
-#endif  /* __HAL_USE_EVENTLOG__ */
-
 
 #ifdef __DEBUG_SESSION__
     DEBUG_WRITE("done\n");
@@ -306,7 +331,7 @@ void MPU9250::Reset()
  */
 bool MPU9250::IsDataReady()
 {
-    return static_cast<bool>(_dataFlag);
+    return HAL_MPU_DataAvail();
 }
 
 /**
@@ -340,9 +365,9 @@ void MPU9250::RPY(float* RPY, bool inDeg)
 {
     for (uint8_t i = 0; i < 3; i++)
         if (inDeg)
-            RPY[i] = _ypr[i]*180.0/PI_CONST;
+            RPY[i] = _ypr[2-i]*180.0/PI_CONST;
         else
-            RPY[i] = _ypr[i];
+            RPY[i] = _ypr[2-i];
 }
 
 /**
@@ -359,7 +384,7 @@ void MPU9250::Acceleration(float *acc)
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
-MPU9250::MPU9250() :  dT(0), _dataFlag(false), userHook(0)
+MPU9250::MPU9250() :  dT(0), userHook(0), _magEn(true)
 {
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_UNINITIALIZED);

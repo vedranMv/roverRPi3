@@ -24,12 +24,13 @@
 #include "MahonyAHRS.h"
 #include <math.h>
 
+#if defined(__HAL_USE_MPU9250_NODMP__)
 //-------------------------------------------------------------------------------------------
 // Definitions
 
-#define DEFAULT_SAMPLE_FREQ	20.0f	// sample frequency in Hz
-#define twoKpDef	(2.0f * 0.5f)	// 2 * proportional gain
-#define twoKiDef	(2.0f * 0.0f)	// 2 * integral gain
+#define DEFAULT_SAMPLE_FREQ	100.0f	// sample frequency in Hz
+#define twoKpDef	(2.0f * 0.9f)	// 2 * proportional gain
+#define twoKiDef	(2.0f * 0.01f)	// 2 * integral gain
 
 
 //============================================================================================
@@ -46,14 +47,15 @@ Mahony::Mahony()
 	q1 = 0.0f;
 	q2 = 0.0f;
 	q3 = 0.0f;
-	integralFBx = 0.0f;
-	integralFBy = 0.0f;
-	integralFBz = 0.0f;
-	anglesComputed = 0;
-	invSampleFreq = 1.0f / DEFAULT_SAMPLE_FREQ;
+	_integralFBx = 0.0f;
+	_integralFBy = 0.0f;
+	_integralFBz = 0.0f;
+
+	_invSampleFreq = 1.0f / DEFAULT_SAMPLE_FREQ;
 }
 
-void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, float mx, float my, float mz)
+void Mahony::Update(float gx, float gy, float gz, float ax, float ay, float az,
+                    float mx, float my, float mz)
 {
 	float recipNorm;
 	float q0q0, q0q1, q0q2, q0q3, q1q1, q1q2, q1q3, q2q2, q2q3, q3q3;
@@ -64,8 +66,9 @@ void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, 
 
 	// Use IMU algorithm if magnetometer measurement invalid
 	// (avoids NaN in magnetometer normalisation)
-	if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f)) {
-		updateIMU(gx, gy, gz, ax, ay, az);
+	if((mx == 0.0f) && (my == 0.0f) && (mz == 0.0f))
+	{
+	    UpdateNoMag(gx, gy, gz, ax, ay, az);
 		return;
 	}
 
@@ -76,16 +79,17 @@ void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, 
 
 	// Compute feedback only if accelerometer measurement valid
 	// (avoids NaN in accelerometer normalisation)
-	if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
+	if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f)))
+	{
 
 		// Normalise accelerometer measurement
-		recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+		recipNorm = _InvSqrt(ax * ax + ay * ay + az * az);
 		ax *= recipNorm;
 		ay *= recipNorm;
 		az *= recipNorm;
 
 		// Normalise magnetometer measurement
-		recipNorm = invSqrt(mx * mx + my * my + mz * mz);
+		recipNorm = _InvSqrt(mx * mx + my * my + mz * mz);
 		mx *= recipNorm;
 		my *= recipNorm;
 		mz *= recipNorm;
@@ -123,18 +127,21 @@ void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, 
 		halfez = (ax * halfvy - ay * halfvx) + (mx * halfwy - my * halfwx);
 
 		// Compute and apply integral feedback if enabled
-		if(twoKi > 0.0f) {
+		if(twoKi > 0.0f)
+		{
 			// integral error scaled by Ki
-			integralFBx += twoKi * halfex * invSampleFreq;
-			integralFBy += twoKi * halfey * invSampleFreq;
-			integralFBz += twoKi * halfez * invSampleFreq;
-			gx += integralFBx;	// apply integral feedback
-			gy += integralFBy;
-			gz += integralFBz;
-		} else {
-			integralFBx = 0.0f;	// prevent integral windup
-			integralFBy = 0.0f;
-			integralFBz = 0.0f;
+			_integralFBx += twoKi * halfex * _invSampleFreq;
+			_integralFBy += twoKi * halfey * _invSampleFreq;
+			_integralFBz += twoKi * halfez * _invSampleFreq;
+			gx += _integralFBx;	// apply integral feedback
+			gy += _integralFBy;
+			gz += _integralFBz;
+		}
+		else
+		{
+			_integralFBx = 0.0f;	// prevent integral windup
+			_integralFBy = 0.0f;
+			_integralFBz = 0.0f;
 		}
 
 		// Apply proportional feedback
@@ -144,9 +151,9 @@ void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, 
 	}
 
 	// Integrate rate of change of quaternion
-	gx *= (0.5f * invSampleFreq);		// pre-multiply common factors
-	gy *= (0.5f * invSampleFreq);
-	gz *= (0.5f * invSampleFreq);
+	gx *= (0.5f * _invSampleFreq);		// pre-multiply common factors
+	gy *= (0.5f * _invSampleFreq);
+	gz *= (0.5f * _invSampleFreq);
 	qa = q0;
 	qb = q1;
 	qc = q2;
@@ -156,18 +163,19 @@ void Mahony::update(float gx, float gy, float gz, float ax, float ay, float az, 
 	q3 += (qa * gz + qb * gy - qc * gx);
 
 	// Normalise quaternion
-	recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+	recipNorm = _InvSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
 	q0 *= recipNorm;
 	q1 *= recipNorm;
 	q2 *= recipNorm;
 	q3 *= recipNorm;
-	anglesComputed = 0;
+
+	_ComputeAngles();
 }
 
-//-------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 // IMU algorithm update
 
-void Mahony::updateIMU(float gx, float gy, float gz, float ax, float ay, float az)
+void Mahony::UpdateNoMag(float gx, float gy, float gz, float ax, float ay, float az)
 {
 	float recipNorm;
 	float halfvx, halfvy, halfvz;
@@ -184,7 +192,7 @@ void Mahony::updateIMU(float gx, float gy, float gz, float ax, float ay, float a
 	if(!((ax == 0.0f) && (ay == 0.0f) && (az == 0.0f))) {
 
 		// Normalise accelerometer measurement
-		recipNorm = invSqrt(ax * ax + ay * ay + az * az);
+		recipNorm = _InvSqrt(ax * ax + ay * ay + az * az);
 		ax *= recipNorm;
 		ay *= recipNorm;
 		az *= recipNorm;
@@ -203,16 +211,16 @@ void Mahony::updateIMU(float gx, float gy, float gz, float ax, float ay, float a
 		// Compute and apply integral feedback if enabled
 		if(twoKi > 0.0f) {
 			// integral error scaled by Ki
-			integralFBx += twoKi * halfex * invSampleFreq;
-			integralFBy += twoKi * halfey * invSampleFreq;
-			integralFBz += twoKi * halfez * invSampleFreq;
-			gx += integralFBx;	// apply integral feedback
-			gy += integralFBy;
-			gz += integralFBz;
+			_integralFBx += twoKi * halfex * _invSampleFreq;
+			_integralFBy += twoKi * halfey * _invSampleFreq;
+			_integralFBz += twoKi * halfez * _invSampleFreq;
+			gx += _integralFBx;	// apply integral feedback
+			gy += _integralFBy;
+			gz += _integralFBz;
 		} else {
-			integralFBx = 0.0f;	// prevent integral windup
-			integralFBy = 0.0f;
-			integralFBz = 0.0f;
+			_integralFBx = 0.0f;	// prevent integral windup
+			_integralFBy = 0.0f;
+			_integralFBz = 0.0f;
 		}
 
 		// Apply proportional feedback
@@ -222,9 +230,9 @@ void Mahony::updateIMU(float gx, float gy, float gz, float ax, float ay, float a
 	}
 
 	// Integrate rate of change of quaternion
-	gx *= (0.5f * invSampleFreq);		// pre-multiply common factors
-	gy *= (0.5f * invSampleFreq);
-	gz *= (0.5f * invSampleFreq);
+	gx *= (0.5f * _invSampleFreq);		// pre-multiply common factors
+	gy *= (0.5f * _invSampleFreq);
+	gz *= (0.5f * _invSampleFreq);
 	qa = q0;
 	qb = q1;
 	qc = q2;
@@ -234,19 +242,20 @@ void Mahony::updateIMU(float gx, float gy, float gz, float ax, float ay, float a
 	q3 += (qa * gz + qb * gy - qc * gx);
 
 	// Normalise quaternion
-	recipNorm = invSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+	recipNorm = _InvSqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
 	q0 *= recipNorm;
 	q1 *= recipNorm;
 	q2 *= recipNorm;
 	q3 *= recipNorm;
-	anglesComputed = 0;
+
+	_ComputeAngles();
 }
 
-//-------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 // Fast inverse square-root
 // See: http://en.wikipedia.org/wiki/Fast_inverse_square_root
 
-float Mahony::invSqrt(float x)
+float Mahony::_InvSqrt(float x)
 {
 	float halfx = 0.5f * x;
 	float y = x;
@@ -258,17 +267,27 @@ float Mahony::invSqrt(float x)
 	return y;
 }
 
-//-------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
-void Mahony::computeAngles()
+void Mahony::_ComputeAngles()
 {
-	roll = atan2f(q0*q1 + q2*q3, 0.5f - q1*q1 - q2*q2);
-	pitch = asinf(-2.0f * (q1*q3 - q0*q2));
-	yaw = atan2f(q1*q2 + q0*q3, 0.5f - q2*q2 - q3*q3);
-	anglesComputed = 1;
+    // roll (x-axis rotation)
+    float sinr = +2.0 * (q0 * q1 + q2 * q3);
+    float cosr = +1.0 - 2.0 * (q1 * q1 + q2 * q2);
+    ypr[2] = atan2(sinr, cosr);
+
+    // pitch (y-axis rotation)
+    float sinp = +2.0 * (q0 * q2 - q3 * q1);
+    if (fabs(sinp) >= 1)
+        ypr[1] = copysign(3.14159265 / 2, sinp); // use 90 degrees if out of range
+    else
+        ypr[1] = asin(sinp);
+
+    // yaw (z-axis rotation)
+    float siny = +2.0 * (q0 * q3 + q1 * q2);
+    float cosy = +1.0 - 2.0 * (q2 * q2 + q3 * q3);
+    ypr[0] = atan2(siny, cosy);
 }
 
+#endif /* __HAL_USE_MPU9250_NODMP__ */
 
-//============================================================================================
-// END OF CODE
-//============================================================================================

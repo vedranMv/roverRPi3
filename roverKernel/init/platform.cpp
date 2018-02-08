@@ -67,7 +67,6 @@ void _PLAT_KernelCallback(void)
      */
     case PLAT_T_TEL:
         {
-
             /*
              * Telemetry frame has the following format:
              * @note numbers are represented as strings not byte values
@@ -508,7 +507,7 @@ void Platform::_PostInit()
 {
 #ifdef __HAL_USE_MPU9250__
     //  Create periodic task that will read sensor data
-    ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -50, 50, T_PERIODIC);
+    ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -50, 10, T_PERIODIC);
 #endif
 
     //  Schedule periodic telemetry sending every 1s
