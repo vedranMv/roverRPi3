@@ -10,12 +10,17 @@
 #ifndef UARTHW_H_
 #define UARTHW_H_
 
+#include "libs/myLib.h"
+
+
 /*		Communication settings	 	*/
 #define COMM_BAUD	115200
 #define TX_BUF_LEN	512
 
 /*      Macro to short the expression needed to print to debug port     */
 #define DEBUG_WRITE(...) SerialPort::GetI().Send(__VA_ARGS__)
+/*      Macro for printing float numbers    */
+#define _FTOI_(X) (int32_t)(trunc(X)),(int32_t)fabs(trunc((X-trunc(X))*100))
 
 
 /**
@@ -40,7 +45,7 @@ class SerialPort
 
 
 /*
- * Function for receiving and processing incomming data - no need to call them
+ * Function for receiving and processing incoming data - no need to call them
  */
 
 extern "C"

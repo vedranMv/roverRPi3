@@ -199,7 +199,7 @@ void _MPU_KernelCallback(void)
 //#endif
 //    return;
 
-            if (HAL_MPU_DataAvail())
+            if (__mpu.IsDataReady())
             {
                 int8_t retVal;
                 short gyro[3], accel[3], sensors;
@@ -305,7 +305,6 @@ void _MPU_KernelCallback(void)
                 else
                 {
                     __mpu._mpuKer.retVal = MPU_SUCCESS;
-                    __mpu._dataFlag = true;
                 }
 
                 //  Update sum of rotations for next function call
@@ -445,12 +444,6 @@ int8_t MPU9250::InitSW()
     EMIT_EV(-1, EVENT_STARTUP);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
-//#if defined(__USE_TASK_SCHEDULER__)
-//    //  Register module services with task scheduler
-//    _mpuKer.callBackFunc = _MPU_KernelCallback;
-//    TS_RegCallback(&_mpuKer, MPU_UID);
-//#endif
-
     mpu_init(&int_param);
 
     //  Get/set hardware configuration. Start gyro.
@@ -458,7 +451,7 @@ int8_t MPU9250::InitSW()
     mpu_set_sensors(INV_XYZ_GYRO | INV_XYZ_ACCEL | INV_XYZ_COMPASS);
     // Push accel and quaternion data into the FIFO.
     mpu_configure_fifo(INV_XYZ_ACCEL);
-    mpu_set_sample_rate(10);//50
+    mpu_set_sample_rate(50);
 
     // Initialize HAL state variables.
     memset(&hal, 0, sizeof(hal));
@@ -515,17 +508,40 @@ int8_t MPU9250::InitSW()
 }
 
 /**
- * Trigger software reset of the MPU module by writing into corresponding register
+ * Trigger software reset of the MPU module by writing into corresponding
+ * register. Wait for 50ms afterwards for sensor to start up.
+ * @return One of MPU_* error codes
  */
-void MPU9250::Reset()
+int8_t MPU9250::Reset()
 {
-    HAL_MPU_WriteByteNB(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
+    HAL_MPU_WriteByte(MPU9250_ADDRESS, PWR_MGMT_1, 1 << 7);
     HAL_DelayUS(50000);
 
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_UNINITIALIZED);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
+    return MPU_SUCCESS;
+}
+
+/**
+ * Control power supply of the MPU9250
+ * Enable or disable power supply of the MPU9250 using external MOSFET
+ * @param en Power state
+ * @return One of MPU_* error codes
+ */
+int8_t MPU9250::Enabled(bool en)
+{
+    HAL_MPU_PowerSwitch(en);
+
+#ifdef __HAL_USE_EVENTLOG__
+    if (en)
+        EMIT_EV(-1, EVENT_UNINITIALIZED);
+    else
+        EMIT_EV(-1, EVENT_STARTUP);
+#endif  /* __HAL_USE_EVENTLOG__ */
+
+    return MPU_SUCCESS;
 }
 
 /**
@@ -535,7 +551,7 @@ void MPU9250::Reset()
  */
 bool MPU9250::IsDataReady()
 {
-    return static_cast<bool>(_dataFlag);
+    return HAL_MPU_DataAvail();
 }
 
 /**
@@ -551,51 +567,161 @@ uint8_t MPU9250::GetID()
 }
 
 /**
- * Add hook to user-defined function to be called once new sensor
- * data has been received
- * @param custHook pointer to function with two float args (accel & gyro array)
+ * Trigger reading data from MPU9250
+ * Read data from MPU9250s' FIFO and extract quaternions, acceleration, gravity
+ * vector & roll-pitch-yaw
+ * @return One of MPU_* error codes
  */
-void MPU9250::AddHook(void((*custHook)(uint8_t,float*)))
+int8_t MPU9250::ReadSensorData()
 {
-    userHook = custHook;
+    int8_t retVal = MPU_ERROR;
+    short gyro[3], accel[3], sensors;
+    unsigned char more = 1;
+    long quat[4];
+    unsigned long sensor_timestamp;
+    int cnt = 0;
+
+
+     //  Make sure the fifo is empty before leaving this loop, in
+     //  order to prevent fifo overflow on consecutive sensor reading
+     while (cnt < 100)   //Read max 100 packets, if there's more we
+                         //   have a problem
+     {
+         /* This function gets new data from the FIFO when the DMP is in
+           * use. The FIFO can contain any combination of gyro, accel,
+           * quaternion, and gesture data. The sensors parameter tells the
+           * caller which data fields were actually populated with new data.
+           * For example, if sensors == (INV_XYZ_GYRO | INV_WXYZ_QUAT), then
+           * the FIFO isn't being filled with accel data.
+           * The driver parses the gesture data to determine if a gesture
+           * event has occurred; on an event, the application will be notified
+           * via a callback (assuming that a callback function was properly
+           * registered). The more parameter is non-zero if there are
+           * leftover packets in the FIFO.
+           */
+         retVal = dmp_read_fifo(gyro, accel, quat, &sensor_timestamp, &sensors, &more);
+         cnt++;
+#ifdef __DEBUG_SESSION__
+         if (retVal == (-2))
+             DEBUG_WRITE("READ_FIFO returned: %d \n", retVal);
+#endif  /* __DEBUG_SESSION__ */
+
+         if (sensors == 0)   //No data available
+         {
+             retVal = MPU_SUCCESS;
+             break;
+         }
+
+         //  If reading fifo returned error, move to next packet
+         if (retVal)
+             continue;
+
+         //  If there was no error, extract orientation data
+         Quaternion qt;
+         qt.x = (float)quat[0]/QUAT_SENS;
+         qt.y = (float)quat[1]/QUAT_SENS;
+         qt.z = (float)quat[2]/QUAT_SENS;
+         qt.w = (float)quat[3]/QUAT_SENS;
+
+         VectorFloat v;
+         dmp_GetGravity(&v, &qt);
+
+         dmp_GetYawPitchRoll((float*)(_ypr), &qt, &v);
+
+         _quat[0] = qt.x;
+         _quat[1] = qt.y;
+         _quat[2] = qt.z;
+         _quat[3] = qt.w;
+
+         //  Copy to MPU class
+         _gv[0] = v.x;
+         _gv[1] = v.y;
+         _gv[2] = v.z;
+
+         _acc[0] = (float)accel[0]/32767.0;
+         _acc[1] = (float)accel[1]/32767.0;
+         _acc[2] = (float)accel[2]/32767.0;
+     }
+
+     return retVal;
 }
 
 /**
  * Copy orientation from internal buffer to user-provided one
  * @param RPY pointer to float buffer of size 3 to hold roll-pitch-yaw
  * @param inDeg if true RPY returned in degrees, if false in radians
+ * @return One of MPU_* error codes
  */
-void MPU9250::RPY(float* RPY, bool inDeg)
+int8_t MPU9250::RPY(float* RPY, bool inDeg)
 {
     for (uint8_t i = 0; i < 3; i++)
         if (inDeg)
             RPY[i] = _ypr[i]*180.0/PI_CONST;
         else
             RPY[i] = _ypr[i];
+
+    return MPU_SUCCESS;
 }
 
 /**
  * Copy acceleration from internal buffer to user-provided one
  * @param acc Pointer a float array of min. size 3 to store 3-axis acceleration
- *  data
+ *        data
+ * @return One of MPU_* error codes
  */
-void MPU9250::Acceleration(float *acc)
+int8_t MPU9250::Acceleration(float *acc)
 {
     memcpy((void*)acc, (void*)_acc, sizeof(float)*3);
+
+    return MPU_SUCCESS;
+}
+
+/**
+ * Copy angular rotation from internal buffer to user-provided one
+ * @param gyro Pointer a float array of min. size 3 to store 3-axis rotation
+ *        data
+ * @return One of MPU_* error codes
+ */
+int8_t MPU9250::Gyroscope(float *gyro)
+{
+    //  Not available
+    gyro[0] = gyro[1] = gyro[2] = 0.0f;
+
+    return MPU_SUCCESS;
+}
+
+/**
+ * Copy mag. field strength from internal buffer to user-provided one
+ * @param mag Pointer a float array of min. size 3 to store 3-axis mag. field
+ *        strength data
+ * @return One of MPU_* error codes
+ */
+int8_t MPU9250::Magnetometer(float *mag)
+{
+    //  Not available
+    mag[0] = mag[1] = mag[2] = 0.0f;
+
+    return MPU_SUCCESS;
 }
 
 ///-----------------------------------------------------------------------------
 ///                      Class constructor & destructor              [PROTECTED]
 ///-----------------------------------------------------------------------------
 
-MPU9250::MPU9250() :  dT(0), _dataFlag(false), userHook(0)
+MPU9250::MPU9250() :  dT(0), _magEn(true)
 {
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_UNINITIALIZED);
 #endif  /* __HAL_USE_EVENTLOG__ */
+
+    //  Initialize arrays
+    memset((void*)_ypr, 0, 3);
+    memset((void*)_acc, 0, 3);
+    memset((void*)_gyro, 0, 3);
+    memset((void*)_mag, 0, 3);
 }
 
 MPU9250::~MPU9250()
 {}
 
-#endif  /* __HAL_USE_MPU9250__ */
+#endif  /* __HAL_USE_MPU9250_DMP__ */

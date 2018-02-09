@@ -508,6 +508,10 @@ void Platform::_PostInit()
 #ifdef __HAL_USE_MPU9250__
     //  Create periodic task that will read sensor data
     ts->SyncTaskPer(MPU_UID, MPU_T_GET_DATA, -50, 10, T_PERIODIC);
+    #ifdef __HAL_USE_MPU9250_NODMP__
+        mpu->SetupAHRS(0.01, 0.9, 0.01);
+    #endif
+
 #endif
 
     //  Schedule periodic telemetry sending every 1s

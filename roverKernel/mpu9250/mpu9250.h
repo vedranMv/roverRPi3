@@ -36,7 +36,10 @@
  *  +Implemented support for using the MPU module without DMP firmware, getting
  *  raw sensor measurements and computing orientation from them - check
  *  api_mpu9250 files. (use hwconfig.h to select which mode of operation to use,
- *   raw data or DMP)
+ *  raw data or DMP)
+ *  V3.1.1 - 9.1.2018
+ *  +Created interface to read acceleration/gyro/mag data
+ *  +Added Mahony algorithm for attitude estimation from sensor data
  */
 #include "hwconfig.h"
 
@@ -86,39 +89,47 @@ class MPU9250
 
         int8_t  InitHW();
         int8_t  InitSW();
-        void    Reset();
+        int8_t  Reset();
+        int8_t  Enabled(bool en);
         bool    IsDataReady();
         uint8_t GetID();
 
-        void    AddHook(void((*custHook)(uint8_t,float*)));
-        void    RPY(float* RPY, bool inDeg);
-        void    Acceleration(float *acc);
+        int8_t  ReadSensorData();
+        int8_t  RPY(float* RPY, bool inDeg);
+        int8_t  Acceleration(float *acc);
+        int8_t  Gyroscope(float *gyro);
+        int8_t  Magnetometer(float *mag);
 
         volatile float  dT;
-        //  Function to be hooked when new sensor data is received. 1st argument
-        //  is what kind of data to pass, 2nd is float array to store data
-        void((*userHook)(uint8_t,float*));
+
+
     protected:
         MPU9250();
         ~MPU9250();
         MPU9250(MPU9250 &arg) {}              //  No definition - forbid this
         void operator=(MPU9250 const &arg) {} //  No definition - forbid this
 
-
-        //  Magnetometer readings[x,y,z]
-        volatile float _mag[3];
         //  Yaw-Pitch-Roll orientation[Y,P,R] in radians
         volatile float _ypr[3];
-        //  Gyroscope readings [x,y,z]
-        volatile float _gyro[3];
         //  Acceleration [x,y,z]
         volatile float _acc[3];
+        //  Gyroscope readings [x,y,z]
+        volatile float _gyro[3];
+        //  Magnetometer readings[x,y,z]
+        volatile float _mag[3];
         //  Magnetometer control
         bool _magEn;
 
 #if defined(__HAL_USE_MPU9250_NODMP__)
-        //  Use Mahoneys' algorithm for attitude estimations
+    private:
+        //  Use Mahony algorithm for attitude estimations
         Mahony _ahrs;
+    public:
+        int8_t SetupAHRS(float dT, float kp, float ki);
+#else
+    protected:
+        volatile float _gv[3];
+        volatile float _quat[4];
 #endif
 
         //  Interface with task scheduler - provides memory space and function
