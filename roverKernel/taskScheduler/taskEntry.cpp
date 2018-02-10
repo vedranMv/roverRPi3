@@ -8,7 +8,7 @@
 
 
 ///-----------------------------------------------------------------------------
-///                      Class constructors                             [PUBLIC]
+///                      Class constructors & destructor                [PUBLIC]
 ///-----------------------------------------------------------------------------
 TaskEntry::TaskEntry() : _libuid(0), _task(0), _argN(0), _timestamp(0),
         _args(0), _PID(0)
@@ -38,6 +38,10 @@ TaskEntry::~TaskEntry()
     if (_args != 0)
         delete [] _args;
 }
+
+///-----------------------------------------------------------------------------
+///                      Class member functions                         [PUBLIC]
+///-----------------------------------------------------------------------------
 
 /**
  * Add argument(s) stored in a byte array [arg] of length [argLen]. Byte array
@@ -69,6 +73,27 @@ void TaskEntry::AddArg(void* arg, uint16_t argLen) volatile
     _args = temp;
 }
 
+uint8_t TaskEntry::GetLibUID() const volatile
+{
+    return (uint8_t)_libuid;
+}
+uint8_t TaskEntry::GetTaskUID() const volatile
+{
+    return (uint8_t)_task;
+}
+uint16_t TaskEntry::GetPID() const volatile
+{
+    return (uint16_t)_PID;
+}
+int32_t TaskEntry::GetPeriod() const volatile
+{
+    return (int32_t)_period;
+}
+uint32_t TaskEntry::GetTimeStamp() const volatile
+{
+    return (uint32_t)_timestamp;
+}
+
 ///-----------------------------------------------------------------------------
 ///                 Class operator definitions                          [PUBLIC]
 ///-----------------------------------------------------------------------------
@@ -87,7 +112,7 @@ TaskEntry& TaskEntry::operator= (const TaskEntry& arg)
     _period = arg._period;
     _repeats = arg._repeats;
     _PID = arg._PID;
-    _perf = arg._perf;
+    Perf = arg.Perf;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -103,7 +128,7 @@ volatile TaskEntry& TaskEntry::operator= (const volatile TaskEntry& arg)
     _period = arg._period;
     _repeats = arg._repeats;
     _PID = arg._PID;
-    _perf = arg._perf;
+    Perf = arg.Perf;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);
@@ -119,7 +144,7 @@ volatile TaskEntry& TaskEntry::operator= (volatile TaskEntry& arg) volatile
     _period = arg._period;
     _repeats = arg._repeats;
     _PID = arg._PID;
-    _perf = arg._perf;
+    Perf = arg.Perf;
 
     _args = new uint8_t[_argN];
     memcpy((void*)_args, (void*)(arg._args), _argN);

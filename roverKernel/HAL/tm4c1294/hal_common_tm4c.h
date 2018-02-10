@@ -23,8 +23,10 @@ extern uint32_t g_ui32SysClock;
 extern void         HAL_DelayUS(uint32_t us);
 extern void         HAL_BOARD_CLOCK_Init();
 extern void         HAL_BOARD_Reset();
+extern void         HAL_BOARD_InterruptEnable(bool enable);
 extern void         UNUSED (int32_t arg);
 extern uint32_t     _TM4CMsToCycles(uint32_t ms);
+
 
 extern void         HAL_SetPWM(uint32_t id, uint32_t pwm);
 extern uint32_t     HAL_GetPWM(uint32_t id);

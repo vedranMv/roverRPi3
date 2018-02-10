@@ -56,6 +56,18 @@ void HAL_BOARD_Reset()
 }
 
 /**
+ * Suppress or enable interrupts on the microcontroller
+ * @param enable New state to set
+ */
+void HAL_BOARD_InterruptEnable(bool enable)
+{
+    if (enable)
+        IntMasterEnable();
+    else
+        IntMasterDisable();
+}
+
+/**
  * Wait for given amount of us - blocking function
  * @param us time in us to wait
  */

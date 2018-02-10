@@ -62,7 +62,6 @@
  *  inherited)
  */
 #include "hwconfig.h"
-#include "driverlib/interrupt.h"
 
 //  Compile following section only if hwconfig.h says to include this module
 #if !defined(ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_) \
@@ -70,6 +69,7 @@
 #define ROVERKERNEL_TASKSCHEDULER_TASKSCHEDULER_H_
 
 #include "linkedList.h"
+#include "HAL/hal.h"
 
 /**
  * Callback entry into the Task scheduler from individual kernel module
@@ -193,13 +193,13 @@ class TaskScheduler
 		void AddArg(T arg) volatile
 		{
             //  Sensitive task, disable all interrupts
-            IntMasterDisable();
+		    HAL_BOARD_InterruptEnable(false);
 
 		    if (_lastIndex != 0)
 		        _lastIndex->data.AddArg((void*)&arg, sizeof(arg));
 
 		    //  Sensitive task done, enable interrupts again
-		    IntMasterEnable();
+		    HAL_BOARD_InterruptEnable(true);
 		}
 		/**
 		 * Return first element from task queue
@@ -213,7 +213,7 @@ class TaskScheduler
 		TaskEntry PopFront() volatile
         {
             //  Sensitive task, disable all interrupts
-            IntMasterDisable();
+            HAL_BOARD_InterruptEnable(false);
 
             TaskEntry retVal;
 
@@ -243,7 +243,7 @@ class TaskScheduler
         }
 #endif
             _lastIndex = 0;
-            IntMasterEnable();
+            HAL_BOARD_InterruptEnable(true);
             return retVal;
         }
 
@@ -271,11 +271,11 @@ class TaskScheduler
 		 *  ->volatile pointer (because it can change from within interrupt) to
 		 *  a volatile object (object can be removed from within interrupt)
 		 */
-		volatile _llnode    * volatile _lastIndex;
+		volatile _llnode* volatile _lastIndex;
 
         //  Interface with task scheduler - provides memory space and function
         //  to call in order for task scheduler to request service from this module
-        struct _kernelEntry _tsKer;
+        struct _kernelEntry _ker;
 };
 
 extern void TS_GlobalCheck(void);

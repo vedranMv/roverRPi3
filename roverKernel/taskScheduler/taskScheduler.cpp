@@ -5,7 +5,6 @@
  *      Author: Vedran
  */
 #include "taskScheduler.h"
-#include "driverlib/interrupt.h"
 
 #if defined(__HAL_USE_TASKSCH__)   //  Compile only if module is enabled
 
@@ -62,7 +61,7 @@ void _TS_KernelCallback(void)
     volatile TaskScheduler  &__ts = TaskScheduler::GetI();
 
     //  Check for null-pointer
-    if (__ts._tsKer.args == 0)
+    if (__ts._ker.args == 0)
         return;
 
     /*
@@ -71,7 +70,7 @@ void _TS_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__ts._tsKer.serviceID)
+    switch (__ts._ker.serviceID)
     {
     /*
      *  Enable/disable time ticking on internal timer
@@ -80,14 +79,14 @@ void _TS_KernelCallback(void)
      */
     case TASKSCHED_T_ENABLE:
         {
-            bool enable = (__ts._tsKer.args[0] == 1);
+            bool enable = (__ts._ker.args[0] == 1);
 
             if (enable)
                 HAL_TS_StartSysTick();
             else
                 HAL_TS_StopSysTick();
 
-            __ts._tsKer.retVal = STATUS_OK;
+            __ts._ker.retVal = STATUS_OK;
         }
         break;
     /*
@@ -99,11 +98,11 @@ void _TS_KernelCallback(void)
         {
             uint16_t PIDarg;
 
-            memcpy(&PIDarg, __ts._tsKer.args, sizeof(uint16_t));
+            memcpy(&PIDarg, __ts._ker.args, sizeof(uint16_t));
 
             __ts.RemoveTask(PIDarg);
 
-            __ts._tsKer.retVal = STATUS_OK;
+            __ts._ker.retVal = STATUS_OK;
         }
         break;
     default:
@@ -112,10 +111,10 @@ void _TS_KernelCallback(void)
 
     //  Check return-value and emit event based on it
 #ifdef __HAL_USE_EVENTLOG__
-    if (__ts._tsKer.retVal == STATUS_OK)
-        EMIT_EV(__ts._tsKer.serviceID, EVENT_OK);
+    if (__ts._ker.retVal == STATUS_OK)
+        EMIT_EV(__ts._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__ts._tsKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__ts._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 
@@ -174,8 +173,8 @@ void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
     HAL_TS_StartSysTick();
 
     //  Register module services with task scheduler
-    _tsKer.callBackFunc = _TS_KernelCallback;
-    TS_RegCallback((struct _kernelEntry*)&_tsKer, TASKSCHED_UID);
+    _ker.callBackFunc = _TS_KernelCallback;
+    TS_RegCallback((struct _kernelEntry*)&_ker, TASKSCHED_UID);
 
 #ifdef __HAL_USE_EVENTLOG__
     EMIT_EV(-1, EVENT_INITIALIZED);
@@ -192,14 +191,14 @@ void TaskScheduler::InitHW(uint32_t timeStepMS) volatile
 void TaskScheduler::Reset() volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
     //  If Drop() return true, there was an error deleting tasks
     if (_taskLog.Drop())
         EMIT_EV(-1, EVENT_ERROR);
 
     //  Sensitive task done, enable interrupts again
-    IntMasterEnable();
+    HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -256,7 +255,7 @@ void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
                              int64_t time, bool periodic, int32_t rep) volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
     int32_t period = (int32_t)time;
     /*
@@ -303,7 +302,7 @@ void TaskScheduler::SyncTask(uint8_t libUID, uint8_t taskID,
         }
 #endif
         //  Sensitive task done, enable interrupts again
-        IntMasterEnable();
+        HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -324,7 +323,7 @@ void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
                       int32_t period, int32_t rep) volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
     /*
      * If time is a positive number it represent time in milliseconds from
      * start-up of the microcontroller. If time is a negative number or 0 it
@@ -369,7 +368,7 @@ void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
         }
 #endif
         //  Sensitive task done, enable interrupts again
-        IntMasterEnable();
+        HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -382,7 +381,7 @@ void TaskScheduler::SyncTaskPer(uint8_t libUID, uint8_t taskID, int64_t time,
 void TaskScheduler::SyncTask(TaskEntry te) volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
 #if defined(__DEBUG_SESSION2__)
         volatile uint32_t siz = _taskLog.size;
@@ -412,7 +411,7 @@ void TaskScheduler::SyncTask(TaskEntry te) volatile
         }
 #endif
         //  Sensitive task done, enable interrupts again
-        IntMasterEnable();
+        HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -427,13 +426,13 @@ void TaskScheduler::SyncTask(TaskEntry te) volatile
 void TaskScheduler::AddArgs(void* arg, uint16_t argLen) volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
     if (_lastIndex != 0)
         _lastIndex->data.AddArg(arg, argLen);
 
     //  Sensitive task done, enable interrupts again
-    IntMasterEnable();
+    HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -447,14 +446,14 @@ void TaskScheduler::RemoveTask(uint8_t libUID, uint8_t taskID,
                                void* arg, uint16_t argLen) volatile
 {
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
     TaskEntry delT(libUID, taskID, 0);
     delT.AddArg(arg, argLen);
     _taskLog.RemoveEntry(delT);
 
     //  Sensitive task done, enable interrupts again
-    IntMasterEnable();
+    HAL_BOARD_InterruptEnable(true);
 }
 
 /**
@@ -474,12 +473,12 @@ bool TaskScheduler::RemoveTask(uint16_t PIDarg) volatile
 {
     bool retVal;
     //  Sensitive task, disable all interrupts
-    IntMasterDisable();
+    HAL_BOARD_InterruptEnable(false);
 
     retVal = _taskLog.RemoveEntry(PIDarg);
 
     //  Sensitive task done, enable interrupts again
-    IntMasterEnable();
+    HAL_BOARD_InterruptEnable(true);
     return retVal;
 }
 
@@ -545,7 +544,7 @@ void TS_GlobalCheck(void)
             if ((tE._period != 0) && (tE._repeats != 0))
             {
 #ifdef _TS_PERF_ANALYSIS_
-                tE._perf.TaskStartHook((uint64_t)msSinceStartup, tE._timestamp, HAL_TS_GetTimeStepMS());
+                tE.Perf.TaskStartHook((uint64_t)msSinceStartup, tE._timestamp, HAL_TS_GetTimeStepMS());
 #endif
                 //  Change time of execution based on period (for next execution)
                 tE._timestamp = msSinceStartup + labs(tE._period);
@@ -575,7 +574,7 @@ void TS_GlobalCheck(void)
             if ((tE._period != 0) && (tE._repeats != 0))
             {
 #ifdef _TS_PERF_ANALYSIS_
-                tE._perf.TaskEndHook((uint64_t)msSinceStartup);
+                tE.Perf.TaskEndHook((uint64_t)msSinceStartup);
 #endif
                 //  If using repeat counter decrease it
                 if (tE._repeats > 0)

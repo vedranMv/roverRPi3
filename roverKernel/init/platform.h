@@ -100,7 +100,7 @@ class Platform
 
         //  Interface with task scheduler - provides memory space and function
         //  to call in order for task scheduler to request service from this module
-        _kernelEntry _platKer;
+        _kernelEntry _ker;
 };
 
 

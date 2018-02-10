@@ -149,7 +149,7 @@ void _MPU_KernelCallback(void)
 
 
     //  Check for null-pointer
-    if (__mpu._mpuKer.args == 0)
+    if (__mpu._ker.args == 0)
         return;
 
     /*
@@ -158,7 +158,7 @@ void _MPU_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__mpu._mpuKer.serviceID)
+    switch (__mpu._ker.serviceID)
     {
     /*
      * Change state of the power switch. Allows for powering down MPU chip
@@ -168,7 +168,7 @@ void _MPU_KernelCallback(void)
     case MPU_T_POWERSW:
         {
             //  Double negation to convert any non-zero int to bool
-            bool powerState = !(!(__mpu._mpuKer.args[0]));
+            bool powerState = !(!(__mpu._ker.args[0]));
 
             HAL_MPU_PowerSwitch(powerState);
 
@@ -178,7 +178,7 @@ void _MPU_KernelCallback(void)
                 __mpu.InitHW();
                 __mpu.InitSW();
             }
-            __mpu._mpuKer.retVal = MPU_SUCCESS;
+            __mpu._ker.retVal = MPU_SUCCESS;
         }
         break;
 
@@ -240,7 +240,7 @@ void _MPU_KernelCallback(void)
 
                     if (sensors == 0)   //No data available
                     {
-                        __mpu._mpuKer.retVal = MPU_SUCCESS;
+                        __mpu._ker.retVal = MPU_SUCCESS;
                         break;
                     }
 
@@ -299,12 +299,12 @@ void _MPU_KernelCallback(void)
 #ifdef __HAL_USE_EVENTLOG__
                     EMIT_EV(MPU_T_GET_DATA, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
-                    __mpu._mpuKer.retVal = MPU_ERROR;
+                    __mpu._ker.retVal = MPU_ERROR;
                     }
                 }
                 else
                 {
-                    __mpu._mpuKer.retVal = MPU_SUCCESS;
+                    __mpu._ker.retVal = MPU_SUCCESS;
                 }
 
                 //  Update sum of rotations for next function call
@@ -326,12 +326,12 @@ void _MPU_KernelCallback(void)
          */
     case MPU_T_REBOOT:
         {
-            if (__mpu._mpuKer.args[0] == 0x17)
+            if (__mpu._ker.args[0] == 0x17)
             {
                 sumOfRot = 0.0; //Prevents error for big change in value after reboot
                 __mpu.Reset();
                 __mpu.InitHW();
-                __mpu._mpuKer.retVal = (int32_t)__mpu.InitSW();
+                __mpu._ker.retVal = (int32_t)__mpu.InitSW();
             }
         }
         break;
@@ -342,7 +342,7 @@ void _MPU_KernelCallback(void)
          */
     case MPU_T_SOFT_REBOOT:
         {
-            if (__mpu._mpuKer.args[0] == 0x17)
+            if (__mpu._ker.args[0] == 0x17)
             {
 #ifdef __HAL_USE_EVENTLOG__
                 EventLog::SoftReboot(MPU_UID);
@@ -356,10 +356,10 @@ void _MPU_KernelCallback(void)
 
     //  Report outcome to event logger
 #ifdef __HAL_USE_EVENTLOG__
-    if (__mpu._mpuKer.retVal == MPU_SUCCESS)
-        EMIT_EV(__mpu._mpuKer.serviceID, EVENT_OK);
+    if (__mpu._ker.retVal == MPU_SUCCESS)
+        EMIT_EV(__mpu._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__mpu._mpuKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__mpu._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif
@@ -417,8 +417,8 @@ int8_t MPU9250::InitHW()
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
-    _mpuKer.callBackFunc = _MPU_KernelCallback;
-    TS_RegCallback(&_mpuKer, MPU_UID);
+    _ker.callBackFunc = _MPU_KernelCallback;
+    TS_RegCallback(&_ker, MPU_UID);
 #endif
 
     return MPU_SUCCESS;

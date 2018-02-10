@@ -41,7 +41,7 @@ void _ENG_KernelCallback(void)
 {
     EngineData &__ed = EngineData::GetI();
     //  Check for null-pointer
-    if (__ed._edKer.args == 0)
+    if (__ed._ker.args == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -49,7 +49,7 @@ void _ENG_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__ed._edKer.serviceID)
+    switch (__ed._ker.serviceID)
     {
     /*
      * Move vehicle in a single direction given by arguments
@@ -63,18 +63,18 @@ void _ENG_KernelCallback(void)
             bool blocking;
 
             memcpy((void*)&dir,
-                   (void*)__ed._edKer.args,
+                   (void*)__ed._ker.args,
                    1);
             memcpy((void*)&arg,
-                   (void*)(__ed._edKer.args + 1),
+                   (void*)(__ed._ker.args + 1),
                    sizeof(float));
             memcpy((void*)&temp,
-                   (void*)(__ed._edKer.args + 1 + sizeof(float)),
+                   (void*)(__ed._ker.args + 1 + sizeof(float)),
                    1);
             blocking = !(!temp);
 
             //((EngineData*)__ed)->StartEngines(dir, arg, blocking);
-            __ed._edKer.retVal = __ed.StartEngines(dir, arg, blocking);
+            __ed._ker.retVal = __ed.StartEngines(dir, arg, blocking);
         }
         break;
     /*
@@ -87,16 +87,16 @@ void _ENG_KernelCallback(void)
             float dist, angl, smallRad;
 
             memcpy((void*)&dist,
-                   (void*)__ed._edKer.args,
+                   (void*)__ed._ker.args,
                    sizeof(float));
             memcpy((void*)&angl,
-                   (void*)(__ed._edKer.args + sizeof(float)),
+                   (void*)(__ed._ker.args + sizeof(float)),
                    sizeof(float));
             memcpy((void*)&smallRad,
-                   (void*)(__ed._edKer.args + 2 * sizeof(float)),
+                   (void*)(__ed._ker.args + 2 * sizeof(float)),
                    sizeof(float));
             //((EngineData*)
-            __ed._edKer.retVal = __ed.StartEnginesArc(dist, angl, smallRad);
+            __ed._ker.retVal = __ed.StartEnginesArc(dist, angl, smallRad);
         }
         break;
     /*
@@ -110,16 +110,16 @@ void _ENG_KernelCallback(void)
             float percLeft, percRight;
 
             memcpy((void*)&dir,
-                   (void*)__ed._edKer.args,
+                   (void*)__ed._ker.args,
                    1);
             memcpy((void*)&percLeft,
-                   (void*)(__ed._edKer.args+1),
+                   (void*)(__ed._ker.args+1),
                    sizeof(float));
             memcpy((void*)&percRight,
-                   (void*)(__ed._edKer.args + sizeof(float)+1),
+                   (void*)(__ed._ker.args + sizeof(float)+1),
                    sizeof(float));
             //((EngineData*)__ed)->RunAtPercPWM(dir, percLeft, percRight);
-            __ed._edKer.retVal = __ed.RunAtPercPWM(dir, percLeft, percRight);
+            __ed._ker.retVal = __ed.RunAtPercPWM(dir, percLeft, percRight);
         }
         break;
     /*
@@ -130,10 +130,10 @@ void _ENG_KernelCallback(void)
     case ENG_T_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
-            if (__ed._edKer.args[0] != 0x17)
+            if (__ed._ker.args[0] != 0x17)
                 return;
 
-            __ed._edKer.retVal = __ed.InitHW();
+            __ed._ker.retVal = __ed.InitHW();
         }
         break;
     /*
@@ -168,7 +168,7 @@ void _ENG_KernelCallback(void)
             lastMsCounter = msSinceStartup;
             memcpy((void*)lastWheelCounter, (void*)__ed.wheelCounter, 2*sizeof(int32_t));
 
-            __ed._edKer.retVal = STATUS_OK;
+            __ed._ker.retVal = STATUS_OK;
         }
         break;
     default:
@@ -176,10 +176,10 @@ void _ENG_KernelCallback(void)
     }
 
 #ifdef __HAL_USE_EVENTLOG__
-    if (__ed._edKer.retVal == STATUS_OK)
-        EMIT_EV(__ed._edKer.serviceID, EVENT_OK);
+    if (__ed._ker.retVal == STATUS_OK)
+        EMIT_EV(__ed._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__ed._edKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__ed._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 
@@ -255,8 +255,8 @@ int8_t EngineData::InitHW()
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
-    _edKer.callBackFunc = _ENG_KernelCallback;
-    TS_RegCallback(&_edKer, ENGINES_UID);
+    _ker.callBackFunc = _ENG_KernelCallback;
+    TS_RegCallback(&_ker, ENGINES_UID);
 #endif
 
 #ifdef __HAL_USE_EVENTLOG__

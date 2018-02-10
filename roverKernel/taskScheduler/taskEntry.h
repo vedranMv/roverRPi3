@@ -17,10 +17,8 @@ class TaskEntry
 {
     // Functions & classes needing direct access to all members
     friend class TaskScheduler;
-    friend void TSSyncCallback(void);
     friend void TS_GlobalCheck(void);
     friend class LinkedList;
-    friend void _PLAT_KernelCallback(void);
     public:
         TaskEntry();
         TaskEntry(const TaskEntry& arg);
@@ -31,9 +29,18 @@ class TaskEntry
 
         void        AddArg(void* arg, uint16_t argLen) volatile;
 
+        uint8_t     GetLibUID() const volatile;
+        uint8_t     GetTaskUID() const volatile;
+        uint16_t    GetPID() const volatile;
+        int32_t     GetPeriod() const volatile;
+        uint32_t    GetTimeStamp() const volatile;
+
                  TaskEntry& operator= (const TaskEntry& arg);
         volatile TaskEntry& operator= (const volatile TaskEntry& arg);
         volatile TaskEntry& operator= (volatile TaskEntry& arg) volatile;
+
+        //  Performance data regarding the task
+        Performance        Perf;
 
     protected:
         //  Unique identifier for library to request service from
@@ -55,8 +62,6 @@ class TaskEntry
         int32_t             _repeats;
         //  Unique process ID
         volatile uint16_t   _PID;
-        //  Performance data regarding the task
-        Performance         _perf;
 };
 
 #endif /* ROVERKERNEL_TASKSCHEDULER_TASKENTRY_C_ */

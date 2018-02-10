@@ -103,7 +103,7 @@ class EngineData
         //  Interface with task scheduler - provides memory space and function
         //  to call in order for task scheduler to request service from this module
 #if defined(__USE_TASK_SCHEDULER__)
-        _kernelEntry _edKer;
+        _kernelEntry _ker;
 #endif
 };
 

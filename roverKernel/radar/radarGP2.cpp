@@ -32,7 +32,7 @@ void _RADAR_KernelCallback(void)
 {
     RadarModule &__rD = RadarModule::GetI();
     //  Check for null-pointer
-    if (__rD._radKer.args == 0)
+    if (__rD._ker.args == 0)
         return;
 
     /*
@@ -41,7 +41,7 @@ void _RADAR_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch(__rD._radKer.serviceID)
+    switch(__rD._ker.serviceID)
     {
     /*
      * Request a radar scan by rotating horizontal axis from 0� to 160�. First
@@ -103,7 +103,7 @@ void _RADAR_KernelCallback(void)
 
                 //  Return radar to starting position after completing the scan
                 HAL_RAD_SetHorAngle(horAngle);
-                __rD._radKer.retVal = STATUS_OK;
+                __rD._ker.retVal = STATUS_OK;
             }
         }
         break;
@@ -115,12 +115,12 @@ void _RADAR_KernelCallback(void)
     case RADAR_T_SETH:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD._radKer.argN == sizeof(float))
+            if (__rD._ker.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD._radKer.args),
+                       (void*)( __rD._ker.args),
                        sizeof(float));
                 __rD.SetHorAngle(angle);
             }
@@ -134,12 +134,12 @@ void _RADAR_KernelCallback(void)
     case RADAR_T_SETV:
         {
             //  Only allowed to have 4 bytes of data (float)
-            if (__rD._radKer.argN == sizeof(float))
+            if (__rD._ker.argN == sizeof(float))
             {
                 float angle;
                 //  Copy data into a float
                 memcpy((void*)&angle,
-                       (void*)( __rD._radKer.args),
+                       (void*)( __rD._ker.args),
                        sizeof(float));
                 __rD.SetVerAngle(angle);
             }
@@ -152,7 +152,7 @@ void _RADAR_KernelCallback(void)
          */
     case RADAR_T_BLOCKINGSCAN:
     {
-            __rD._radKer.retVal = __rD.Scan(true);
+            __rD._ker.retVal = __rD.Scan(true);
     }
         break;
     default:
@@ -161,10 +161,10 @@ void _RADAR_KernelCallback(void)
 
     //  Check return-value and emit event based on it
 #ifdef __HAL_USE_EVENTLOG__
-    if (__rD._radKer.retVal == STATUS_OK)
-        EMIT_EV(__rD._radKer.serviceID, EVENT_OK);
+    if (__rD._ker.retVal == STATUS_OK)
+        EMIT_EV(__rD._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__rD._radKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__rD._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif /* __USE_TASK_SCHEDULER__ */
@@ -214,8 +214,8 @@ void RadarModule::InitHW()
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
-    _radKer.callBackFunc = _RADAR_KernelCallback;
-    TS_RegCallback(&_radKer, RADAR_UID);
+    _ker.callBackFunc = _RADAR_KernelCallback;
+    TS_RegCallback(&_ker, RADAR_UID);
 #endif
 
 #ifdef __HAL_USE_EVENTLOG__

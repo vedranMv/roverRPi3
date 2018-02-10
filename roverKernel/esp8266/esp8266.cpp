@@ -49,7 +49,7 @@ void _ESP_KernelCallback(void)
     ESP8266 &__esp = ESP8266::GetI();
 
     //  Check for null-pointer
-    if (__esp._espKer.argN == 0)
+    if (__esp._ker.argN == 0)
         return;
     /*
      *  Data in args[] contains bytes that constitute arguments for function
@@ -57,7 +57,7 @@ void _ESP_KernelCallback(void)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__esp._espKer.serviceID)
+    switch (__esp._ker.serviceID)
     {
     /*
      * Start/Stop control for TCP server
@@ -68,19 +68,19 @@ void _ESP_KernelCallback(void)
      */
     case ESP_T_TCPSERV:
         {
-            if (__esp._espKer.args[0] == 1)
+            if (__esp._ker.args[0] == 1)
             {
                 uint16_t port;
-                memcpy((void*)&port, (void*)(__esp._espKer.args + 1), 2);
-                __esp._espKer.retVal = __esp.StartTCPServer(port);
+                memcpy((void*)&port, (void*)(__esp._ker.args + 1), 2);
+                __esp._ker.retVal = __esp.StartTCPServer(port);
                 __esp.TCPListen(true);
             }
             else
             {
-                __esp._espKer.retVal = __esp.StopTCPServer();
+                __esp._ker.retVal = __esp.StopTCPServer();
                 __esp.TCPListen(false);
             }
-            __esp._espKer.retVal = ESP_STATUS_OK;
+            __esp._ker.retVal = ESP_STATUS_OK;
         }
         break;
     /*
@@ -96,21 +96,21 @@ void _ESP_KernelCallback(void)
             //  IP address starts on 2nd data byte and its a string of length
             //  equal to total length of data - 4bytes(port,KA,socketID)
             memcpy( (void*)ipAddr,
-                    (void*)(__esp._espKer.args + 1),
-                    __esp._espKer.argN - 4);
+                    (void*)(__esp._ker.args + 1),
+                    __esp._ker.argN - 4);
             //  Port is 3rd and 2nd byte from the back
             memcpy( (void*)&port,
-                    (void*)(__esp._espKer.args + (__esp._espKer.argN-3)),
+                    (void*)(__esp._ker.args + (__esp._ker.argN-3)),
                     2);
             //  socketID is last byte
-            sockID =  __esp._espKer.args[__esp._espKer.argN-1];
+            sockID =  __esp._ker.args[__esp._ker.argN-1];
             //  If IP address is valid process request
             if (__esp._IPtoInt(ipAddr) == 0)
                 return;
             //  1st data byte is keep alive flag
             //  Double negation to convert any integer !=0 into boolean
-            bool KA = !(!__esp._espKer.args[0]);
-            __esp._espKer.retVal = __esp.OpenTCPSock(ipAddr, port, KA, sockID);
+            bool KA = !(!__esp._ker.args[0]);
+            __esp._ker.retVal = __esp.OpenTCPSock(ipAddr, port, KA, sockID);
         }
         break;
     /*
@@ -120,13 +120,13 @@ void _ESP_KernelCallback(void)
     case ESP_T_SENDTCP:
         {
             //  Check if socket ID is valid
-            if (!__esp.ValidSocket(__esp._espKer.args[0]))
+            if (!__esp.ValidSocket(__esp._ker.args[0]))
                return;
             //  Ensure that message is null-terminated
-            __esp._espKer.args[__esp._espKer.argN] = '\0';
+            __esp._ker.args[__esp._ker.argN] = '\0';
             //  Initiate TCP send to required client
-            __esp._espKer.retVal = __esp.GetClientBySockID(__esp._espKer.args[0])
-                                      ->SendTCP((char*)(__esp._espKer.args+1));
+            __esp._ker.retVal = __esp.GetClientBySockID(__esp._ker.args[0])
+                                      ->SendTCP((char*)(__esp._ker.args+1));
         }
         break;
     /*
@@ -137,13 +137,13 @@ void _ESP_KernelCallback(void)
         {
             _espClient  *cli;
             //  Check if socket ID is valid
-            if (!__esp.ValidSocket(__esp._espKer.args[0]))
+            if (!__esp.ValidSocket(__esp._ker.args[0]))
                 return;
-            cli = __esp.GetClientBySockID(__esp._espKer.args[0]);
-            __esp.custHook(__esp._espKer.args[0],
+            cli = __esp.GetClientBySockID(__esp._ker.args[0]);
+            __esp.custHook(__esp._ker.args[0],
                             (uint8_t*)(cli->RespBody),
                             (uint16_t)((cli->RespLen)));
-            __esp._espKer.retVal = ESP_STATUS_OK;
+            __esp._ker.retVal = ESP_STATUS_OK;
         }
         break;
     /*
@@ -153,19 +153,19 @@ void _ESP_KernelCallback(void)
     case ESP_T_CLOSETCP:
         {
             //  Check if socket ID is valid
-            if (!__esp.ValidSocket(__esp._espKer.args[0]))
+            if (!__esp.ValidSocket(__esp._ker.args[0]))
                 return;
             //  Initiate socket closing from client object
-            __esp._espKer.retVal = __esp.GetClientBySockID(__esp._espKer.args[0])
+            __esp._ker.retVal = __esp.GetClientBySockID(__esp._ker.args[0])
                                               ->Close();
         }
         break;
     case ESP_T_REBOOT:
         {
             //  Set initial error status
-            __esp._espKer.retVal = ESP_STATUS_ERROR;
+            __esp._ker.retVal = ESP_STATUS_ERROR;
             //  Reboot only if 0x17 was sent as argument
-            if (__esp._espKer.args[0] != 0x17)
+            if (__esp._ker.args[0] != 0x17)
                 return;
             //  Start by closing all opened sockets
             for (uint8_t i = 0; i < ESP_MAX_CLI; i++)
@@ -174,10 +174,10 @@ void _ESP_KernelCallback(void)
             //  Power down ESP chip
             __esp.Enable(false);
 #ifdef __HAL_USE_EVENTLOG__
-            EMIT_EV(__esp._espKer.serviceID, EVENT_UNINITIALIZED);
+            EMIT_EV(__esp._ker.serviceID, EVENT_UNINITIALIZED);
 #endif  /* __HAL_USE_EVENTLOG__ */
             //  Rerun initialization sequence
-            __esp._espKer.retVal = __esp.InitHW();
+            __esp._ker.retVal = __esp.InitHW();
             __esp.wifiStatus = ESP_WIFI_CONNECTING;
 
             //  ESP is now connecting to AP on its own, based on data stored in
@@ -195,10 +195,10 @@ void _ESP_KernelCallback(void)
 
     //  Report outcome to event logger
 #ifdef __HAL_USE_EVENTLOG__
-    if ((__esp._espKer.retVal & ESP_STATUS_OK) > 0)
-        EMIT_EV(__esp._espKer.serviceID, EVENT_OK);
+    if ((__esp._ker.retVal & ESP_STATUS_OK) > 0)
+        EMIT_EV(__esp._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__esp._espKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__esp._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 }
 #endif  /* __USE_TASK_SCHEDULER__ */
@@ -287,8 +287,8 @@ uint32_t ESP8266::InitHW(int32_t baud)
 
 #if defined(__USE_TASK_SCHEDULER__)
     //  Register module services with task scheduler
-    _espKer.callBackFunc = _ESP_KernelCallback;
-    TS_RegCallback(&_espKer, ESP_UID);
+    _ker.callBackFunc = _ESP_KernelCallback;
+    TS_RegCallback(&_ker, ESP_UID);
 #endif  /* __USE_TASK_SCHEDULER__ */
 
 #ifdef __HAL_USE_EVENTLOG__

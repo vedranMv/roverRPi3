@@ -49,16 +49,16 @@ void _PLAT_KernelCallback(void)
     Platform  &__plat = Platform::GetI();
 
     //  Check for null-pointer
-    if (__plat._platKer.args == 0)
+    if (__plat._ker.args == 0)
         return;
-    //__plat.mpu.Listen(false);
+
     /*
      *  Data in args[] contains bytes that constitute arguments for function
      *  calls. The exact representation(i.e. whether bytes represent ints, floats)
      *  of data is known only to individual blocks of switch() function. There
      *  is no predefined data separator between arguments inside args[].
      */
-    switch (__plat._platKer.serviceID)
+    switch (__plat._ker.serviceID)
     {
     /*
      *  Pack & send telemetry frame
@@ -102,17 +102,17 @@ void _PLAT_KernelCallback(void)
             telemetryFrame += '\n';
 
             //  Send over telemetry stream
-            __plat._platKer.retVal =
+            __plat._ker.retVal =
                     __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str());
 
 #ifdef __DEBUG_SESSION__
             DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
-                    __plat._platKer.retVal, telemetryFrame.length(),   \
+                    __plat._ker.retVal, telemetryFrame.length(),   \
                     telemetryFrame.c_str());
 #endif
 
             //  If previous sending failed, no need to force next sending, pass
-            if (__plat._platKer.retVal != STATUS_OK)
+            if (__plat._ker.retVal != STATUS_OK)
                 return;
 
             //  If there are any unsent events, ship them off now
@@ -137,7 +137,7 @@ void _PLAT_KernelCallback(void)
 
 #ifdef __DEBUG_SESSION__
                     DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
-                            __plat._platKer.retVal, telemetryFrame.length(),   \
+                            __plat._ker.retVal, telemetryFrame.length(),   \
                             telemetryFrame.c_str());
 #endif
 
@@ -148,7 +148,7 @@ void _PLAT_KernelCallback(void)
 
             //  Telemetry doesn't affect status, if it fails, software
             //  does best-effort to try and resend it
-            __plat._platKer.retVal = STATUS_OK;
+            __plat._ker.retVal = STATUS_OK;
             return; //  No need to report status, telemetry is not important
         }
     /*
@@ -159,7 +159,7 @@ void _PLAT_KernelCallback(void)
     case PLAT_T_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
-            if (__plat._platKer.args[0] == 0x17)
+            if (__plat._ker.args[0] == 0x17)
             {
                 HAL_BOARD_Reset();
             }
@@ -200,7 +200,7 @@ void _PLAT_KernelCallback(void)
             }
             //  Telemetry can't affect status, it's only a best-effort to
             //  deliver data
-            __plat._platKer.retVal = STATUS_OK;
+            __plat._ker.retVal = STATUS_OK;
         }
         break;
     /*
@@ -211,7 +211,7 @@ void _PLAT_KernelCallback(void)
     case PLAT_T_SOFT_REBOOT:
         {
             //  Reboot only if 0x17 was sent as argument
-            if (__plat._platKer.args[0] == 0x17)
+            if (__plat._ker.args[0] == 0x17)
             {
 #ifdef __HAL_USE_EVENTLOG__
                 EventLog::SoftReboot(PLAT_UID);
@@ -219,7 +219,7 @@ void _PLAT_KernelCallback(void)
 
             }
             //  There's nothing that can affect outcome of this task
-            __plat._platKer.retVal = STATUS_OK;
+            __plat._ker.retVal = STATUS_OK;
         }
         break;
     /*
@@ -241,19 +241,19 @@ void _PLAT_KernelCallback(void)
                 //  Construct standard telemetry frame with event log data, format:
                 //  3*:[time]:pendingTasks
                 telemetryFrame =  "3*:";
-                telemetryFrame += "[" + tostr<uint32_t>((uint32_t)task->_timestamp) + "]:";
-                telemetryFrame += tostr<uint16_t>(task->_libuid) + ":";
-                telemetryFrame += tostr<uint16_t>(task->_task) + ":";
-                telemetryFrame += tostr<int32_t>(task->_period) + ":";
-                telemetryFrame += tostr<uint16_t>((uint16_t)task->_PID) + ":";
+                telemetryFrame += "[" + tostr<uint32_t>((uint32_t)task->GetTimeStamp()) + "]:";
+                telemetryFrame += tostr<uint16_t>(task->GetLibUID()) + ":";
+                telemetryFrame += tostr<uint16_t>(task->GetTaskUID()) + ":";
+                telemetryFrame += tostr<int32_t>(task->GetPeriod()) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->GetPID()) + ":";
 
                 //  Task performance data
-                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.taskRuns) + ":";
-                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.startTimeMissCnt) + ":";
-                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.startTimeMissTot) + ":";
-                telemetryFrame += tostr<uint16_t>((uint16_t)task->_perf.msAcc) + ":";
-                telemetryFrame += tostr<uint32_t>((uint32_t)task->_perf.accRT) + ":";
-                telemetryFrame += tostr<uint16_t>((uint16_t)task->_perf.maxRT) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->Perf.taskRuns) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->Perf.startTimeMissCnt) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->Perf.startTimeMissTot) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->Perf.msAcc) + ":";
+                telemetryFrame += tostr<uint32_t>((uint32_t)task->Perf.accRT) + ":";
+                telemetryFrame += tostr<uint16_t>((uint16_t)task->Perf.maxRT) + ":";
 
                 //  Send telemetry frame
                 __plat.telemetry.Send((uint8_t*)telemetryFrame.c_str(),
@@ -261,7 +261,7 @@ void _PLAT_KernelCallback(void)
             }
             //  Telemetry can't affect status, it's only a best-effort to
             //  deliver data
-            __plat._platKer.retVal = STATUS_OK;
+            __plat._ker.retVal = STATUS_OK;
         }
         break;
     /*
@@ -290,7 +290,7 @@ void _PLAT_KernelCallback(void)
 
             #ifdef __DEBUG_SESSION__
                                 DEBUG_WRITE("\nSending frame(%d), len:%d \n  %s \n",     \
-                                        __plat._platKer.retVal, telemetryFrame.length(),   \
+                                        __plat._ker.retVal, telemetryFrame.length(),   \
                                         telemetryFrame.c_str());
             #endif
 
@@ -300,7 +300,7 @@ void _PLAT_KernelCallback(void)
 
             //  Telemetry can't affect status, it's only a best-effort to
             //  deliver data
-            __plat._platKer.retVal = STATUS_OK;
+            __plat._ker.retVal = STATUS_OK;
         }
         break;
     default:
@@ -309,10 +309,10 @@ void _PLAT_KernelCallback(void)
 
     //  Check return-value and emit event based on it
 #ifdef __HAL_USE_EVENTLOG__
-    if (__plat._platKer.retVal == STATUS_OK)
-        EMIT_EV(__plat._platKer.serviceID, EVENT_OK);
+    if (__plat._ker.retVal == STATUS_OK)
+        EMIT_EV(__plat._ker.serviceID, EVENT_OK);
     else
-        EMIT_EV(__plat._platKer.serviceID, EVENT_ERROR);
+        EMIT_EV(__plat._ker.serviceID, EVENT_ERROR);
 #endif  /* __HAL_USE_EVENTLOG__ */
 
 }
@@ -368,8 +368,8 @@ void Platform::InitHW()
 #endif  /* __HAL_USE_EVENTLOG__ */
 
     //  Register module services with task scheduler
-    _platKer.callBackFunc = _PLAT_KernelCallback;
-    TS_RegCallback(&_platKer, PLAT_UID);
+    _ker.callBackFunc = _PLAT_KernelCallback;
+    TS_RegCallback(&_ker, PLAT_UID);
 
     //  If using ESP chip, get handle and connect to access point
 #ifdef __HAL_USE_ESP8266__
